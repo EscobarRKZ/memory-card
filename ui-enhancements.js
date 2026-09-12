@@ -1,8 +1,9 @@
-/* Memory Card UI enhancements — performance-safe v0.19 */
+/* Memory Card UI enhancements — render-stable v0.21
+   Platform icon buttons + Games sorting without delayed list reshuffles.
+*/
 (() => {
   const SORT_KEY = 'memory-card-games-sort-v1';
   const collator = new Intl.Collator('ru', { sensitivity: 'base', numeric: true });
-  let timer = 0;
 
   const platforms = [
     ['PSP', 'PSP'], ['VITA', 'Vita'], ['DSI', 'DSi'], ['3DS', '3DS'],
@@ -19,6 +20,15 @@
     WIIU: '<svg viewBox="0 0 72 44" aria-hidden="true"><rect x="5" y="7" width="62" height="30" rx="8"/><rect class="screen-cut" x="22" y="10" width="28" height="22" rx="2"/><circle class="screen-cut" cx="14" cy="18" r="3"/><circle class="screen-cut" cx="58" cy="18" r="3"/></svg>',
     SWITCH: '<svg viewBox="0 0 72 44" aria-hidden="true"><rect x="18" y="6" width="36" height="32" rx="3"/><rect class="screen-cut" x="22" y="9" width="28" height="26" rx="1"/><path d="M9 5h9v34H9c-4 0-7-4-7-9V14c0-5 3-9 7-9ZM54 5h9c4 0 7 4 7 9v16c0 5-3 9-7 9h-9Z"/><circle class="screen-cut" cx="11" cy="16" r="3"/><circle class="screen-cut" cx="61" cy="28" r="3"/></svg>',
   };
+
+  function readSort() {
+    try { return localStorage.getItem(SORT_KEY) || 'default'; }
+    catch (_) { return 'default'; }
+  }
+
+  function writeSort(value) {
+    try { localStorage.setItem(SORT_KEY, value); } catch (_) {}
+  }
 
   function upgradePlatformSelector(select) {
     if (!(select instanceof HTMLSelectElement) || select.dataset.buttonSelectorReady === '1') return;
@@ -62,15 +72,13 @@
     updateSelected();
   }
 
-  function readSort() {
-    try { return localStorage.getItem(SORT_KEY) || 'default'; }
-    catch (_) { return 'default'; }
-  }
-  function writeSort(value) {
-    try { localStorage.setItem(SORT_KEY, value); } catch (_) {}
+  function rememberOriginalOrder(grid) {
+    [...grid.querySelectorAll(':scope > .game-card')].forEach((card, index) => {
+      if (!card.dataset.originalSortIndex) card.dataset.originalSortIndex = String(index + 1);
+    });
   }
 
-  function cardData(card, index) {
+  function cardData(card) {
     const title = (card.querySelector('.game-body h3')?.textContent || '').trim();
     const ratingText = card.querySelector('.stars-chip')?.textContent || '';
     const ratingMatch = ratingText.match(/([0-9]+(?:[.,][0-9]+)?)/);
@@ -81,7 +89,7 @@
       title,
       rating: ratingMatch ? Number(ratingMatch[1].replace(',', '.')) : -1,
       year: years?.length ? Number(years[years.length - 1]) : 0,
-      index,
+      original: Number(card.dataset.originalSortIndex || 0),
     };
   }
 
@@ -109,17 +117,27 @@
         if (!b.year && a.year) return -1;
         return a.year - b.year || collator.compare(a.title, b.title);
       }
-      default: return a.index - b.index;
+      default: return a.original - b.original;
     }
   }
 
   function applySort(grid, mode) {
-    if (!grid || mode === 'default') return;
+    if (!(grid instanceof HTMLElement)) return;
+    rememberOriginalOrder(grid);
     const cards = [...grid.querySelectorAll(':scope > .game-card')];
-    if (cards.length < 2) return;
-    const rows = cards.map(cardData);
-    rows.sort((a, b) => compare(a, b, mode));
+    if (cards.length < 2) {
+      grid.dataset.sortReady = '1';
+      grid.dataset.sortMode = mode;
+      return;
+    }
+
+    const rows = cards.map(cardData).sort((a, b) => compare(a, b, mode));
+    // Mark before moving nodes. The observer can see those mutations, but will then
+    // know this exact grid has already been processed for this mode.
+    grid.dataset.sortMode = mode;
+    grid.dataset.sortReady = '1';
     if (rows.every((row, i) => row.card === cards[i])) return;
+
     const fragment = document.createDocumentFragment();
     for (const row of rows) fragment.appendChild(row.card);
     grid.appendChild(fragment);
@@ -131,6 +149,7 @@
     const toolbar = search?.closest('.toolbar');
     if (!grid || !toolbar) return;
 
+    const mode = readSort();
     let select = toolbar.querySelector('#gamesSort');
     if (!select) {
       const field = document.createElement('div');
@@ -146,15 +165,20 @@
       </select>`;
       toolbar.appendChild(field);
       select = field.querySelector('#gamesSort');
-      select.value = readSort();
+      select.value = mode;
       select.addEventListener('change', () => {
-        writeSort(select.value);
-        requestAnimationFrame(() => applySort(document.querySelector('.game-grid'), select.value));
+        const next = select.value || 'default';
+        writeSort(next);
+        const currentGrid = document.querySelector('.game-grid');
+        if (currentGrid) applySort(currentGrid, next);
       });
-    } else if (select.value !== readSort()) {
-      select.value = readSort();
+    } else if (select.value !== mode) {
+      select.value = mode;
     }
-    applySort(grid, select.value || 'default');
+
+    if (grid.dataset.sortReady !== '1' || grid.dataset.sortMode !== mode) {
+      applySort(grid, mode);
+    }
   }
 
   function enhance() {
@@ -162,22 +186,15 @@
     upgradeGamesSorting();
   }
 
-  function scheduleEnhance(delay = 0) {
-    clearTimeout(timer);
-    timer = setTimeout(() => requestAnimationFrame(enhance), delay);
+  // app.js rebuilds #app synchronously. MutationObserver callbacks run before the
+  // browser's next paint, so a freshly rendered Games grid is sorted before the user
+  // sees it. This avoids the old unsorted -> sorted -> unsorted visual jump.
+  const app = document.querySelector('#app');
+  if (app) {
+    new MutationObserver(() => enhance()).observe(app, { childList: true, subtree: true });
   }
 
-  // Event-driven only. No MutationObserver: the previous observer stack could create
-  // large cascades whenever the Games grid was rebuilt.
-  for (const type of ['click', 'change', 'input']) {
-    document.addEventListener(type, () => scheduleEnhance(type === 'input' ? 30 : 10));
-  }
-  window.addEventListener('load', () => scheduleEnhance(20));
-  window.addEventListener('pageshow', () => scheduleEnhance(20));
-
-  // A very cheap safety pass for renders caused by background sync (no user event).
-  setInterval(() => {
-    if (document.hidden) return;
-    if (document.querySelector('.game-grid, form select[data-game-platform]')) enhance();
-  }, 2000);
+  window.addEventListener('pageshow', enhance);
+  window.addEventListener('load', enhance);
+  enhance();
 })();
