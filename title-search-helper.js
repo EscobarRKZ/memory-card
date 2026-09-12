@@ -1,6 +1,6 @@
-/* Memory Card search fix — title-only filtering, event-driven v3 */
+/* Memory Card search fix — title-only filtering, same-frame v4 */
 (() => {
-  let timer = 0;
+  let queued = false;
 
   const normalize = value => String(value || '')
     .toLowerCase()
@@ -51,13 +51,18 @@
     }
   }
 
-  function scheduleApply(delay = 0) {
-    clearTimeout(timer);
-    timer = setTimeout(() => requestAnimationFrame(applyTitleOnlySearch), delay);
+  function scheduleApply() {
+    if (queued) return;
+    queued = true;
+    // app.js redraws synchronously inside the original input/change/click handler.
+    // A microtask runs after that handler but before the browser paints, so the user
+    // never sees the broader intermediate list and then a second title-only list.
+    queueMicrotask(() => {
+      queued = false;
+      applyTitleOnlySearch();
+    });
   }
 
-  // No MutationObserver here: app.js already redraws the view. We only correct the
-  // result after user actions that can trigger that redraw, avoiding observer loops.
   document.addEventListener('input', event => {
     if (event.target instanceof HTMLInputElement && event.target.id === 'search') scheduleApply();
   });
@@ -66,8 +71,8 @@
   });
   document.addEventListener('click', event => {
     const target = event.target instanceof Element ? event.target : null;
-    if (target?.closest('.nav button, .mobile-nav button, [data-action="clear-platform"]')) scheduleApply(20);
+    if (target?.closest('.nav button, .mobile-nav button, [data-action="clear-platform"]')) scheduleApply();
   });
-  window.addEventListener('load', () => scheduleApply(20));
-  window.addEventListener('pageshow', () => scheduleApply(20));
+  window.addEventListener('load', scheduleApply);
+  window.addEventListener('pageshow', scheduleApply);
 })();
