@@ -1275,34 +1275,54 @@ function syncableSettings() {
   };
 }
 
-function jsonpRequest(baseUrl, params = {}, timeoutMs = 20000) {
+function iframePullRequest(baseUrl, params = {}, timeoutMs = 25000) {
   return new Promise((resolve, reject) => {
-    const callback = `__memoryCardJsonp_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const requestId = `mc_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const iframe = document.createElement('iframe');
+    iframe.setAttribute('aria-hidden', 'true');
+    iframe.tabIndex = -1;
+    iframe.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;left:-9999px;top:-9999px;border:0';
     let timer = null;
-    const script = document.createElement('script');
+
     const cleanup = () => {
       if (timer) clearTimeout(timer);
-      try { delete window[callback]; } catch (_) { window[callback] = undefined; }
-      script.remove();
+      window.removeEventListener('message', onMessage);
+      iframe.remove();
     };
-    window[callback] = data => { cleanup(); resolve(data); };
-    script.onerror = () => { cleanup(); reject(new Error('Не удалось получить ответ Google Apps Script')); };
+
+    const onMessage = event => {
+      // Do not trust unrelated postMessage traffic. The response must originate from
+      // the exact hidden frame we created and carry our unguessable request id.
+      if (event.source !== iframe.contentWindow) return;
+      const msg = event.data;
+      if (!msg || msg.type !== 'memory-card-sync' || msg.requestId !== requestId) return;
+      cleanup();
+      resolve(msg.payload);
+    };
+
+    window.addEventListener('message', onMessage);
     try {
       const u = new URL(baseUrl);
       Object.entries(params).forEach(([k, v]) => u.searchParams.set(k, String(v ?? '')));
-      u.searchParams.set('callback', callback);
+      u.searchParams.set('action', 'pull-frame');
+      u.searchParams.set('requestId', requestId);
       u.searchParams.set('_', Date.now().toString());
-      script.src = u.toString();
+      iframe.src = u.toString();
     } catch (e) {
       cleanup();
       reject(new Error('Некорректный Apps Script endpoint'));
       return;
     }
+
+    iframe.onerror = () => {
+      cleanup();
+      reject(new Error('Не удалось открыть транспорт Google Apps Script'));
+    };
     timer = setTimeout(() => {
       cleanup();
-      reject(new Error('Google Apps Script не ответил вовремя'));
+      reject(new Error('Google Apps Script не вернул данные вовремя'));
     }, timeoutMs);
-    document.head.appendChild(script);
+    document.body.appendChild(iframe);
   });
 }
 
@@ -1323,7 +1343,7 @@ async function syncSheets(options = {}) {
     // Google Apps Script ContentService отвечает через redirect на googleusercontent.
     // Обычный cross-origin fetch пытается прочитать этот ответ и Safari/Chrome может
     // заблокировать его CORS. Поэтому POST только отправляет данные в режиме no-cors,
-    // а актуальное состояние читаем отдельным JSONP GET.
+    // а актуальное состояние читаем через скрытый iframe + postMessage (без CORS).
     if (!silent) setTaskProgress('Синхронизация', 24, 100, 'Отправляю локальные данные');
     await fetch(url, {
       method: 'POST',
@@ -1338,8 +1358,7 @@ async function syncSheets(options = {}) {
     await sleep(350);
 
     if (!silent) setTaskProgress('Синхронизация', 68, 100, 'Получаю актуальную библиотеку');
-    const data = await jsonpRequest(url, {
-      action: 'pull',
+    const data = await iframePullRequest(url, {
       secret: state.settings.syncSecret,
     });
     if (!data || !data.ok) throw new Error(data?.error || 'Google Apps Script вернул ошибку');
@@ -1369,7 +1388,7 @@ async function syncSheets(options = {}) {
 }
 
 function exportData() {
-  const blob = new Blob([JSON.stringify({ version: 7, exportedAt: nowIso(), games: state.games, settings: state.settings }, null, 2)], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify({ version: 8, exportedAt: nowIso(), games: state.games, settings: state.settings }, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = `memory-card-${new Date().toISOString().slice(0, 10)}.json`;

@@ -1,4 +1,4 @@
-const CACHE='memory-card-v7';
+const CACHE='memory-card-v8';
 const COVER_CACHE='memory-card-covers-v3';
 const ASSETS=['./','./index.html','./styles.css','./app.js','./manifest.webmanifest','./icon.svg','./logo-192.png','./logo-512.png','./logo.png'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting())));
