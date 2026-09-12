@@ -1,6 +1,6 @@
-const CACHE='memory-card-v24-cover-proxy';
-const COVER_CACHE='memory-card-covers-v9';
-const ASSETS=['./','./index.html','./styles.css','./mobile.css','./cover-fixes.css','./ui-enhancements.css','./title-search-helper.js','./switch-cover-helper.js','./ps3-cover-helper.js','./ui-enhancements.js','./catalog-refresh-helper.js','./app.js','./manifest.webmanifest','./icon.svg','./logo-192.png','./logo-512.png','./logo.png'];
+const CACHE='memory-card-v25-ps3-wikipedia-fallback';
+const COVER_CACHE='memory-card-covers-v10';
+const ASSETS=['./','./index.html','./styles.css','./mobile.css','./cover-fixes.css','./ui-enhancements.css','./title-search-helper.js','./switch-cover-helper.js','./ps3-cover-helper.js','./ps3-wikipedia-cover-helper.js','./ui-enhancements.js','./catalog-refresh-helper.js','./app.js','./manifest.webmanifest','./icon.svg','./logo-192.png','./logo-512.png','./logo.png'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>![CACHE,COVER_CACHE].includes(k)).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',e=>{
