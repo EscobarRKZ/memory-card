@@ -1,4 +1,4 @@
-const CACHE='memory-card-v21-sort-ps3-covers';
+const CACHE='memory-card-v22-ui-stability';
 const COVER_CACHE='memory-card-covers-v7';
 const ASSETS=['./','./index.html','./styles.css','./mobile.css','./cover-fixes.css','./ui-enhancements.css','./title-search-helper.js','./switch-cover-helper.js','./ps3-cover-helper.js','./ui-enhancements.js','./catalog-refresh-helper.js','./app.js','./manifest.webmanifest','./icon.svg','./logo-192.png','./logo-512.png','./logo.png'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting())));
