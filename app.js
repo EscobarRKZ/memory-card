@@ -869,7 +869,7 @@ function renderSettings() {
     <section class="panel"><h3>Оформление</h3><div class="field theme-field"><label>Тема</label><select id="themeMode"><option value="system" ${state.settings.theme === 'system' ? 'selected' : ''}>Системная</option><option value="light" ${state.settings.theme === 'light' ? 'selected' : ''}>Светлая</option><option value="dark" ${state.settings.theme === 'dark' ? 'selected' : ''}>Тёмная</option></select></div><div class="footer-note">В режиме «Системная» приложение автоматически следует теме устройства.</div></section>
     <div class="rotation-settings-grid">${rotationEditor('handheld')}${rotationEditor('desktop')}</div>
     <section class="panel"><div class="settings-panel-head"><div><h3>Каталог игр и обложки</h3><p class="status-line">Каталог нужен для автоподстановки названия, года и жанра. Для PSP, Vita, DS/DSi, 3DS, GBA, PS3 и Wii U обложки теперь берутся только из Libretro Named_Boxarts — отдельной базы именно коробок игр. Для Switch используется осторожный резервный поиск.</p></div><div class="settings-actions"><button class="secondary" data-action="catalog-refresh-all">Обновить каталог</button><button class="secondary" data-action="covers-refresh">Обновить обложки</button></div></div><div id="catalogStatus" class="catalog-status">${PLATFORMS.map(p => `${p.abbr}: <b>${catalogCounts()[p.id] || 0}</b>`).join(' · ')}</div><div class="footer-note">Если надёжная обложка не найдена, Memory Card оставит цветную заглушку вместо случайной фотографии или логотипа.</div></section>
-    <section class="panel"><h3>Google Sheets · безопасная синхронизация</h3><p class="status-line">Перед каждым обменом автоматически создаётся локальная резервная копия. Локальная библиотека и облачная библиотека всегда объединяются по ID и времени изменения — пустой ответ сервера больше не может стереть игры на устройстве.</p><div class="form-grid"><div class="field span-2"><label>Apps Script endpoint</label><input id="sheetEndpoint" placeholder="https://script.google.com/macros/s/.../exec" value="${esc(state.settings.sheetEndpoint || '')}"></div><div class="field span-2"><label>Секрет синхронизации</label><input id="syncSecret" type="password" value="${esc(state.settings.syncSecret || '')}"></div><label class="sync-toggle span-2"><input id="autoSync" type="checkbox" ${state.settings.autoSync === true ? 'checked' : ''}><span><b>Автосинхронизация</b><small>После обновления до v0.10 она один раз отключается из соображений безопасности. Сначала проверь ручную синхронизацию, затем можешь включить снова.</small></span></label></div><div class="settings-actions"><button class="primary" data-action="sync">Синхронизировать сейчас</button><button class="secondary" data-action="save-settings">Сохранить настройки</button><button class="secondary" data-action="restore-backup">Восстановить локальную копию</button></div><div class="status-line sync-status">${state.settings.lastSync ? `Последняя синхронизация: ${new Date(state.settings.lastSync).toLocaleString('ru-RU')}` : 'Синхронизация ещё не выполнялась.'}${state.settings.lastLocalBackupAt ? ` · Резервная копия: ${new Date(state.settings.lastLocalBackupAt).toLocaleString('ru-RU')}` : ''}</div><div class="footer-note">Endpoint и секрет остаются только на этом устройстве. В Google Таблицу они не записываются.</div></section>
+    <section class="panel"><h3>Google Sheets · безопасная синхронизация</h3><p class="status-line">Перед каждым обменом автоматически создаётся локальная резервная копия. Локальная библиотека и облачная библиотека всегда объединяются по ID и времени изменения — пустой ответ сервера больше не может стереть игры на устройстве.</p><div class="form-grid"><div class="field span-2"><label>Apps Script endpoint</label><input id="sheetEndpoint" placeholder="https://script.google.com/macros/s/.../exec" value="${esc(state.settings.sheetEndpoint || '')}"></div><div class="field span-2"><label>Секрет синхронизации</label><input id="syncSecret" type="password" value="${esc(state.settings.syncSecret || '')}"></div><label class="sync-toggle span-2"><input id="autoSync" type="checkbox" ${state.settings.autoSync === true ? 'checked' : ''}><span><b>Автосинхронизация</b><small>После обновления до v0.11 она один раз отключается из соображений безопасности. Сначала проверь ручную синхронизацию, затем можешь включить снова.</small></span></label></div><div class="settings-actions"><button class="primary" data-action="sync">Синхронизировать сейчас</button><button class="secondary" data-action="sync-test">Проверить подключение</button><button class="secondary" data-action="save-settings">Сохранить настройки</button><button class="secondary" data-action="restore-backup">Восстановить локальную копию</button></div><div class="status-line sync-status">${state.settings.lastSync ? `Последняя синхронизация: ${new Date(state.settings.lastSync).toLocaleString('ru-RU')}` : 'Синхронизация ещё не выполнялась.'}${state.settings.lastLocalBackupAt ? ` · Резервная копия: ${new Date(state.settings.lastLocalBackupAt).toLocaleString('ru-RU')}` : ''}</div><div class="footer-note">Endpoint и секрет остаются только на этом устройстве. В Google Таблицу они не записываются.</div></section>
     <section class="panel"><h3>Резервная копия</h3><div class="settings-actions"><button class="secondary" data-action="export">Экспорт JSON</button><label class="secondary file-label">Импорт JSON<input id="importFile" type="file" accept="application/json" hidden></label></div><div class="footer-note">Экспорт содержит игры и настройки приложения.</div></section>
   </div>`;
 }
@@ -936,6 +936,7 @@ function bind() {
   document.querySelectorAll('[data-action="clear-platform"]').forEach(x => x.onclick = () => { state.platformFilter = ''; render(); });
   document.querySelectorAll('[data-action="save-settings"]').forEach(x => x.onclick = saveSettings);
   document.querySelectorAll('[data-action="sync"]').forEach(x => x.onclick = () => syncSheets({ silent: false }));
+  document.querySelectorAll('[data-action="sync-test"]').forEach(x => x.onclick = testSheetsConnection);
   document.querySelectorAll('[data-action="restore-backup"]').forEach(x => x.onclick = restoreLatestSnapshot);
   document.querySelectorAll('[data-action="export"]').forEach(x => x.onclick = exportData);
   document.querySelectorAll('[data-action="rotation-move"]').forEach(x => x.onclick = () => moveRotation(x.dataset.group, x.dataset.id, x.dataset.direction));
@@ -1517,42 +1518,77 @@ function syncableSettings() {
   };
 }
 
-function jsonpPullRequest(baseUrl, params = {}, timeoutMs = 22000) {
+function appsScriptBridgeRequest(baseUrl, payload = {}, timeoutMs = 45000) {
   return new Promise((resolve, reject) => {
-    const callbackName = `__memoryCardSync_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    const script = document.createElement('script');
+    const requestId = `mc_${crypto.randomUUID?.() || `${Date.now()}_${Math.random().toString(36).slice(2)}`}`;
+    const iframe = document.createElement('iframe');
+    iframe.setAttribute('aria-hidden', 'true');
+    iframe.tabIndex = -1;
+    iframe.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;left:-9999px;top:-9999px;border:0';
     let timer = null;
+    let retryTimer = null;
+    let ready = false;
+    let sends = 0;
+    let bridgeWindow = null;
+
     const cleanup = () => {
       if (timer) clearTimeout(timer);
-      script.remove();
-      try { delete window[callbackName]; } catch (_) { window[callbackName] = undefined; }
+      if (retryTimer) clearInterval(retryTimer);
+      window.removeEventListener('message', onMessage);
+      iframe.remove();
     };
-    window[callbackName] = payload => {
+    const sendRequest = () => {
+      const target = bridgeWindow || iframe.contentWindow;
+      if (!target || sends >= 8) return;
+      sends++;
+      target.postMessage({
+        type: 'memory-card-bridge-request',
+        requestId,
+        payload,
+      }, '*');
+    };
+    const onMessage = event => {
+      const msg = event.data;
+      if (!msg || typeof msg !== 'object') return;
+      if (msg.type === 'memory-card-bridge-ready') {
+        ready = true;
+        bridgeWindow = event.source || iframe.contentWindow;
+        if (retryTimer) { clearInterval(retryTimer); retryTimer = null; }
+        sendRequest();
+        return;
+      }
+      if (msg.type !== 'memory-card-bridge-response' || msg.requestId !== requestId) return;
       cleanup();
-      resolve(payload);
+      resolve(msg.payload);
     };
+
+    window.addEventListener('message', onMessage);
     try {
       const u = new URL(baseUrl);
-      Object.entries(params).forEach(([k, v]) => u.searchParams.set(k, String(v ?? '')));
-      u.searchParams.set('action', 'pull');
-      u.searchParams.set('callback', callbackName);
+      u.searchParams.set('action', 'bridge');
+      u.searchParams.set('parentOrigin', location.origin);
+      u.searchParams.set('v', '11');
       u.searchParams.set('_', Date.now().toString());
-      script.src = u.toString();
-      script.async = true;
+      iframe.src = u.toString();
     } catch (_) {
       cleanup();
       reject(new Error('Некорректный Apps Script endpoint'));
       return;
     }
-    script.onerror = () => {
+
+    iframe.onload = () => {
+      if (!ready) sendRequest();
+      retryTimer = setInterval(() => { if (!ready) sendRequest(); }, 1200);
+    };
+    iframe.onerror = () => {
       cleanup();
-      reject(new Error('Не удалось получить ответ Google Apps Script'));
+      reject(new Error('Не удалось открыть мост Google Apps Script'));
     };
     timer = setTimeout(() => {
       cleanup();
-      reject(new Error('Google Apps Script не ответил вовремя'));
+      reject(new Error(ready ? 'Apps Script bridge открылся, но серверная функция не ответила вовремя' : 'Apps Script bridge не открылся вовремя'));
     }, timeoutMs);
-    document.head.appendChild(script);
+    document.body.appendChild(iframe);
   });
 }
 
@@ -1587,6 +1623,26 @@ function mergeClientSettings(local, remote) {
   });
 }
 
+async function testSheetsConnection() {
+  await saveSettings(true);
+  const url = String(state.settings.sheetEndpoint || '').trim();
+  if (!url) { alert('Сначала укажи Apps Script endpoint.'); return; }
+  try {
+    setTaskProgress('Проверка Google Sheets', 15, 100, 'Открываю Apps Script bridge');
+    const data = await appsScriptBridgeRequest(url, {
+      action: 'ping',
+      secret: state.settings.syncSecret,
+    }, 30000);
+    if (!data || !data.ok) throw new Error(data?.error || 'Неизвестная ошибка');
+    finishTaskProgress('Подключение работает', `Apps Script v${data.version || '?'} · ${data.count ?? 0} записей в облаке`);
+    alert(`Подключение к Google Sheets работает.\n\nApps Script: v${data.version || '?'}\nЗаписей в облаке: ${data.count ?? 0}`);
+  } catch (e) {
+    console.error(e);
+    failTaskProgress('Проверка не пройдена', e.message || 'Ошибка подключения');
+    alert(`Не удалось проверить подключение.\n\n${e.message || e}`);
+  }
+}
+
 async function syncSheets(options = {}) {
   const { silent = false, skipSaveSettings = false } = options;
   if (syncInFlight) {
@@ -1608,19 +1664,15 @@ async function syncSheets(options = {}) {
     await createLocalSnapshot('before-sync');
     await persist();
 
-    if (!silent) setTaskProgress('Синхронизация', 22, 100, 'Отправляю локальные изменения');
-    await fetch(url, {
-      method: 'POST',
-      mode: 'no-cors',
-      cache: 'no-store',
-      redirect: 'follow',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: 'sync', secret: state.settings.syncSecret, games: localBefore, settings: syncableSettings() }),
+    if (!silent) setTaskProgress('Синхронизация', 25, 100, 'Подключаю Apps Script bridge');
+    const data = await appsScriptBridgeRequest(url, {
+      action: 'sync',
+      secret: state.settings.syncSecret,
+      games: localBefore,
+      settings: syncableSettings(),
     });
-
-    if (!silent) setTaskProgress('Синхронизация', 55, 100, 'Получаю облачную библиотеку');
-    const data = await jsonpPullRequest(url, { secret: state.settings.syncSecret });
     if (!data || !data.ok) throw new Error(data?.error || 'Google Apps Script вернул ошибку');
+    if (!silent) setTaskProgress('Синхронизация', 62, 100, 'Получена объединённая облачная библиотека');
 
     const remoteGames = Array.isArray(data.games) ? data.games : [];
     const mergedGames = mergeClientGames(localBefore, remoteGames);
@@ -1663,7 +1715,7 @@ async function syncSheets(options = {}) {
 }
 
 function exportData() {
-  const blob = new Blob([JSON.stringify({ version: 10, exportedAt: nowIso(), games: state.games, settings: state.settings }, null, 2)], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify({ version: 11, exportedAt: nowIso(), games: state.games, settings: state.settings }, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = `memory-card-${new Date().toISOString().slice(0, 10)}.json`;
