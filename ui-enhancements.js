@@ -1,4 +1,4 @@
-/* Memory Card UI enhancements — render-stable v0.21
+/* Memory Card UI enhancements — render-stable v0.22
    Platform icon buttons + Games sorting without delayed list reshuffles.
 */
 (() => {
@@ -125,17 +125,11 @@
     if (!(grid instanceof HTMLElement)) return;
     rememberOriginalOrder(grid);
     const cards = [...grid.querySelectorAll(':scope > .game-card')];
-    if (cards.length < 2) {
-      grid.dataset.sortReady = '1';
-      grid.dataset.sortMode = mode;
-      return;
-    }
-
-    const rows = cards.map(cardData).sort((a, b) => compare(a, b, mode));
-    // Mark before moving nodes. The observer can see those mutations, but will then
-    // know this exact grid has already been processed for this mode.
     grid.dataset.sortMode = mode;
     grid.dataset.sortReady = '1';
+    if (cards.length < 2) return;
+
+    const rows = cards.map(cardData).sort((a, b) => compare(a, b, mode));
     if (rows.every((row, i) => row.card === cards[i])) return;
 
     const fragment = document.createDocumentFragment();
@@ -143,11 +137,10 @@
     grid.appendChild(fragment);
   }
 
-  function upgradeGamesSorting() {
-    const grid = document.querySelector('.game-grid');
+  function ensureGamesSortControl() {
     const search = document.querySelector('#search');
     const toolbar = search?.closest('.toolbar');
-    if (!grid || !toolbar) return;
+    if (!toolbar) return null;
 
     const mode = readSort();
     let select = toolbar.querySelector('#gamesSort');
@@ -165,20 +158,25 @@
       </select>`;
       toolbar.appendChild(field);
       select = field.querySelector('#gamesSort');
-      select.value = mode;
       select.addEventListener('change', () => {
         const next = select.value || 'default';
         writeSort(next);
         const currentGrid = document.querySelector('.game-grid');
         if (currentGrid) applySort(currentGrid, next);
       });
-    } else if (select.value !== mode) {
-      select.value = mode;
     }
+    if (select && select.value !== mode) select.value = mode;
+    return select;
+  }
 
-    if (grid.dataset.sortReady !== '1' || grid.dataset.sortMode !== mode) {
-      applySort(grid, mode);
-    }
+  function upgradeGamesSorting() {
+    // Keep the control present whenever the Games toolbar exists, even if the current
+    // filters temporarily produce zero cards. Previously it vanished with .game-grid.
+    ensureGamesSortControl();
+    const grid = document.querySelector('.game-grid');
+    if (!grid) return;
+    const mode = readSort();
+    if (grid.dataset.sortReady !== '1' || grid.dataset.sortMode !== mode) applySort(grid, mode);
   }
 
   function enhance() {
@@ -186,15 +184,35 @@
     upgradeGamesSorting();
   }
 
-  // app.js rebuilds #app synchronously. MutationObserver callbacks run before the
-  // browser's next paint, so a freshly rendered Games grid is sorted before the user
-  // sees it. This avoids the old unsorted -> sorted -> unsorted visual jump.
   const app = document.querySelector('#app');
-  if (app) {
-    new MutationObserver(() => enhance()).observe(app, { childList: true, subtree: true });
+  let observer = null;
+  let queued = false;
+
+  function observe() {
+    if (app && observer) observer.observe(app, { childList: true, subtree: true });
   }
 
-  window.addEventListener('pageshow', enhance);
-  window.addEventListener('load', enhance);
-  enhance();
+  function runEnhance() {
+    queued = false;
+    // Avoid observing our own node moves/additions. That used to create extra observer
+    // passes during every app.js re-render and could make the toolbar/list feel jumpy.
+    observer?.disconnect();
+    try { enhance(); }
+    finally { observe(); }
+  }
+
+  function scheduleEnhance() {
+    if (queued) return;
+    queued = true;
+    queueMicrotask(runEnhance);
+  }
+
+  if (app) {
+    observer = new MutationObserver(scheduleEnhance);
+    observe();
+  }
+
+  window.addEventListener('pageshow', scheduleEnhance);
+  window.addEventListener('load', scheduleEnhance);
+  scheduleEnhance();
 })();
