@@ -1,8 +1,8 @@
-/* Memory Card mobile layout fixes — v0.12 */
+/* Memory Card mobile layout fixes — v0.13 */
 html, body {
   width: 100%;
   max-width: 100%;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 #app,
@@ -24,7 +24,8 @@ img, svg, video, canvas {
 
   #app {
     width: 100%;
-    overflow-x: hidden;
+    max-width: 100%;
+    overflow: visible;
   }
 
   .shell {
@@ -84,13 +85,42 @@ img, svg, video, canvas {
     word-break: normal;
   }
 
-  /* Rotation is allowed to scroll inside its own card, never the whole page. */
+  /* All devices in a rotation are visible at once on phones/tablets. */
   .rotation-row {
     width: 100%;
     max-width: 100%;
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
-    -webkit-overflow-scrolling: touch;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: 6px;
+    overflow: visible !important;
+    padding: 2px 0 6px;
+  }
+
+  .rotation-arrow {
+    display: none !important;
+  }
+
+  .rotation-chip {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: none;
+    justify-content: center;
+    padding: 7px 4px;
+  }
+
+  .rotation-chip .device-icon {
+    flex: 0 1 auto;
+    width: min(36px, 55%);
+    height: 23px;
+  }
+
+  .rotation-chip > span:not(.device-icon) {
+    min-width: 0;
+    font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   /* The bottom navigation always occupies exactly the viewport width. */
@@ -130,8 +160,6 @@ img, svg, video, canvas {
     text-align: center;
     white-space: normal;
     overflow: hidden;
-    overflow-wrap: normal;
-    word-break: normal;
   }
 
   .toast,
@@ -146,13 +174,16 @@ img, svg, video, canvas {
   }
 
   .shell {
-    padding-top: 8px;
+    padding-top: max(8px, env(safe-area-inset-top));
     padding-bottom: calc(84px + env(safe-area-inset-bottom));
   }
 
   .topbar {
     width: 100%;
     max-width: 100%;
+    top: 0 !important;
+    padding-top: 6px !important;
+    margin-bottom: 12px;
   }
 
   .brand {
@@ -171,6 +202,10 @@ img, svg, video, canvas {
     flex-wrap: wrap;
   }
 
+  .hero {
+    margin-top: 0;
+  }
+
   .toolbar {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
@@ -181,7 +216,26 @@ img, svg, video, canvas {
     min-width: 0 !important;
   }
 
-  .settings-actions,
+  /* Settings buttons were too narrow in one long row. */
+  .settings-grid .settings-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    width: 100%;
+  }
+
+  .settings-grid .settings-actions button,
+  .settings-grid .settings-actions .file-label {
+    width: 100%;
+    min-width: 0;
+    min-height: 52px;
+    padding: 10px 8px;
+    justify-content: center;
+    text-align: center;
+    white-space: normal;
+    line-height: 1.2;
+  }
+
   .hero-actions,
   .right-actions,
   .playing-actions {
@@ -226,6 +280,38 @@ img, svg, video, canvas {
   .game-row.with-cover {
     min-width: 0;
   }
+
+  .rotation-card {
+    padding: 14px;
+  }
+
+  .rotation-row {
+    margin: 13px 0 8px !important;
+    gap: 5px;
+  }
+
+  .rotation-chip {
+    min-height: 54px;
+    flex-direction: column;
+    gap: 2px;
+    border-radius: 11px;
+    padding: 6px 2px;
+  }
+
+  .rotation-chip .device-icon {
+    width: 32px !important;
+    height: 21px !important;
+  }
+
+  .rotation-chip > span:not(.device-icon) {
+    width: 100%;
+    text-align: center;
+    font-size: 10px;
+  }
+
+  .rotation-next-button {
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--warning) 28%, transparent);
+  }
 }
 
 @media (max-width: 390px) {
@@ -238,5 +324,27 @@ img, svg, video, canvas {
 
   .cards {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .rotation-card {
+    padding-left: 11px;
+    padding-right: 11px;
+  }
+
+  .rotation-row {
+    gap: 3px;
+  }
+
+  .rotation-chip {
+    min-height: 50px;
+  }
+
+  .rotation-chip .device-icon {
+    width: 27px !important;
+    height: 18px !important;
+  }
+
+  .rotation-chip > span:not(.device-icon) {
+    font-size: 9px;
   }
 }
