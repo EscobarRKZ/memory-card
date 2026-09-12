@@ -1,5 +1,5 @@
-const CACHE='memory-card-v22-ui-stability';
-const COVER_CACHE='memory-card-covers-v7';
+const CACHE='memory-card-v23-cover-reliability';
+const COVER_CACHE='memory-card-covers-v8';
 const ASSETS=['./','./index.html','./styles.css','./mobile.css','./cover-fixes.css','./ui-enhancements.css','./title-search-helper.js','./switch-cover-helper.js','./ps3-cover-helper.js','./ui-enhancements.js','./catalog-refresh-helper.js','./app.js','./manifest.webmanifest','./icon.svg','./logo-192.png','./logo-512.png','./logo.png'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>![CACHE,COVER_CACHE].includes(k)).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
@@ -9,8 +9,15 @@ self.addEventListener('fetch',e=>{
   const isCover=e.request.destination==='image' && /(upload\.wikimedia\.org|commons\.wikimedia\.org|wikimedia\.org|raw\.githubusercontent\.com|art\.gametdb\.com)$/.test(url.hostname);
   if(isCover){
     e.respondWith(caches.open(COVER_CACHE).then(async c=>{
-      const hit=await c.match(e.request); if(hit) return hit;
-      try{const r=await fetch(e.request); c.put(e.request,r.clone()); return r;}catch(_){return hit;}
+      const hit=await c.match(e.request);
+      if(hit && hit.ok) return hit;
+      try{
+        const r=await fetch(e.request);
+        if(r.ok) await c.put(e.request,r.clone());
+        return r;
+      }catch(_){
+        return hit && hit.ok ? hit : Response.error();
+      }
     })); return;
   }
   if(url.origin!==self.location.origin)return;
