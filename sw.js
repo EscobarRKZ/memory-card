@@ -1,12 +1,12 @@
-const CACHE='memory-card-v14-title-search';
-const COVER_CACHE='memory-card-covers-v5';
-const ASSETS=['./','./index.html','./styles.css','./mobile.css','./autosync-helper.js','./title-search-helper.js','./app.js','./manifest.webmanifest','./icon.svg','./logo-192.png','./logo-512.png','./logo.png'];
+const CACHE='memory-card-v15-covers';
+const COVER_CACHE='memory-card-covers-v6';
+const ASSETS=['./','./index.html','./styles.css','./mobile.css','./cover-fixes.css','./autosync-helper.js','./title-search-helper.js','./switch-cover-helper.js','./app.js','./manifest.webmanifest','./icon.svg','./logo-192.png','./logo-512.png','./logo.png'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>![CACHE,COVER_CACHE].includes(k)).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',e=>{
   if(e.request.method!=='GET') return;
   const url=new URL(e.request.url);
-  const isCover=e.request.destination==='image' && /(upload\.wikimedia\.org|commons\.wikimedia\.org|wikimedia\.org|raw\.githubusercontent\.com)$/.test(url.hostname);
+  const isCover=e.request.destination==='image' && /(upload\.wikimedia\.org|commons\.wikimedia\.org|wikimedia\.org|raw\.githubusercontent\.com|art\.gametdb\.com)$/.test(url.hostname);
   if(isCover){
     e.respondWith(caches.open(COVER_CACHE).then(async c=>{
       const hit=await c.match(e.request); if(hit) return hit;
