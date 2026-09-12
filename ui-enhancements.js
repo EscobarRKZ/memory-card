@@ -1,20 +1,12 @@
-/* Memory Card UI enhancements — v0.16
-   1) Platform selection uses icon buttons instead of a native dropdown.
-   2) Games view gets title/rating/release-year sorting.
-*/
+/* Memory Card UI enhancements — performance-safe v0.19 */
 (() => {
   const SORT_KEY = 'memory-card-games-sort-v1';
-  let scheduled = false;
+  const collator = new Intl.Collator('ru', { sensitivity: 'base', numeric: true });
+  let timer = 0;
 
   const platforms = [
-    ['PSP', 'PSP'],
-    ['VITA', 'Vita'],
-    ['DSI', 'DSi'],
-    ['3DS', '3DS'],
-    ['GBA', 'GBA'],
-    ['PS3', 'PS3'],
-    ['WIIU', 'Wii U'],
-    ['SWITCH', 'Switch'],
+    ['PSP', 'PSP'], ['VITA', 'Vita'], ['DSI', 'DSi'], ['3DS', '3DS'],
+    ['GBA', 'GBA'], ['PS3', 'PS3'], ['WIIU', 'Wii U'], ['SWITCH', 'Switch'],
   ];
 
   const svg = {
@@ -35,18 +27,17 @@
 
     select.dataset.buttonSelectorReady = '1';
     field.classList.add('platform-choice-field');
-
     const grid = document.createElement('div');
     grid.className = 'platform-choice-grid';
     grid.setAttribute('role', 'radiogroup');
     grid.setAttribute('aria-label', 'Платформа');
 
     const updateSelected = () => {
-      grid.querySelectorAll('.platform-choice-button').forEach(button => {
+      for (const button of grid.querySelectorAll('.platform-choice-button')) {
         const selected = button.dataset.platformChoice === select.value;
         button.classList.toggle('is-selected', selected);
         button.setAttribute('aria-checked', selected ? 'true' : 'false');
-      });
+      }
     };
 
     for (const [id, label] of platforms) {
@@ -61,8 +52,6 @@
         if (select.value === id) return;
         select.value = id;
         updateSelected();
-        // Keep app.js as the source of truth: its existing change handler refreshes
-        // the title catalogue without re-rendering or clearing the rest of the form.
         select.dispatchEvent(new Event('change', { bubbles: true }));
       });
       grid.appendChild(button);
@@ -77,57 +66,62 @@
     try { return localStorage.getItem(SORT_KEY) || 'default'; }
     catch (_) { return 'default'; }
   }
-
   function writeSort(value) {
     try { localStorage.setItem(SORT_KEY, value); } catch (_) {}
   }
 
-  const titleOf = card => (card.querySelector('.game-body h3')?.textContent || '').trim();
-  const ratingOf = card => {
-    const text = card.querySelector('.stars-chip')?.textContent || '';
-    const m = text.match(/([0-9]+(?:[.,][0-9]+)?)/);
-    return m ? Number(m[1].replace(',', '.')) : -1;
-  };
-  const yearOf = card => {
-    const text = card.querySelector('.game-card-kicker')?.textContent || '';
-    const years = text.match(/\b(?:19|20)\d{2}\b/g);
-    return years?.length ? Number(years[years.length - 1]) : 0;
-  };
+  function cardData(card, index) {
+    const title = (card.querySelector('.game-body h3')?.textContent || '').trim();
+    const ratingText = card.querySelector('.stars-chip')?.textContent || '';
+    const ratingMatch = ratingText.match(/([0-9]+(?:[.,][0-9]+)?)/);
+    const kicker = card.querySelector('.game-card-kicker')?.textContent || '';
+    const years = kicker.match(/\b(?:19|20)\d{2}\b/g);
+    return {
+      card,
+      title,
+      rating: ratingMatch ? Number(ratingMatch[1].replace(',', '.')) : -1,
+      year: years?.length ? Number(years[years.length - 1]) : 0,
+      index,
+    };
+  }
 
-  function compareCards(a, b, mode) {
-    const collator = new Intl.Collator('ru', { sensitivity: 'base', numeric: true });
+  function compare(a, b, mode) {
     switch (mode) {
-      case 'title-asc': return collator.compare(titleOf(a), titleOf(b));
-      case 'title-desc': return collator.compare(titleOf(b), titleOf(a));
-      case 'rating-desc': return ratingOf(b) - ratingOf(a) || collator.compare(titleOf(a), titleOf(b));
+      case 'title-asc': return collator.compare(a.title, b.title);
+      case 'title-desc': return collator.compare(b.title, a.title);
+      case 'rating-desc': {
+        if (a.rating < 0 && b.rating >= 0) return 1;
+        if (b.rating < 0 && a.rating >= 0) return -1;
+        return b.rating - a.rating || collator.compare(a.title, b.title);
+      }
       case 'rating-asc': {
-        const ar = ratingOf(a), br = ratingOf(b);
-        // Unrated games stay at the end in either rating mode.
-        if (ar < 0 && br >= 0) return 1;
-        if (br < 0 && ar >= 0) return -1;
-        return ar - br || collator.compare(titleOf(a), titleOf(b));
+        if (a.rating < 0 && b.rating >= 0) return 1;
+        if (b.rating < 0 && a.rating >= 0) return -1;
+        return a.rating - b.rating || collator.compare(a.title, b.title);
       }
-      case 'year-desc': return yearOf(b) - yearOf(a) || collator.compare(titleOf(a), titleOf(b));
+      case 'year-desc': {
+        if (!a.year && b.year) return 1;
+        if (!b.year && a.year) return -1;
+        return b.year - a.year || collator.compare(a.title, b.title);
+      }
       case 'year-asc': {
-        const ay = yearOf(a), by = yearOf(b);
-        if (!ay && by) return 1;
-        if (!by && ay) return -1;
-        return ay - by || collator.compare(titleOf(a), titleOf(b));
+        if (!a.year && b.year) return 1;
+        if (!b.year && a.year) return -1;
+        return a.year - b.year || collator.compare(a.title, b.title);
       }
-      default: return Number(a.dataset.originalSortIndex || 0) - Number(b.dataset.originalSortIndex || 0);
+      default: return a.index - b.index;
     }
   }
 
   function applySort(grid, mode) {
+    if (!grid || mode === 'default') return;
     const cards = [...grid.querySelectorAll(':scope > .game-card')];
-    cards.forEach((card, index) => {
-      if (card.dataset.originalSortIndex == null) card.dataset.originalSortIndex = String(index);
-    });
-    const sorted = [...cards].sort((a, b) => compareCards(a, b, mode));
-    const changed = sorted.some((card, index) => card !== cards[index]);
-    if (!changed) return;
+    if (cards.length < 2) return;
+    const rows = cards.map(cardData);
+    rows.sort((a, b) => compare(a, b, mode));
+    if (rows.every((row, i) => row.card === cards[i])) return;
     const fragment = document.createDocumentFragment();
-    sorted.forEach(card => fragment.appendChild(card));
+    for (const row of rows) fragment.appendChild(row.card);
     grid.appendChild(fragment);
   }
 
@@ -155,13 +149,11 @@
       select.value = readSort();
       select.addEventListener('change', () => {
         writeSort(select.value);
-        const currentGrid = document.querySelector('.game-grid');
-        if (currentGrid) applySort(currentGrid, select.value);
+        requestAnimationFrame(() => applySort(document.querySelector('.game-grid'), select.value));
       });
-    } else {
+    } else if (select.value !== readSort()) {
       select.value = readSort();
     }
-
     applySort(grid, select.value || 'default');
   }
 
@@ -170,16 +162,22 @@
     upgradeGamesSorting();
   }
 
-  function scheduleEnhance() {
-    if (scheduled) return;
-    scheduled = true;
-    requestAnimationFrame(() => {
-      scheduled = false;
-      enhance();
-    });
+  function scheduleEnhance(delay = 0) {
+    clearTimeout(timer);
+    timer = setTimeout(() => requestAnimationFrame(enhance), delay);
   }
 
-  new MutationObserver(scheduleEnhance).observe(document.documentElement, { childList: true, subtree: true });
-  window.addEventListener('load', scheduleEnhance);
-  scheduleEnhance();
+  // Event-driven only. No MutationObserver: the previous observer stack could create
+  // large cascades whenever the Games grid was rebuilt.
+  for (const type of ['click', 'change', 'input']) {
+    document.addEventListener(type, () => scheduleEnhance(type === 'input' ? 30 : 10));
+  }
+  window.addEventListener('load', () => scheduleEnhance(20));
+  window.addEventListener('pageshow', () => scheduleEnhance(20));
+
+  // A very cheap safety pass for renders caused by background sync (no user event).
+  setInterval(() => {
+    if (document.hidden) return;
+    if (document.querySelector('.game-grid, form select[data-game-platform]')) enhance();
+  }, 2000);
 })();
