@@ -38,7 +38,7 @@ const DEFAULT_SETTINGS = {
   settingsUpdatedAt: '',
   lastSync: null,
   autoSync: true,
-  coverResolverVersion: 2,
+  coverResolverVersion: 3,
 };
 
 let state = {
@@ -416,17 +416,17 @@ async function loadState() {
       mergeCatalog(cat.catalog);
       state.catalogMeta = cat.catalogMeta || {};
     }
-    // v0.6: Wikidata P18 is a generic Commons image, not necessarily box art.
-    // Drop old unverified covers once; they will be rebuilt from verified Wikipedia game pages.
-    if (state.settings.coverResolverVersion < 2) {
+    // v0.9: older resolvers used generic page images and could pick logos, screenshots or people.
+    // Keep only manual artwork; everything else is rebuilt from the verified Wikipedia infobox.
+    if (state.settings.coverResolverVersion < 3) {
       for (const g of state.games) {
-        if (g.coverUrl && g.coverSource !== 'wikipedia-verified' && g.coverSource !== 'manual') {
+        if (g.coverUrl && g.coverSource !== 'manual') {
           g.coverUrl = '';
           g.coverSource = '';
         }
       }
       for (const e of state.catalog) { e.coverUrl = ''; e.coverSource = ''; }
-      state.settings.coverResolverVersion = 2;
+      state.settings.coverResolverVersion = 3;
       state.settings.settingsUpdatedAt = nowIso();
       await persistCatalog();
     }
@@ -957,8 +957,52 @@ function wikipediaSearchVariants(title = '') {
   if (stripped && !variants.includes(stripped)) variants.push(stripped);
   return variants.filter(Boolean);
 }
+async function fetchWikipediaInfoboxImage(host, pageTitle, gameTitle) {
+  const parseUrl = `https://${host}/w/api.php?action=parse&format=json&origin=*&page=${encodeURIComponent(pageTitle)}&prop=text`;
+  const r = await fetch(parseUrl);
+  if (!r.ok) throw new Error(`Wikipedia parse HTTP ${r.status}`);
+  const data = await r.json();
+  const html = data?.parse?.text?.['*'] || '';
+  if (!html) return '';
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const imgs = [...doc.querySelectorAll('table.infobox img')];
+  if (!imgs.length) return '';
+
+  const titleTokens = new Set(normalizeText(gameTitle).split(' ').filter(x => x.length > 2));
+  const badRx = /\b(logo|icon|screenshot|gameplay|developer|director|producer|composer|actor|actress|creator|staff|portrait|photo|photograph|conference|cosplay|map|symbol|wordmark)\b/i;
+  const goodRx = /\b(cover|box|boxart|box art|packaging|package|front cover|game cover)\b/i;
+  const scored = imgs.map((img, idx) => {
+    const raw = img.getAttribute('src') || img.getAttribute('data-src') || '';
+    let url = raw.startsWith('//') ? `https:${raw}` : raw;
+    url = safeImage(url);
+    const alt = img.getAttribute('alt') || '';
+    const parent = img.closest('a');
+    const meta = `${alt} ${parent?.getAttribute('title') || ''} ${parent?.getAttribute('href') || ''} ${url}`;
+    const width = Number(img.getAttribute('width') || img.naturalWidth || 0);
+    const height = Number(img.getAttribute('height') || img.naturalHeight || 0);
+    let score = idx * 2;
+    if (goodRx.test(meta)) score -= 18;
+    if (badRx.test(meta)) score += 30;
+    if (width && height) {
+      const ratio = height / width;
+      if (ratio >= 1.12 && ratio <= 1.8) score -= 6;
+      else if (ratio < .8) score += 8;
+    }
+    const m = normalizeText(meta);
+    const overlap = [...titleTokens].filter(t => m.includes(t)).length;
+    score -= Math.min(8, overlap * 2);
+    return { url, score, meta };
+  }).filter(x => x.url && !badRx.test(x.meta)).sort((a,b) => a.score - b.score);
+
+  const best = scored[0];
+  // If we cannot find something that looks like actual packaging, prefer the generated fallback
+  // over showing a random photo/logo again.
+  if (!best || best.score > 8) return '';
+  return best.url;
+}
+
 async function fetchWikipediaCover(title, releaseYear = '', platformId = '') {
-  const cacheKey = `verified-v2|${normalizeText(title)}|${releaseYear}|${platformId}`;
+  const cacheKey = `infobox-v3|${normalizeText(title)}|${releaseYear}|${platformId}`;
   if (coverLookups.has(cacheKey)) return coverLookups.get(cacheKey);
   const job = (async () => {
     const plat = platform(platformId);
@@ -966,16 +1010,18 @@ async function fetchWikipediaCover(title, releaseYear = '', platformId = '') {
     const attempts = [];
     for (const variant of wikipediaSearchVariants(title)) {
       attempts.push({ host: 'en.wikipedia.org', query: `"${variant}" video game` });
-      attempts.push({ host: 'en.wikipedia.org', query: `intitle:"${variant}"` });
+      attempts.push({ host: 'en.wikipedia.org', query: `intitle:"${variant}" video game` });
       attempts.push({ host: 'ru.wikipedia.org', query: `"${variant}" видеоигра` });
     }
     for (const attempt of attempts) {
       try {
-        const searchUrl = `https://${attempt.host}/w/api.php?action=query&format=json&origin=*&generator=search&gsrnamespace=0&gsrlimit=10&gsrsearch=${encodeURIComponent(attempt.query)}&prop=pageimages|pageprops&piprop=thumbnail|original&pithumbsize=1000&ppprop=wikibase_item`;
+        // Search only identifies the correct article. We deliberately do NOT use pageimages here:
+        // pageimages frequently chooses a developer photo, a logo or a gameplay screenshot.
+        const searchUrl = `https://${attempt.host}/w/api.php?action=query&format=json&origin=*&generator=search&gsrnamespace=0&gsrlimit=10&gsrsearch=${encodeURIComponent(attempt.query)}&prop=pageprops&ppprop=wikibase_item`;
         const sr = await fetch(searchUrl);
         if (!sr.ok) continue;
         const sd = await sr.json();
-        const pages = Object.values(sd.query?.pages || {}).filter(p => p?.pageprops?.wikibase_item && (p?.thumbnail?.source || p?.original?.source));
+        const pages = Object.values(sd.query?.pages || {}).filter(p => p?.pageprops?.wikibase_item);
         if (!pages.length) continue;
         const entities = await fetchWikidataEntities(pages.map(p => p.pageprops.wikibase_item));
         const scored = pages.map(page => {
@@ -992,13 +1038,13 @@ async function fetchWikipediaCover(title, releaseYear = '', platformId = '') {
           if (isPlatformMatch) score -= 12;
           else if (targetPlatforms.size && entityPlatforms.size) score += 8;
           if (isVideoGame) score -= 4; else score += 30;
-          if (targetYear && years.length) score += Math.min(10, yearDistance * 2);
+          if (targetYear && years.length) score += Math.min(12, yearDistance * 3);
           return { page, score, isVideoGame };
         }).filter(x => x.isVideoGame).sort((a,b) => a.score - b.score);
         const best = scored[0];
         if (!best || best.score > 14) continue;
-        const found = safeImage(best.page?.thumbnail?.source || best.page?.original?.source || '');
-        if (found) return { url: found, source: 'wikipedia-verified', pageTitle: best.page.title };
+        const found = await fetchWikipediaInfoboxImage(attempt.host, best.page.title, title);
+        if (found) return { url: found, source: 'wikipedia-infobox-v3', pageTitle: best.page.title };
       } catch (e) { console.warn('Cover lookup attempt failed', e); }
     }
     return { url: '', source: '', pageTitle: '' };
@@ -1011,10 +1057,10 @@ async function fetchWikipediaCover(title, releaseYear = '', platformId = '') {
 
 async function hydrateGameCover(game, { force = false } = {}) {
   if (!game || game.deletedAt) return false;
-  if (!force && game.coverUrl && game.coverSource === 'wikipedia-verified') return false;
+  if (!force && game.coverUrl && game.coverSource === 'wikipedia-infobox-v3') return false;
   const titleKey = normalizeText(game.title);
-  const cat = state.catalog.find(e => e.platform === game.platform && normalizeText(e.title) === titleKey && e.coverUrl && e.coverSource === 'wikipedia-verified')
-    || state.catalog.find(e => normalizeText(e.title) === titleKey && e.coverUrl && e.coverSource === 'wikipedia-verified');
+  const cat = state.catalog.find(e => e.platform === game.platform && normalizeText(e.title) === titleKey && e.coverUrl && e.coverSource === 'wikipedia-infobox-v3')
+    || state.catalog.find(e => normalizeText(e.title) === titleKey && e.coverUrl && e.coverSource === 'wikipedia-infobox-v3');
   let found = safeImage(cat?.coverUrl || '');
   let source = cat?.coverSource || '';
   if (!found) {
@@ -1028,7 +1074,7 @@ async function hydrateGameCover(game, { force = false } = {}) {
     return before !== game.coverUrl;
   }
   game.coverUrl = found;
-  game.coverSource = source || 'wikipedia-verified';
+  game.coverSource = source || 'wikipedia-infobox-v3';
   game.updatedAt = nowIso();
   const matches = state.catalog.filter(e => e.platform === game.platform && normalizeText(e.title) === titleKey);
   matches.forEach(e => { e.coverUrl = found; e.coverSource = game.coverSource; });
@@ -1037,7 +1083,7 @@ async function hydrateGameCover(game, { force = false } = {}) {
 
 async function hydrateMissingCoversForGames(platformId = '', limit = 60, options = {}) {
   const { force = false, label = 'Ищу обложки' } = options;
-  let pending = liveGames().filter(g => (!platformId || g.platform === platformId) && (force || !g.coverUrl || g.coverSource !== 'wikipedia-verified'));
+  let pending = liveGames().filter(g => (!platformId || g.platform === platformId) && (force || !g.coverUrl || g.coverSource !== 'wikipedia-infobox-v3'));
   if (Number.isFinite(limit)) pending = pending.slice(0, limit);
   if (!pending.length) return 0;
   let changed = 0, processed = 0;
@@ -1099,7 +1145,7 @@ async function applyCatalogSuggestion(key) {
     const found = safeImage(resolved?.url || '');
     if (found) {
       e.coverUrl = found;
-      e.coverSource = resolved?.source || 'wikipedia-verified';
+      e.coverSource = resolved?.source || 'wikipedia-infobox-v3';
       if (cover) cover.value = found;
       await persistCatalog();
       if (picked) picked.innerHTML = [e.genre ? `Жанр: <b>${esc(e.genre)}</b>` : '', f ? `Франшиза: <b>${esc(f)}</b>` : '', 'Обложка: <b>найдена</b>'].filter(Boolean).join(' · ');
@@ -1277,7 +1323,7 @@ function syncableSettings() {
 
 function iframePullRequest(baseUrl, params = {}, timeoutMs = 25000) {
   return new Promise((resolve, reject) => {
-    const requestId = `mc_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const requestId = `mc_${crypto.randomUUID?.() || `${Date.now()}_${Math.random().toString(36).slice(2)}`}`;
     const iframe = document.createElement('iframe');
     iframe.setAttribute('aria-hidden', 'true');
     iframe.tabIndex = -1;
@@ -1291,9 +1337,9 @@ function iframePullRequest(baseUrl, params = {}, timeoutMs = 25000) {
     };
 
     const onMessage = event => {
-      // Do not trust unrelated postMessage traffic. The response must originate from
-      // the exact hidden frame we created and carry our unguessable request id.
-      if (event.source !== iframe.contentWindow) return;
+      // Apps Script HtmlService may insert an internal Google sandbox frame, so event.source
+      // is not guaranteed to equal our outer iframe WindowProxy. Authenticate with the
+      // per-request cryptographically random requestId instead.
       const msg = event.data;
       if (!msg || msg.type !== 'memory-card-sync' || msg.requestId !== requestId) return;
       cleanup();
