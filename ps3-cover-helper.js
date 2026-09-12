@@ -260,7 +260,8 @@
     try {
       while (queue.length && !document.hidden) {
         const container = queue.shift();
-        await enhance(container);
+        try { await enhance(container); }
+        finally { if (container) container.dataset.ps3CoverQueued = ''; }
         await new Promise(resolve => setTimeout(resolve, 0));
       }
     } finally { working = false; }
@@ -278,7 +279,7 @@
       el.dataset.ps3CoverQueued = '1';
       queue.push(el);
     }
-    pump().finally(() => queue.forEach(el => { if (el) el.dataset.ps3CoverQueued = ''; }));
+    pump();
   }
 
   function scheduleScan(delay = 450) {
