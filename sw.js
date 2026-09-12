@@ -1,4 +1,4 @@
-const CACHE='memory-card-v17-nonblocking-sync';
+const CACHE='memory-card-v18-games-freeze-fix';
 const COVER_CACHE='memory-card-covers-v6';
 const ASSETS=['./','./index.html','./styles.css','./mobile.css','./cover-fixes.css','./ui-enhancements.css','./title-search-helper.js','./switch-cover-helper.js','./ui-enhancements.js','./app.js','./manifest.webmanifest','./icon.svg','./logo-192.png','./logo-512.png','./logo.png'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting())));
