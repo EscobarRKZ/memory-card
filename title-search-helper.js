@@ -1,6 +1,6 @@
-/* Memory Card search fix — title-only filtering, freeze-safe v2 */
+/* Memory Card search fix — title-only filtering, event-driven v3 */
 (() => {
-  let frame = 0;
+  let timer = 0;
 
   const normalize = value => String(value || '')
     .toLowerCase()
@@ -17,14 +17,10 @@
     const search = document.querySelector('#search');
     if (!(search instanceof HTMLInputElement)) return;
 
-    const q = normalize(search.value);
     const grid = document.querySelector('.game-grid');
-    const existingEmpty = document.querySelector('.title-search-empty');
-    if (!grid) {
-      existingEmpty?.remove();
-      return;
-    }
+    if (!grid) return;
 
+    const q = normalize(search.value);
     const cards = [...grid.querySelectorAll(':scope > .game-card')];
     let visible = 0;
 
@@ -35,19 +31,15 @@
       if (matches) visible++;
     }
 
-    // IMPORTANT: do not rewrite the same text on every MutationObserver pass.
-    // Setting textContent creates another DOM mutation and previously caused an
-    // endless observer -> textContent -> observer loop when opening "Игры".
     const content = search.closest('.content') || document.querySelector('.content');
     const resultCaption = content?.querySelector(':scope > .section-head p');
     const caption = `${visible} записей в текущем фильтре`;
-    if (resultCaption && resultCaption.textContent !== caption) {
-      resultCaption.textContent = caption;
-    }
+    if (resultCaption && resultCaption.textContent !== caption) resultCaption.textContent = caption;
 
+    let empty = document.querySelector('.title-search-empty');
     if (q && visible === 0) {
-      if (!existingEmpty) {
-        const empty = document.createElement('div');
+      if (!empty) {
+        empty = document.createElement('div');
         empty.className = 'empty title-search-empty';
         empty.textContent = 'Игры с таким названием не найдены.';
         grid.insertAdjacentElement('afterend', empty);
@@ -55,30 +47,27 @@
       setHidden(grid, true);
     } else {
       setHidden(grid, false);
-      existingEmpty?.remove();
+      empty?.remove();
     }
   }
 
-  function scheduleApply() {
-    if (frame) return;
-    frame = requestAnimationFrame(() => {
-      frame = 0;
-      applyTitleOnlySearch();
-    });
+  function scheduleApply(delay = 0) {
+    clearTimeout(timer);
+    timer = setTimeout(() => requestAnimationFrame(applyTitleOnlySearch), delay);
   }
 
-  // app.js redraws the Games view on navigation/filter/search changes. Observe only
-  // the application root and batch reactions to one animation frame so helper DOM
-  // work can never monopolise the main thread.
-  const app = document.querySelector('#app');
-  if (app) {
-    new MutationObserver(scheduleApply).observe(app, { childList: true, subtree: true });
-  }
-
+  // No MutationObserver here: app.js already redraws the view. We only correct the
+  // result after user actions that can trigger that redraw, avoiding observer loops.
   document.addEventListener('input', event => {
     if (event.target instanceof HTMLInputElement && event.target.id === 'search') scheduleApply();
-  }, true);
-
-  window.addEventListener('load', scheduleApply);
-  scheduleApply();
+  });
+  document.addEventListener('change', event => {
+    if (event.target instanceof HTMLElement && ['statusFilter', 'platformFilter', 'gamesSort'].includes(event.target.id)) scheduleApply();
+  });
+  document.addEventListener('click', event => {
+    const target = event.target instanceof Element ? event.target : null;
+    if (target?.closest('.nav button, .mobile-nav button, [data-action="clear-platform"]')) scheduleApply(20);
+  });
+  window.addEventListener('load', () => scheduleApply(20));
+  window.addEventListener('pageshow', () => scheduleApply(20));
 })();
