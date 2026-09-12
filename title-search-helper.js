@@ -1,6 +1,6 @@
-/* Memory Card search fix — title-only filtering */
+/* Memory Card search fix — title-only filtering, freeze-safe v2 */
 (() => {
-  let scheduled = false;
+  let frame = 0;
 
   const normalize = value => String(value || '')
     .toLowerCase()
@@ -8,6 +8,10 @@
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9а-яё]+/gi, ' ')
     .trim();
+
+  function setHidden(el, value) {
+    if (el && el.hidden !== value) el.hidden = value;
+  }
 
   function applyTitleOnlySearch() {
     const search = document.querySelector('#search');
@@ -21,20 +25,25 @@
       return;
     }
 
-    const cards = [...grid.querySelectorAll('.game-card')];
+    const cards = [...grid.querySelectorAll(':scope > .game-card')];
     let visible = 0;
 
     for (const card of cards) {
-      const title = normalize(card.querySelector('h3')?.textContent || '');
+      const title = normalize(card.querySelector('.game-body h3')?.textContent || '');
       const matches = !q || title.includes(q);
-      card.hidden = !matches;
+      setHidden(card, !matches);
       if (matches) visible++;
     }
 
-    // Keep the result counter consistent with what is actually visible.
+    // IMPORTANT: do not rewrite the same text on every MutationObserver pass.
+    // Setting textContent creates another DOM mutation and previously caused an
+    // endless observer -> textContent -> observer loop when opening "Игры".
     const content = search.closest('.content') || document.querySelector('.content');
     const resultCaption = content?.querySelector(':scope > .section-head p');
-    if (resultCaption) resultCaption.textContent = `${visible} записей в текущем фильтре`;
+    const caption = `${visible} записей в текущем фильтре`;
+    if (resultCaption && resultCaption.textContent !== caption) {
+      resultCaption.textContent = caption;
+    }
 
     if (q && visible === 0) {
       if (!existingEmpty) {
@@ -43,29 +52,33 @@
         empty.textContent = 'Игры с таким названием не найдены.';
         grid.insertAdjacentElement('afterend', empty);
       }
-      grid.hidden = true;
+      setHidden(grid, true);
     } else {
-      grid.hidden = false;
+      setHidden(grid, false);
       existingEmpty?.remove();
     }
   }
 
   function scheduleApply() {
-    if (scheduled) return;
-    scheduled = true;
-    queueMicrotask(() => {
-      scheduled = false;
+    if (frame) return;
+    frame = requestAnimationFrame(() => {
+      frame = 0;
       applyTitleOnlySearch();
     });
   }
 
-  // app.js redraws the Games view on every search keystroke, so apply the
-  // title-only rule after every redraw instead of duplicating the app state.
-  const observer = new MutationObserver(scheduleApply);
-  observer.observe(document.documentElement, { childList: true, subtree: true });
+  // app.js redraws the Games view on navigation/filter/search changes. Observe only
+  // the application root and batch reactions to one animation frame so helper DOM
+  // work can never monopolise the main thread.
+  const app = document.querySelector('#app');
+  if (app) {
+    new MutationObserver(scheduleApply).observe(app, { childList: true, subtree: true });
+  }
+
   document.addEventListener('input', event => {
     if (event.target instanceof HTMLInputElement && event.target.id === 'search') scheduleApply();
   }, true);
 
   window.addEventListener('load', scheduleApply);
+  scheduleApply();
 })();
