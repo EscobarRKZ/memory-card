@@ -1275,11 +1275,44 @@ function syncableSettings() {
   };
 }
 
+function jsonpRequest(baseUrl, params = {}, timeoutMs = 20000) {
+  return new Promise((resolve, reject) => {
+    const callback = `__memoryCardJsonp_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    let timer = null;
+    const script = document.createElement('script');
+    const cleanup = () => {
+      if (timer) clearTimeout(timer);
+      try { delete window[callback]; } catch (_) { window[callback] = undefined; }
+      script.remove();
+    };
+    window[callback] = data => { cleanup(); resolve(data); };
+    script.onerror = () => { cleanup(); reject(new Error('Не удалось получить ответ Google Apps Script')); };
+    try {
+      const u = new URL(baseUrl);
+      Object.entries(params).forEach(([k, v]) => u.searchParams.set(k, String(v ?? '')));
+      u.searchParams.set('callback', callback);
+      u.searchParams.set('_', Date.now().toString());
+      script.src = u.toString();
+    } catch (e) {
+      cleanup();
+      reject(new Error('Некорректный Apps Script endpoint'));
+      return;
+    }
+    timer = setTimeout(() => {
+      cleanup();
+      reject(new Error('Google Apps Script не ответил вовремя'));
+    }, timeoutMs);
+    document.head.appendChild(script);
+  });
+}
+
+function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+
 async function syncSheets(options = {}) {
   const { silent = false, skipSaveSettings = false } = options;
   if (syncInFlight) return;
   if (!skipSaveSettings) await saveSettings(true);
-  const url = state.settings.sheetEndpoint;
+  const url = String(state.settings.sheetEndpoint || '').trim();
   if (!url) {
     alert('Сначала укажи Apps Script endpoint в настройках.');
     return;
@@ -1287,26 +1320,47 @@ async function syncSheets(options = {}) {
   if (!silent) { setToast('Синхронизация…'); setTaskProgress('Синхронизация', 8, 100, 'Подготавливаю локальные данные'); }
   syncInFlight = true;
   try {
-    if (!silent) setTaskProgress('Синхронизация', 22, 100, 'Отправляю данные в Google Sheets');
-    const resp = await fetch(url, {
+    // Google Apps Script ContentService отвечает через redirect на googleusercontent.
+    // Обычный cross-origin fetch пытается прочитать этот ответ и Safari/Chrome может
+    // заблокировать его CORS. Поэтому POST только отправляет данные в режиме no-cors,
+    // а актуальное состояние читаем отдельным JSONP GET.
+    if (!silent) setTaskProgress('Синхронизация', 24, 100, 'Отправляю локальные данные');
+    await fetch(url, {
       method: 'POST',
+      mode: 'no-cors',
+      cache: 'no-store',
+      redirect: 'follow',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ action: 'sync', secret: state.settings.syncSecret, games: state.games, settings: syncableSettings() }),
     });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    if (!silent) setTaskProgress('Синхронизация', 68, 100, 'Получаю изменения из Google Sheets');
-    const data = await resp.json();
-    if (!data.ok) throw new Error(data.error || 'Sync failed');
+
+    if (!silent) setTaskProgress('Синхронизация', 48, 100, 'Google Sheets объединяет изменения');
+    await sleep(350);
+
+    if (!silent) setTaskProgress('Синхронизация', 68, 100, 'Получаю актуальную библиотеку');
+    const data = await jsonpRequest(url, {
+      action: 'pull',
+      secret: state.settings.syncSecret,
+    });
+    if (!data || !data.ok) throw new Error(data?.error || 'Google Apps Script вернул ошибку');
+
     if (Array.isArray(data.games)) state.games = data.games.map(migrateGame);
     if (data.settings) state.settings = migrateSettings({ ...state.settings, ...data.settings });
     state.settings.lastSync = nowIso();
     applyTheme();
-    if (!silent) setTaskProgress('Синхронизация', 88, 100, 'Сохраняю изменения');
+    if (!silent) setTaskProgress('Синхронизация', 90, 100, 'Сохраняю данные на устройстве');
     await persist();
-    if (silent) render(); else { finishTaskProgress('Синхронизация завершена', `${state.games.filter(g => !g.deletedAt).length} игр`); setToast(`Синхронизировано: ${state.games.filter(g => !g.deletedAt).length} игр`); }
+    if (silent) render();
+    else {
+      finishTaskProgress('Синхронизация завершена', `${state.games.filter(g => !g.deletedAt).length} игр`);
+      setToast(`Синхронизировано: ${state.games.filter(g => !g.deletedAt).length} игр`);
+    }
   } catch (e) {
     console.error(e);
-    if (!silent) { failTaskProgress('Ошибка синхронизации', e.message || 'Проверь настройки'); alert(`Не удалось синхронизировать. Проверь endpoint, права Apps Script и секрет.\n\n${e.message}`); }
+    if (!silent) {
+      failTaskProgress('Ошибка синхронизации', e.message || 'Проверь настройки');
+      alert(`Не удалось синхронизировать. Проверь endpoint, права Apps Script и секрет.\n\n${e.message}`);
+    }
     state.toast = '';
     if (!silent) render();
   } finally {
@@ -1315,7 +1369,7 @@ async function syncSheets(options = {}) {
 }
 
 function exportData() {
-  const blob = new Blob([JSON.stringify({ version: 6, exportedAt: nowIso(), games: state.games, settings: state.settings }, null, 2)], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify({ version: 7, exportedAt: nowIso(), games: state.games, settings: state.settings }, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = `memory-card-${new Date().toISOString().slice(0, 10)}.json`;
