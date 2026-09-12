@@ -38,6 +38,7 @@ const DEFAULT_SETTINGS = {
   settingsUpdatedAt: '',
   lastSync: null,
   autoSync: true,
+  coverResolverVersion: 2,
 };
 
 let state = {
@@ -168,7 +169,7 @@ function wdYear(value) {
 function wikidataQueryForPlatform(platformId) {
   const p = platform(platformId);
   const values = (p.wikidata || []).map(q => `wd:${q}`).join(' ');
-  return `SELECT ?game ?gameLabel (MIN(?date) AS ?releaseDate) (SAMPLE(?genreLabel) AS ?genreLabel) (SAMPLE(?image) AS ?image) (SAMPLE(?seriesLabel) AS ?seriesLabel) WHERE {
+  return `SELECT ?game ?gameLabel (MIN(?date) AS ?releaseDate) (SAMPLE(?genreLabel) AS ?genreLabel) (SAMPLE(?seriesLabel) AS ?seriesLabel) WHERE {
 `+
     `  VALUES ?plat { ${values} }
 `+
@@ -179,8 +180,6 @@ function wikidataQueryForPlatform(platformId) {
     `  OPTIONAL { ?game wdt:P577 ?date . }
 `+
     `  OPTIONAL { ?game wdt:P136 ?genre . ?genre rdfs:label ?genreLabel . FILTER(LANG(?genreLabel) = "en") }
-`+
-    `  OPTIONAL { ?game wdt:P18 ?image . }
 `+
     `  OPTIONAL { ?game wdt:P179 ?series . ?series rdfs:label ?seriesLabel . FILTER(LANG(?seriesLabel) = "en") }
 `+
@@ -201,7 +200,8 @@ async function fetchWikidataPlatform(platformId) {
     releaseYear: wdYear(row.releaseDate?.value),
     genre: row.genreLabel?.value || '',
     franchise: inferFranchise(row.gameLabel?.value || '', row.seriesLabel?.value || ''),
-    coverUrl: safeImage(row.image?.value || ''),
+    coverUrl: '',
+    coverSource: '',
     source: 'wikidata',
   })).filter(x => x.title);
 }
@@ -227,6 +227,7 @@ async function fetchLegacySqlPlatform(platformId) {
       releaseYear: m[4] === 'NULL' ? '' : m[4],
       franchise: inferFranchise(unescapeSqlString(m[1])),
       coverUrl: '',
+      coverSource: '',
       source: 'videogames-db',
     });
   }
@@ -306,27 +307,32 @@ async function refreshCatalog(platformId, quiet = false) {
 }
 async function refreshAllCatalog() {
   if (state.catalogBusy) return;
-  let ok = 0;
-  for (let i = 0; i < PLATFORMS.length; i++) {
-    const p = PLATFORMS[i];
-    state.catalogBusy = p.id;
-    setToast(`Каталог ${i + 1}/${PLATFORMS.length}: ${p.abbr}…`);
-    try {
-      const entries = await fetchPlatformCatalog(p.id);
-      if (!entries.length) throw new Error('Пустой ответ');
-      state.catalog = state.catalog.filter(e => e.platform !== p.id || e.source === 'seed');
-      mergeCatalog(entries);
-      state.catalogMeta[p.id] = { updatedAt: nowIso(), count: entries.length, source: LEGACY_SQL_CATALOG[p.id] ? 'Wikidata + Videogames-Database' : 'Wikidata' };
-      enrichGamesFromCatalog(p.id);
-      ok++;
-      await persistCatalog();
-    } catch (e) { console.warn('Catalog refresh failed', p.id, e); }
+  let ok = 0, done = 0;
+  setTaskProgress('Обновляю каталог', 0, PLATFORMS.length, `0 из ${PLATFORMS.length} платформ`);
+  try {
+    for (const p of PLATFORMS) {
+      state.catalogBusy = p.id;
+      renderCatalogStatus();
+      try {
+        const entries = await fetchPlatformCatalog(p.id);
+        state.catalog = state.catalog.filter(e => e.platform !== p.id || e.source === 'seed');
+        mergeCatalog(entries);
+        state.catalogMeta[p.id] = { updatedAt: nowIso(), count: entries.length, source: LEGACY_SQL_CATALOG[p.id] ? 'Wikidata + Videogames-Database' : 'Wikidata' };
+        ok++;
+      } catch (e) { console.warn(`Catalog ${p.id}`, e); }
+      done++;
+      setTaskProgress('Обновляю каталог', done, PLATFORMS.length, `${p.name} · ${done} из ${PLATFORMS.length}`);
+    }
     state.catalogBusy = '';
+    await persistCatalog();
+    render();
+    finishTaskProgress('Каталог обновлён', `${ok} из ${PLATFORMS.length} платформ`);
+    setToast(`Каталог: ${ok}/${PLATFORMS.length}`);
+  } catch (e) {
+    state.catalogBusy = '';
+    failTaskProgress('Ошибка каталога', e.message || 'Ошибка сети');
+    throw e;
   }
-  await persist();
-  const coversFound = await hydrateMissingCoversForGames('', 100);
-  updateCatalogStatusDom();
-  setToast(`Каталог: ${ok}/${PLATFORMS.length}${coversFound ? ` · найдено обложек ${coversFound}` : ''}`);
 }
 async function ensurePlatformCatalog(platformId) {
   const nonSeed = state.catalog.some(e => e.platform === platformId && e.source !== 'seed');
@@ -359,6 +365,7 @@ function migrateSettings(raw = {}) {
   if (!merged.handheldRotation.includes(merged.currentHandheld)) merged.currentHandheld = merged.handheldRotation[0];
   if (!merged.desktopRotation.includes(merged.currentDesktop)) merged.currentDesktop = merged.desktopRotation[0];
   if (!['system', 'light', 'dark'].includes(merged.theme)) merged.theme = 'system';
+  merged.coverResolverVersion = Number(merged.coverResolverVersion || 0);
   return merged;
 }
 
@@ -374,6 +381,7 @@ function migrateGame(raw) {
     genre: String(raw.genre || ''),
     franchise: inferFranchise(raw.title, raw.franchise),
     coverUrl: safeImage(raw.coverUrl || ''),
+    coverSource: String(raw.coverSource || ''),
     rating,
     replay: Number(raw.replay || 0),
     notes: String(raw.notes || ''),
@@ -407,6 +415,20 @@ async function loadState() {
       state.catalog = [...CATALOG_SEED];
       mergeCatalog(cat.catalog);
       state.catalogMeta = cat.catalogMeta || {};
+    }
+    // v0.6: Wikidata P18 is a generic Commons image, not necessarily box art.
+    // Drop old unverified covers once; they will be rebuilt from verified Wikipedia game pages.
+    if (state.settings.coverResolverVersion < 2) {
+      for (const g of state.games) {
+        if (g.coverUrl && g.coverSource !== 'wikipedia-verified' && g.coverSource !== 'manual') {
+          g.coverUrl = '';
+          g.coverSource = '';
+        }
+      }
+      for (const e of state.catalog) { e.coverUrl = ''; e.coverSource = ''; }
+      state.settings.coverResolverVersion = 2;
+      state.settings.settingsUpdatedAt = nowIso();
+      await persistCatalog();
     }
   } catch (e) {
     console.warn('DB load failed', e);
@@ -457,6 +479,48 @@ function setToast(msg) {
       render();
     }
   }, 2200);
+}
+
+let taskProgressHideTimer = null;
+function ensureTaskProgress() {
+  let el = document.querySelector('#taskProgress');
+  if (el) return el;
+  el = document.createElement('div');
+  el.id = 'taskProgress';
+  el.className = 'task-progress';
+  el.hidden = true;
+  el.innerHTML = `<div class="task-progress-head"><span data-task-label>Работаю…</span><b data-task-percent>0%</b></div><div class="task-progress-track"><i data-task-bar></i></div><div class="task-progress-detail" data-task-detail></div>`;
+  document.body.appendChild(el);
+  return el;
+}
+function setTaskProgress(label, current = 0, total = 100, detail = '') {
+  clearTimeout(taskProgressHideTimer);
+  const el = ensureTaskProgress();
+  const safeTotal = Math.max(1, Number(total) || 1);
+  const safeCurrent = Math.max(0, Math.min(safeTotal, Number(current) || 0));
+  const pct = Math.max(0, Math.min(100, Math.round((safeCurrent / safeTotal) * 100)));
+  el.hidden = false;
+  el.classList.remove('error');
+  el.classList.add('visible');
+  el.querySelector('[data-task-label]').textContent = label || 'Работаю…';
+  el.querySelector('[data-task-percent]').textContent = `${pct}%`;
+  el.querySelector('[data-task-bar]').style.width = `${pct}%`;
+  el.querySelector('[data-task-detail]').textContent = detail || (total !== 100 ? `${safeCurrent} из ${safeTotal}` : '');
+}
+function finishTaskProgress(label = 'Готово', detail = '') {
+  setTaskProgress(label, 100, 100, detail);
+  const el = ensureTaskProgress();
+  taskProgressHideTimer = setTimeout(() => { el.classList.remove('visible'); setTimeout(() => { el.hidden = true; }, 180); }, 850);
+}
+function failTaskProgress(label = 'Ошибка', detail = '') {
+  const el = ensureTaskProgress();
+  clearTimeout(taskProgressHideTimer);
+  el.hidden = false; el.classList.add('visible', 'error');
+  el.querySelector('[data-task-label]').textContent = label;
+  el.querySelector('[data-task-percent]').textContent = '!';
+  el.querySelector('[data-task-bar]').style.width = '100%';
+  el.querySelector('[data-task-detail]').textContent = detail;
+  taskProgressHideTimer = setTimeout(() => { el.classList.remove('visible', 'error'); setTimeout(() => { el.hidden = true; }, 180); }, 2200);
 }
 
 function navigate(view) {
@@ -718,7 +782,7 @@ function renderSettings() {
   return `<div class="section-head"><div><h2>Настройки</h2><p>Ротации, тема, синхронизация и резервная копия.</p></div></div><div class="settings-grid">
     <section class="panel"><h3>Оформление</h3><div class="field theme-field"><label>Тема</label><select id="themeMode"><option value="system" ${state.settings.theme === 'system' ? 'selected' : ''}>Системная</option><option value="light" ${state.settings.theme === 'light' ? 'selected' : ''}>Светлая</option><option value="dark" ${state.settings.theme === 'dark' ? 'selected' : ''}>Тёмная</option></select></div><div class="footer-note">В режиме «Системная» приложение автоматически следует теме устройства.</div></section>
     <div class="rotation-settings-grid">${rotationEditor('handheld')}${rotationEditor('desktop')}</div>
-    <section class="panel"><div class="settings-panel-head"><div><h3>Каталог игр и обложки</h3><p class="status-line">Каталог нужен для автоподстановки названия, года и жанра. Обложки для твоих записей дополнительно ищутся через Wikipedia.</p></div><div class="settings-actions"><button class="secondary" data-action="catalog-refresh-all">Обновить каталог</button><button class="secondary" data-action="covers-refresh">Обновить обложки</button></div></div><div id="catalogStatus" class="catalog-status">${PLATFORMS.map(p => `${p.abbr}: <b>${catalogCounts()[p.id] || 0}</b>`).join(' · ')}</div><div class="footer-note">Обновление каталога теперь также обогащает уже добавленные игры. Если конкретной обложки нет в Wikidata, приложение ищет её отдельно по названию игры.</div></section>
+    <section class="panel"><div class="settings-panel-head"><div><h3>Каталог игр и обложки</h3><p class="status-line">Каталог нужен для автоподстановки названия, года и жанра. Обложки для твоих записей ищутся через страницу конкретной игры в Wikipedia и проверяются по Wikidata, чтобы не подставлять фотографии людей или случайные изображения.</p></div><div class="settings-actions"><button class="secondary" data-action="catalog-refresh-all">Обновить каталог</button><button class="secondary" data-action="covers-refresh">Обновить обложки</button></div></div><div id="catalogStatus" class="catalog-status">${PLATFORMS.map(p => `${p.abbr}: <b>${catalogCounts()[p.id] || 0}</b>`).join(' · ')}</div><div class="footer-note">Обновление каталога теперь также обогащает уже добавленные игры. Если конкретной обложки нет в Wikidata, приложение ищет её отдельно по названию игры.</div></section>
     <section class="panel"><h3>Google Sheets · облачная синхронизация</h3><p class="status-line">Одна Google Таблица может быть общим облаком для Mac и телефона. Конфликты решаются по времени последнего изменения записи.</p><div class="form-grid"><div class="field span-2"><label>Apps Script endpoint</label><input id="sheetEndpoint" placeholder="https://script.google.com/macros/s/.../exec" value="${esc(state.settings.sheetEndpoint || '')}"></div><div class="field span-2"><label>Секрет синхронизации</label><input id="syncSecret" type="password" value="${esc(state.settings.syncSecret || '')}"></div><label class="sync-toggle span-2"><input id="autoSync" type="checkbox" ${state.settings.autoSync !== false ? 'checked' : ''}><span><b>Автосинхронизация</b><small>Подтягивать изменения при открытии приложения и отправлять изменения после сохранения.</small></span></label></div><div class="settings-actions"><button class="primary" data-action="sync">Синхронизировать сейчас</button><button class="secondary" data-action="save-settings">Сохранить настройки</button></div><div class="status-line sync-status">${state.settings.lastSync ? `Последняя синхронизация: ${new Date(state.settings.lastSync).toLocaleString('ru-RU')}` : 'Синхронизация ещё не выполнялась.'}</div><div class="footer-note">Endpoint и секрет намеренно хранятся только локально на каждом устройстве и не записываются в Google Таблицу.</div></section>
     <section class="panel"><h3>Резервная копия</h3><div class="settings-actions"><button class="secondary" data-action="export">Экспорт JSON</button><label class="secondary file-label">Импорт JSON<input id="importFile" type="file" accept="application/json" hidden></label></div><div class="footer-note">Экспорт содержит игры и настройки приложения.</div></section>
   </div>`;
@@ -859,49 +923,85 @@ function hideAutocomplete(form = activeForm()) {
   const box = form?.querySelector('[data-autocomplete-list]');
   if (box) { box.hidden = true; box.innerHTML = ''; }
 }
+function wikiTitleScore(pageTitle = '', gameTitle = '') {
+  const clean = v => normalizeText(String(v).replace(/\([^)]*\)/g, ' ').replace(/\b(remaster(?:ed)?|hd|ultimate|edition|goty|game of the year)\b/gi, ' '));
+  const p = clean(pageTitle), g = clean(gameTitle);
+  if (!p || !g) return 99;
+  if (p === g) return 0;
+  if (p.startsWith(g) || g.startsWith(p)) return 2;
+  if (p.includes(g) || g.includes(p)) return 5;
+  const gs = new Set(g.split(' ').filter(Boolean));
+  const ps = new Set(p.split(' ').filter(Boolean));
+  const common = [...gs].filter(x => ps.has(x)).length;
+  return 14 - Math.min(10, common * 2);
+}
+function claimEntityIds(entity, prop) {
+  return (entity?.claims?.[prop] || []).map(c => c?.mainsnak?.datavalue?.value?.id).filter(Boolean);
+}
+function claimYears(entity, prop = 'P577') {
+  return (entity?.claims?.[prop] || []).map(c => c?.mainsnak?.datavalue?.value?.time).map(wdYear).filter(Boolean);
+}
+async function fetchWikidataEntities(ids = []) {
+  const unique = [...new Set(ids.filter(Boolean))];
+  if (!unique.length) return {};
+  const url = `https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&origin=*&props=claims&ids=${encodeURIComponent(unique.join('|'))}`;
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`Wikidata entity HTTP ${r.status}`);
+  const data = await r.json();
+  return data.entities || {};
+}
+function wikipediaSearchVariants(title = '') {
+  const original = String(title || '').trim();
+  const variants = [original];
+  const stripped = original.replace(/\s+(HD|Remastered|Ultimate Edition|Game of the Year Edition|GOTY)$/i, '').trim();
+  if (stripped && !variants.includes(stripped)) variants.push(stripped);
+  return variants.filter(Boolean);
+}
 async function fetchWikipediaCover(title, releaseYear = '', platformId = '') {
-  const cacheKey = `${normalizeText(title)}|${releaseYear}|${platformId}`;
+  const cacheKey = `verified-v2|${normalizeText(title)}|${releaseYear}|${platformId}`;
   if (coverLookups.has(cacheKey)) return coverLookups.get(cacheKey);
   const job = (async () => {
-    const attempts = [
-      { host: 'en.wikipedia.org', query: `intitle:"${title}" video game` },
-      { host: 'en.wikipedia.org', query: `"${title}" ${releaseYear || ''} video game` },
-      { host: 'en.wikipedia.org', query: title },
-      { host: 'ru.wikipedia.org', query: `intitle:"${title}" видеоигра` },
-    ];
+    const plat = platform(platformId);
+    const targetPlatforms = new Set(plat.wikidata || []);
+    const attempts = [];
+    for (const variant of wikipediaSearchVariants(title)) {
+      attempts.push({ host: 'en.wikipedia.org', query: `"${variant}" video game` });
+      attempts.push({ host: 'en.wikipedia.org', query: `intitle:"${variant}"` });
+      attempts.push({ host: 'ru.wikipedia.org', query: `"${variant}" видеоигра` });
+    }
     for (const attempt of attempts) {
       try {
-        const searchUrl = `https://${attempt.host}/w/api.php?action=query&format=json&origin=*&list=search&srnamespace=0&srlimit=6&srsearch=${encodeURIComponent(attempt.query)}`;
+        const searchUrl = `https://${attempt.host}/w/api.php?action=query&format=json&origin=*&generator=search&gsrnamespace=0&gsrlimit=10&gsrsearch=${encodeURIComponent(attempt.query)}&prop=pageimages|pageprops&piprop=thumbnail|original&pithumbsize=1000&ppprop=wikibase_item`;
         const sr = await fetch(searchUrl);
         if (!sr.ok) continue;
         const sd = await sr.json();
-        const rows = sd.query?.search || [];
-        if (!rows.length) continue;
-        const desired = normalizeText(title);
-        rows.sort((a,b) => {
-          const score = x => {
-            const t = normalizeText(x.title || '');
-            let n = t === desired ? 0 : t.startsWith(desired) ? 1 : t.includes(desired) ? 3 : 10;
-            if (/video game|видеоигр/i.test(x.title || '')) n -= .5;
-            return n;
-          };
-          return score(a) - score(b);
-        });
-        const ids = rows.slice(0,5).map(x => x.pageid).filter(Boolean).join('|');
-        if (!ids) continue;
-        const imageUrl = `https://${attempt.host}/w/api.php?action=query&format=json&origin=*&pageids=${ids}&prop=pageimages&piprop=thumbnail|original&pithumbsize=900`;
-        const ir = await fetch(imageUrl);
-        if (!ir.ok) continue;
-        const idata = await ir.json();
-        const pages = idata.query?.pages || {};
-        for (const row of rows.slice(0,5)) {
-          const page = pages[row.pageid];
-          const found = safeImage(page?.thumbnail?.source || page?.original?.source || '');
-          if (found) return found;
-        }
-      } catch (_) {}
+        const pages = Object.values(sd.query?.pages || {}).filter(p => p?.pageprops?.wikibase_item && (p?.thumbnail?.source || p?.original?.source));
+        if (!pages.length) continue;
+        const entities = await fetchWikidataEntities(pages.map(p => p.pageprops.wikibase_item));
+        const scored = pages.map(page => {
+          const qid = page.pageprops.wikibase_item;
+          const entity = entities[qid] || {};
+          const entityPlatforms = new Set(claimEntityIds(entity, 'P400'));
+          const isPlatformMatch = targetPlatforms.size ? [...targetPlatforms].some(x => entityPlatforms.has(x)) : false;
+          const p31 = new Set(claimEntityIds(entity, 'P31'));
+          const isVideoGame = p31.has('Q7889') || entityPlatforms.size > 0;
+          const years = claimYears(entity);
+          const targetYear = Number(releaseYear) || 0;
+          const yearDistance = targetYear && years.length ? Math.min(...years.map(y => Math.abs(Number(y) - targetYear))) : 0;
+          let score = wikiTitleScore(page.title, title);
+          if (isPlatformMatch) score -= 12;
+          else if (targetPlatforms.size && entityPlatforms.size) score += 8;
+          if (isVideoGame) score -= 4; else score += 30;
+          if (targetYear && years.length) score += Math.min(10, yearDistance * 2);
+          return { page, score, isVideoGame };
+        }).filter(x => x.isVideoGame).sort((a,b) => a.score - b.score);
+        const best = scored[0];
+        if (!best || best.score > 14) continue;
+        const found = safeImage(best.page?.thumbnail?.source || best.page?.original?.source || '');
+        if (found) return { url: found, source: 'wikipedia-verified', pageTitle: best.page.title };
+      } catch (e) { console.warn('Cover lookup attempt failed', e); }
     }
-    return '';
+    return { url: '', source: '', pageTitle: '' };
   })();
   coverLookups.set(cacheKey, job);
   const result = await job;
@@ -909,45 +1009,70 @@ async function fetchWikipediaCover(title, releaseYear = '', platformId = '') {
   return result;
 }
 
-async function hydrateGameCover(game) {
-  if (!game || game.deletedAt || game.coverUrl) return false;
+async function hydrateGameCover(game, { force = false } = {}) {
+  if (!game || game.deletedAt) return false;
+  if (!force && game.coverUrl && game.coverSource === 'wikipedia-verified') return false;
   const titleKey = normalizeText(game.title);
-  const cat = state.catalog.find(e => e.platform === game.platform && normalizeText(e.title) === titleKey && e.coverUrl)
-    || state.catalog.find(e => normalizeText(e.title) === titleKey && e.coverUrl);
+  const cat = state.catalog.find(e => e.platform === game.platform && normalizeText(e.title) === titleKey && e.coverUrl && e.coverSource === 'wikipedia-verified')
+    || state.catalog.find(e => normalizeText(e.title) === titleKey && e.coverUrl && e.coverSource === 'wikipedia-verified');
   let found = safeImage(cat?.coverUrl || '');
-  if (!found) found = await fetchWikipediaCover(game.title, game.releaseYear, game.platform);
-  if (!found) return false;
+  let source = cat?.coverSource || '';
+  if (!found) {
+    const resolved = await fetchWikipediaCover(game.title, game.releaseYear, game.platform);
+    found = safeImage(resolved?.url || '');
+    source = resolved?.source || '';
+  }
+  const before = game.coverUrl || '';
+  if (!found) {
+    if (force && game.coverSource !== 'manual') { game.coverUrl = ''; game.coverSource = ''; }
+    return before !== game.coverUrl;
+  }
   game.coverUrl = found;
+  game.coverSource = source || 'wikipedia-verified';
   game.updatedAt = nowIso();
   const matches = state.catalog.filter(e => e.platform === game.platform && normalizeText(e.title) === titleKey);
-  matches.forEach(e => { if (!e.coverUrl) e.coverUrl = found; });
-  return true;
+  matches.forEach(e => { e.coverUrl = found; e.coverSource = game.coverSource; });
+  return before !== found;
 }
 
-async function hydrateMissingCoversForGames(platformId = '', limit = 60) {
-  const pending = liveGames().filter(g => !g.coverUrl && (!platformId || g.platform === platformId)).slice(0, limit);
+async function hydrateMissingCoversForGames(platformId = '', limit = 60, options = {}) {
+  const { force = false, label = 'Ищу обложки' } = options;
+  let pending = liveGames().filter(g => (!platformId || g.platform === platformId) && (force || !g.coverUrl || g.coverSource !== 'wikipedia-verified'));
+  if (Number.isFinite(limit)) pending = pending.slice(0, limit);
   if (!pending.length) return 0;
-  let changed = 0;
+  let changed = 0, processed = 0;
+  const total = pending.length;
+  setTaskProgress(label, 0, total, `0 из ${total}`);
   const queue = [...pending];
   const workers = Array.from({ length: Math.min(3, queue.length) }, async () => {
     while (queue.length) {
       const g = queue.shift();
-      if (await hydrateGameCover(g)) changed++;
+      try { if (await hydrateGameCover(g, { force })) changed++; }
+      finally {
+        processed++;
+        setTaskProgress(label, processed, total, `${processed} из ${total} · ${g.title}`);
+      }
     }
   });
   await Promise.all(workers);
-  if (changed) {
-    await persistCatalog();
-    await persist();
-    render();
-  }
+  await persistCatalog();
+  await persist();
+  render();
   return changed;
 }
 
 async function refreshMissingCovers() {
-  setToast('Ищу обложки для твоей библиотеки…');
-  const changed = await hydrateMissingCoversForGames('', 100);
-  setToast(changed ? `Найдено обложек: ${changed}` : 'Новых обложек не найдено');
+  try {
+    const total = liveGames().length;
+    if (!total) { setToast('В библиотеке пока нет игр'); return; }
+    const changed = await hydrateMissingCoversForGames('', Infinity, { force: true, label: 'Проверяю обложки' });
+    finishTaskProgress('Обложки обновлены', `${changed} изменено · ${total} проверено`);
+    setToast(changed ? `Обновлено обложек: ${changed}` : 'Все доступные обложки уже актуальны');
+  } catch (e) {
+    console.error(e);
+    failTaskProgress('Не удалось обновить обложки', e.message || 'Ошибка сети');
+    alert(`Не удалось обновить обложки.\n\n${e.message || e}`);
+  }
 }
 
 async function applyCatalogSuggestion(key) {
@@ -970,9 +1095,11 @@ async function applyCatalogSuggestion(key) {
   hideAutocomplete(form);
   if (!e.coverUrl) {
     if (picked) picked.innerHTML += `${picked.innerHTML ? ' · ' : ''}ищу обложку…`;
-    const found = await fetchWikipediaCover(e.title, e.releaseYear, e.platform);
+    const resolved = await fetchWikipediaCover(e.title, e.releaseYear, e.platform);
+    const found = safeImage(resolved?.url || '');
     if (found) {
       e.coverUrl = found;
+      e.coverSource = resolved?.source || 'wikipedia-verified';
       if (cover) cover.value = found;
       await persistCatalog();
       if (picked) picked.innerHTML = [e.genre ? `Жанр: <b>${esc(e.genre)}</b>` : '', f ? `Франшиза: <b>${esc(f)}</b>` : '', 'Обложка: <b>найдена</b>'].filter(Boolean).join(' · ');
@@ -1157,26 +1284,29 @@ async function syncSheets(options = {}) {
     alert('Сначала укажи Apps Script endpoint в настройках.');
     return;
   }
-  if (!silent) setToast('Синхронизация…');
+  if (!silent) { setToast('Синхронизация…'); setTaskProgress('Синхронизация', 8, 100, 'Подготавливаю локальные данные'); }
   syncInFlight = true;
   try {
+    if (!silent) setTaskProgress('Синхронизация', 22, 100, 'Отправляю данные в Google Sheets');
     const resp = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ action: 'sync', secret: state.settings.syncSecret, games: state.games, settings: syncableSettings() }),
     });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    if (!silent) setTaskProgress('Синхронизация', 68, 100, 'Получаю изменения из Google Sheets');
     const data = await resp.json();
     if (!data.ok) throw new Error(data.error || 'Sync failed');
     if (Array.isArray(data.games)) state.games = data.games.map(migrateGame);
     if (data.settings) state.settings = migrateSettings({ ...state.settings, ...data.settings });
     state.settings.lastSync = nowIso();
     applyTheme();
+    if (!silent) setTaskProgress('Синхронизация', 88, 100, 'Сохраняю изменения');
     await persist();
-    if (silent) render(); else setToast(`Синхронизировано: ${state.games.filter(g => !g.deletedAt).length} игр`);
+    if (silent) render(); else { finishTaskProgress('Синхронизация завершена', `${state.games.filter(g => !g.deletedAt).length} игр`); setToast(`Синхронизировано: ${state.games.filter(g => !g.deletedAt).length} игр`); }
   } catch (e) {
     console.error(e);
-    if (!silent) alert(`Не удалось синхронизировать. Проверь endpoint, права Apps Script и секрет.\n\n${e.message}`);
+    if (!silent) { failTaskProgress('Ошибка синхронизации', e.message || 'Проверь настройки'); alert(`Не удалось синхронизировать. Проверь endpoint, права Apps Script и секрет.\n\n${e.message}`); }
     state.toast = '';
     if (!silent) render();
   } finally {
@@ -1185,7 +1315,7 @@ async function syncSheets(options = {}) {
 }
 
 function exportData() {
-  const blob = new Blob([JSON.stringify({ version: 5, exportedAt: nowIso(), games: state.games, settings: state.settings }, null, 2)], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify({ version: 6, exportedAt: nowIso(), games: state.games, settings: state.settings }, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = `memory-card-${new Date().toISOString().slice(0, 10)}.json`;
