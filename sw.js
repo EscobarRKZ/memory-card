@@ -1,6 +1,6 @@
-const CACHE='memory-card-v13-autosync-mobile';
+const CACHE='memory-card-v14-title-search';
 const COVER_CACHE='memory-card-covers-v5';
-const ASSETS=['./','./index.html','./styles.css','./mobile.css','./autosync-helper.js','./app.js','./manifest.webmanifest','./icon.svg','./logo-192.png','./logo-512.png','./logo.png'];
+const ASSETS=['./','./index.html','./styles.css','./mobile.css','./autosync-helper.js','./title-search-helper.js','./app.js','./manifest.webmanifest','./icon.svg','./logo-192.png','./logo-512.png','./logo.png'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>![CACHE,COVER_CACHE].includes(k)).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',e=>{
