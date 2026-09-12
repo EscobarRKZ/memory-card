@@ -1,8 +1,8 @@
-/* Memory Card — PS3 missing-cover fallback via GameTDB, retryable/background v2 */
+/* Memory Card — PS3 cover enhancer, resilient v3 */
 (() => {
   const DB_URL = 'https://www.gametdb.com/ps3tdb.txt?LANG=EN';
   const DB_CACHE_KEY = 'memory-card-ps3tdb-v1';
-  const COVER_CACHE_KEY = 'memory-card-ps3-covers-v2';
+  const COVER_CACHE_KEY = 'memory-card-ps3-covers-v3';
   const DB_TTL = 1000 * 60 * 60 * 24 * 7;
   const HIT_TTL = 1000 * 60 * 60 * 24 * 30;
   const MISS_TTL = 1000 * 60 * 8;
@@ -30,23 +30,32 @@
     .replace(/\s+/g, ' ')
     .trim();
 
-  // Small verified shortcuts for titles already present in this library. They also make
-  // these covers independent from the cross-origin GameTDB title-list request.
   const KNOWN = [
-    { title: 'Sonic Unleashed', ids: ['BLUS30244', 'BLES00425'] },
-    { title: 'Red Dead Redemption', ids: ['BLUS30418', 'BLES00680'] },
-    { title: 'Metal Gear Solid 2 Sons of Liberty HD', ids: ['NPEB00685', 'BLES01419'] },
-    { title: 'Metal Gear Solid 3 Snake Eater HD Edition', ids: ['NPUB30610', 'BLES01419'] },
-    { title: 'Metal Gear Solid HD Collection', ids: ['BLES01419'] },
-  ].map(item => ({ ...item, key: normalize(item.title), simple: simplify(item.title) }));
+    { match: /^sonic unleashed$/, sources: ['https://art.gametdb.com/ps3/coverHQ/US/BLUS30244.jpg','https://art.gametdb.com/ps3/coverM/US/BLUS30244.jpg'] },
+    { match: /^red dead redemption$/, sources: ['https://art.gametdb.com/ps3/coverHQ/US/BLUS30418.jpg','https://art.gametdb.com/ps3/coverM/US/BLUS30418.jpg'] },
+    { match: /^metal gear solid 2 sons of liberty(?: hd)?$/, sources: ['https://art.gametdb.com/ps3/coverHQ/EN/BLES01419.jpg','https://art.gametdb.com/ps3/coverM/EN/BLES01419.jpg'] },
+    { match: /^metal gear solid 3 snake eater(?: hd)?(?: edition)?$/, sources: ['https://art.gametdb.com/ps3/coverHQ/EN/BLES01419.jpg','https://art.gametdb.com/ps3/coverM/EN/BLES01419.jpg'] },
+    { match: /^metal gear solid hd collection$/, sources: ['https://art.gametdb.com/ps3/coverHQ/EN/BLES01419.jpg','https://art.gametdb.com/ps3/coverM/EN/BLES01419.jpg'] },
+  ];
 
   function readJson(key, fallback) {
     try { return JSON.parse(localStorage.getItem(key) || '') || fallback; }
     catch (_) { return fallback; }
   }
-
   function writeJson(key, value) {
     try { localStorage.setItem(key, JSON.stringify(value)); } catch (_) {}
+  }
+  function proxyUrl(source) {
+    return `https://images.weserv.nl/?url=${encodeURIComponent(source)}&output=webp&q=90`;
+  }
+  function expandSources(sources = []) {
+    const out = [];
+    for (const source of sources) {
+      if (!source) continue;
+      out.push(proxyUrl(source));
+      out.push(source);
+    }
+    return [...new Set(out)];
   }
 
   async function fetchText(url, timeoutMs = 6500) {
@@ -111,7 +120,7 @@
         bucket.push(item);
         exact.set(key, bucket);
       }
-      for (const bucket of exact.values()) bucket.sort((a, b) => a.rank - b.rank);
+      for (const bucket of exact.values()) bucket.sort((a,b) => a.rank - b.rank);
       return { entries, exact };
     })();
     try { return await indexPromise; }
@@ -129,110 +138,53 @@
     return 100 - (common / union) * 82 + Math.abs(aa.size - bb.size) * 2;
   }
 
-  function knownCandidates(title) {
-    const key = normalize(title);
-    const simple = simplify(title);
-    const item = KNOWN.find(x => x.key === key || (simple && x.simple === simple));
-    return item ? item.ids.map((id, index) => ({ id, name: item.title, key, rank: index - 20, score: 0 })) : [];
-  }
-
   async function findCandidates(title) {
-    const builtin = knownCandidates(title);
-    if (builtin.length) return builtin;
-
     const wanted = normalize(title);
-    const wantedSimple = simplify(title);
+    const simpleWanted = simplify(title);
     if (!wanted) return [];
     const { entries, exact } = await loadIndex();
     const direct = exact.get(wanted);
-    if (direct?.length) return direct.slice(0, 8);
-
-    const first = wantedSimple.split(' ')[0] || wanted.split(' ')[0];
-    const pool = first ? entries.filter(x => x.simple.includes(first) || x.key.includes(first)) : entries;
+    if (direct?.length) return direct.slice(0, 5);
+    const first = simpleWanted.split(' ')[0];
+    const pool = first ? entries.filter(x => x.simple.includes(first)) : entries;
     const matches = [];
     let count = 0;
     for (const item of pool) {
-      const rawScore = score(item.key, wanted);
-      const simpleScore = wantedSimple ? score(item.simple, wantedSimple) : rawScore;
-      const s = Math.min(rawScore, simpleScore);
-      if (s <= 30) matches.push({ ...item, score: s });
+      const s = Math.min(score(item.key, wanted), score(item.simple, simpleWanted));
+      if (s <= 28) matches.push({ ...item, score: s });
       if (++count % 500 === 0) await new Promise(resolve => setTimeout(resolve, 0));
     }
-    matches.sort((a, b) => a.score - b.score || a.rank - b.rank);
-    return matches.slice(0, 8);
+    matches.sort((a,b) => a.score - b.score || a.rank - b.rank);
+    return matches.slice(0, 5);
   }
 
-  function imageWorks(url, timeoutMs = 2200) {
-    return new Promise(resolve => {
-      const img = new Image();
-      let settled = false;
-      const done = ok => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        img.onload = img.onerror = null;
-        resolve(ok);
-      };
-      const timer = setTimeout(() => { img.src = ''; done(false); }, timeoutMs);
-      img.onload = () => done(true);
-      img.onerror = () => done(false);
-      img.referrerPolicy = 'no-referrer';
-      img.src = url;
-    });
+  function knownSources(title) {
+    const key = simplify(title);
+    const found = KNOWN.find(item => item.match.test(key));
+    return found ? expandSources(found.sources) : [];
   }
 
-  function preferredRegions(id = '') {
-    const upper = String(id).toUpperCase();
-    if (/^(BLUS|BCUS|NPUB)/.test(upper)) return ['US', 'EN', 'AU', 'RU', 'DE', 'FR', 'ES'];
-    if (/^(BLES|BCES|NPEB)/.test(upper)) return ['EN', 'US', 'DE', 'FR', 'ES', 'AU', 'RU'];
-    if (/^(BLJM|BCJM|NPJB)/.test(upper)) return ['JA', 'EN', 'US'];
-    if (/^(BLAS|BCAS|NPHB)/.test(upper)) return ['EN', 'US', 'ZH', 'JA'];
-    return ['US', 'EN', 'DE', 'FR', 'ES', 'AU', 'RU', 'JA'];
-  }
-
-  function artworkUrls(id) {
-    const urls = [];
-    for (const type of ['coverHQ', 'coverM', 'cover']) {
-      for (const region of preferredRegions(id)) {
-        // GameTDB PS3 artwork is predominantly JPG. Try that first so a hit is fast.
-        urls.push(`https://art.gametdb.com/ps3/${type}/${region}/${id}.jpg`);
-        urls.push(`https://art.gametdb.com/ps3/${type}/${region}/${id}.png`);
-      }
+  function sourceUrlsForId(id) {
+    const regions = ['US','EN','AU','RU'];
+    const types = ['coverHQ','coverM','cover'];
+    const direct = [];
+    for (const type of types) for (const region of regions) {
+      direct.push(`https://art.gametdb.com/ps3/${type}/${region}/${id}.jpg`);
+      direct.push(`https://art.gametdb.com/ps3/${type}/${region}/${id}.png`);
     }
-    return urls;
+    return expandSources(direct);
   }
 
-  async function resolveCover(title) {
-    const key = normalize(title);
-    if (!key) return '';
-    const cache = readJson(COVER_CACHE_KEY, {});
-    const hit = cache[key];
-    if (hit) {
-      const age = Date.now() - Number(hit.at || 0);
-      if (hit.url && age < HIT_TTL) return hit.url;
-      if (!hit.url && age < MISS_TTL) return '';
-    }
-
+  async function buildCandidates(title) {
+    const known = knownSources(title);
+    if (known.length) return known;
     try {
       const matches = await findCandidates(title);
-      for (const match of matches) {
-        for (const url of artworkUrls(match.id)) {
-          if (await imageWorks(url)) {
-            cache[key] = { at: Date.now(), url, id: match.id, matchedTitle: match.name };
-            writeJson(COVER_CACHE_KEY, cache);
-            return url;
-          }
-        }
-      }
-      // Negative results are deliberately short-lived: a temporary GameTDB/CDN problem
-      // must not hide a cover for a month.
-      cache[key] = { at: Date.now(), url: '' };
-      writeJson(COVER_CACHE_KEY, cache);
+      return [...new Set(matches.flatMap(match => sourceUrlsForId(match.id)))];
     } catch (error) {
-      console.warn('Memory Card PS3 cover lookup:', error);
-      // Do not cache transport errors as a real "no cover" result.
+      console.warn('Memory Card PS3 title lookup:', error);
+      return [];
     }
-    return '';
   }
 
   function getTitle(container) {
@@ -247,29 +199,59 @@
     return '';
   }
 
-  async function enhance(container) {
-    if (!container?.isConnected || container.querySelector('img')) return true;
-    const title = getTitle(container);
-    if (!title) return false;
-    const url = await resolveCover(title);
-    if (!url || !container.isConnected || container.querySelector('img')) return false;
-
-    return await new Promise(resolve => {
+  function installImage(container, title, urls, cacheKey) {
+    return new Promise(resolve => {
+      let index = 0;
       const img = new Image();
       img.loading = 'lazy';
       img.alt = `Обложка ${title}`;
-      img.referrerPolicy = 'no-referrer';
+      const tryNext = () => {
+        if (!container?.isConnected || index >= urls.length) { resolve(false); return; }
+        img.src = urls[index++];
+      };
       img.onload = () => {
-        if (!container.isConnected || container.querySelector('img')) return resolve(false);
+        if (!container?.isConnected) { resolve(false); return; }
+        container.querySelector('img')?.remove();
         container.prepend(img);
         container.classList.add('has-image');
         container.classList.remove('image-failed');
         container.dataset.coverSource = 'gametdb-ps3';
+        const cache = readJson(COVER_CACHE_KEY, {});
+        cache[cacheKey] = { at: Date.now(), url: img.currentSrc || img.src };
+        writeJson(COVER_CACHE_KEY, cache);
         resolve(true);
       };
-      img.onerror = () => resolve(false);
-      img.src = url;
+      img.onerror = tryNext;
+      tryNext();
     });
+  }
+
+  async function enhance(container) {
+    if (!container?.isConnected || container.querySelector('img')) return;
+    const title = getTitle(container);
+    if (!title) return;
+    const key = normalize(title);
+    const cache = readJson(COVER_CACHE_KEY, {});
+    const hit = cache[key];
+    let urls = [];
+    if (hit?.url && Date.now() - Number(hit.at || 0) < HIT_TTL) urls.push(hit.url);
+    const built = await buildCandidates(title);
+    urls.push(...built);
+    urls = [...new Set(urls)];
+    if (!urls.length) {
+      if (!hit || Date.now() - Number(hit.at || 0) > MISS_TTL) {
+        cache[key] = { at: Date.now(), url: '' };
+        writeJson(COVER_CACHE_KEY, cache);
+      }
+      container.dataset.ps3CoverRetryAt = String(Date.now() + DOM_RETRY_MS);
+      return;
+    }
+    const ok = await installImage(container, title, urls, key);
+    if (!ok) {
+      cache[key] = { at: Date.now(), url: '' };
+      writeJson(COVER_CACHE_KEY, cache);
+      container.dataset.ps3CoverRetryAt = String(Date.now() + DOM_RETRY_MS);
+    }
   }
 
   async function pump() {
@@ -278,16 +260,7 @@
     try {
       while (queue.length && !document.hidden) {
         const container = queue.shift();
-        if (!container?.isConnected) continue;
-        container.dataset.ps3CoverState = 'working';
-        const ok = await enhance(container);
-        if (ok) {
-          container.dataset.ps3CoverState = 'done';
-          delete container.dataset.ps3CoverRetryAt;
-        } else {
-          container.dataset.ps3CoverState = 'retry';
-          container.dataset.ps3CoverRetryAt = String(Date.now() + DOM_RETRY_MS);
-        }
+        await enhance(container);
         await new Promise(resolve => setTimeout(resolve, 0));
       }
     } finally { working = false; }
@@ -299,29 +272,28 @@
       if (!(el instanceof HTMLElement) || el.querySelector('img')) continue;
       const badge = el.querySelector('.cover-platform-badge');
       if (!badge || badge.textContent.trim().toLowerCase() !== 'ps3') continue;
-      const state = el.dataset.ps3CoverState || '';
-      if (state === 'queued' || state === 'working' || state === 'done') continue;
       const retryAt = Number(el.dataset.ps3CoverRetryAt || 0);
       if (retryAt && retryAt > now) continue;
-      el.dataset.ps3CoverState = 'queued';
+      if (el.dataset.ps3CoverQueued === '1') continue;
+      el.dataset.ps3CoverQueued = '1';
       queue.push(el);
     }
-    pump();
+    pump().finally(() => queue.forEach(el => { if (el) el.dataset.ps3CoverQueued = ''; }));
   }
 
-  function scheduleScan(delay = 700) {
+  function scheduleScan(delay = 450) {
     clearTimeout(scanTimer);
     scanTimer = setTimeout(() => {
       const run = () => scan();
-      if ('requestIdleCallback' in window) requestIdleCallback(run, { timeout: 1200 });
+      if ('requestIdleCallback' in window) requestIdleCallback(run, { timeout: 900 });
       else setTimeout(run, 0);
     }, delay);
   }
 
-  window.addEventListener('load', () => scheduleScan(1000));
-  window.addEventListener('pageshow', () => scheduleScan(700));
-  document.addEventListener('click', () => scheduleScan(450));
-  document.addEventListener('change', () => scheduleScan(450));
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) scheduleScan(650); });
-  setInterval(() => { if (!document.hidden) scheduleScan(0); }, 15_000);
+  window.addEventListener('load', () => scheduleScan(700));
+  window.addEventListener('pageshow', () => scheduleScan(500));
+  document.addEventListener('click', () => scheduleScan(300));
+  document.addEventListener('change', () => scheduleScan(300));
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) scheduleScan(500); });
+  setInterval(() => { if (!document.hidden) scheduleScan(0); }, 15000);
 })();
