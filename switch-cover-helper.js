@@ -1,8 +1,8 @@
-/* Memory Card — Nintendo Switch cover enhancer, retryable/background v3 */
+/* Memory Card — Nintendo Switch cover enhancer, resilient v4 */
 (() => {
   const DB_URL = 'https://www.gametdb.com/switchtdb.txt?LANG=EN';
   const DB_CACHE_KEY = 'memory-card-switchtdb-v2';
-  const COVER_CACHE_KEY = 'memory-card-switch-covers-v3';
+  const COVER_CACHE_KEY = 'memory-card-switch-covers-v4';
   const DB_TTL = 1000 * 60 * 60 * 24 * 7;
   const HIT_TTL = 1000 * 60 * 60 * 24 * 30;
   const MISS_TTL = 1000 * 60 * 8;
@@ -24,6 +24,11 @@
     .replace(/\s+/g, ' ')
     .trim();
 
+  const simplify = value => normalize(value)
+    .replace(/\b(game of the year|goty|ultimate|deluxe|complete|edition|version)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
   function readJson(key, fallback) {
     try { return JSON.parse(localStorage.getItem(key) || '') || fallback; }
     catch (_) { return fallback; }
@@ -31,8 +36,20 @@
   function writeJson(key, value) {
     try { localStorage.setItem(key, JSON.stringify(value)); } catch (_) {}
   }
+  function proxyUrl(source) {
+    return `https://images.weserv.nl/?url=${encodeURIComponent(source)}&output=webp&q=90`;
+  }
+  function expandSources(sources = []) {
+    const out = [];
+    for (const source of sources) {
+      if (!source) continue;
+      out.push(proxyUrl(source));
+      out.push(source);
+    }
+    return [...new Set(out)];
+  }
 
-  async function fetchText(url, timeoutMs = 5000) {
+  async function fetchText(url, timeoutMs = 6500) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -56,12 +73,12 @@
           const text = await fetchText(url);
           writeJson(DB_CACHE_KEY, { at: Date.now(), text });
           return text;
-        } catch (e) { lastError = e; }
+        } catch (error) { lastError = error; }
       }
-      throw lastError || new Error('GameTDB unavailable');
+      throw lastError || new Error('GameTDB Switch unavailable');
     })();
     try { return await dbPromise; }
-    catch (e) { dbPromise = null; throw e; }
+    catch (error) { dbPromise = null; throw error; }
   }
 
   async function loadIndex() {
@@ -77,14 +94,14 @@
         const name = line.slice(sep + 3).trim();
         const key = normalize(name);
         if (!id || !name || !key) continue;
-        const item = { id, name, key };
+        const item = { id, name, key, simple: simplify(name) };
         entries.push(item);
         if (!exact.has(key)) exact.set(key, item);
       }
       return { entries, exact };
     })();
     try { return await indexPromise; }
-    catch (e) { indexPromise = null; throw e; }
+    catch (error) { indexPromise = null; throw error; }
   }
 
   function score(candidate, wanted) {
@@ -98,90 +115,43 @@
     return 100 - (common / union) * 82 + Math.abs(aa.size - bb.size) * 2;
   }
 
-  async function findGameId(title) {
+  async function findGame(title) {
     const wanted = normalize(title);
+    const simpleWanted = simplify(title);
     if (!wanted) return null;
     const { entries, exact } = await loadIndex();
     const direct = exact.get(wanted);
     if (direct) return direct;
-
-    const first = wanted.split(' ')[0];
-    const candidates = first ? entries.filter(x => x.key.includes(first)) : entries;
+    const first = simpleWanted.split(' ')[0];
+    const pool = first ? entries.filter(x => x.simple.includes(first)) : entries;
     let best = null;
-    let i = 0;
-    for (const item of candidates) {
-      const s = score(item.key, wanted);
+    let count = 0;
+    for (const item of pool) {
+      const s = Math.min(score(item.key, wanted), score(item.simple, simpleWanted));
       if (!best || s < best.score) best = { ...item, score: s };
-      if (++i % 500 === 0) await new Promise(resolve => setTimeout(resolve, 0));
+      if (++count % 500 === 0) await new Promise(resolve => setTimeout(resolve, 0));
     }
     return best && best.score <= 30 ? best : null;
   }
 
-  function imageWorks(url, timeoutMs = 2200) {
-    return new Promise(resolve => {
-      const img = new Image();
-      let settled = false;
-      const done = ok => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        img.onload = img.onerror = null;
-        resolve(ok);
-      };
-      const timer = setTimeout(() => { img.src = ''; done(false); }, timeoutMs);
-      img.onload = () => done(true);
-      img.onerror = () => done(false);
-      img.referrerPolicy = 'no-referrer';
-      img.src = url;
-    });
-  }
-
-  function artworkUrls(id) {
-    const urls = [];
-    for (const type of ['coverHQ', 'coverM', 'cover']) {
-      for (const region of ['US', 'EN', 'AU', 'CA', 'DE', 'FR', 'ES', 'JA']) {
-        // GameTDB artwork is usually JPG; try it before PNG to reduce failed requests.
-        urls.push(`https://art.gametdb.com/switch/${type}/${region}/${id}.jpg`);
-        urls.push(`https://art.gametdb.com/switch/${type}/${region}/${id}.png`);
+  function sourceUrlsForId(id) {
+    const direct = [];
+    for (const type of ['coverHQ','coverM','cover']) {
+      for (const region of ['US','EN','AU','CA','JA']) {
+        direct.push(`https://art.gametdb.com/switch/${type}/${region}/${id}.jpg`);
+        direct.push(`https://art.gametdb.com/switch/${type}/${region}/${id}.png`);
       }
     }
-    return urls;
+    return expandSources(direct);
   }
 
-  async function resolveCover(title) {
-    const key = normalize(title);
-    if (!key) return '';
-    const cache = readJson(COVER_CACHE_KEY, {});
-    const hit = cache[key];
-    if (hit) {
-      const age = Date.now() - Number(hit.at || 0);
-      if (hit.url && age < HIT_TTL) return hit.url;
-      if (!hit.url && age < MISS_TTL) return '';
-    }
-
+  async function buildCandidates(title) {
     try {
-      const match = await findGameId(title);
-      if (!match) {
-        cache[key] = { at: Date.now(), url: '' };
-        writeJson(COVER_CACHE_KEY, cache);
-        return '';
-      }
-      for (const url of artworkUrls(match.id)) {
-        if (await imageWorks(url)) {
-          cache[key] = { at: Date.now(), url, matchedTitle: match.name, id: match.id };
-          writeJson(COVER_CACHE_KEY, cache);
-          return url;
-        }
-      }
-      // A miss is short-lived. Previously empty results were cached for a month,
-      // which made temporary CDN/network failures look permanent.
-      cache[key] = { at: Date.now(), url: '' };
-      writeJson(COVER_CACHE_KEY, cache);
-      return '';
-    } catch (e) {
-      console.warn('Memory Card Switch cover lookup:', e);
-      // Network/bridge failures are not a real negative result, so do not cache them.
-      return '';
+      const match = await findGame(title);
+      return match ? sourceUrlsForId(match.id) : [];
+    } catch (error) {
+      console.warn('Memory Card Switch title lookup:', error);
+      return [];
     }
   }
 
@@ -197,32 +167,58 @@
     return '';
   }
 
-  async function enhance(container) {
-    if (!container?.isConnected) return true;
-    const title = getTitle(container);
-    if (!title) return false;
-    const url = await resolveCover(title);
-    if (!url || !container.isConnected) return false;
-    const existing = container.querySelector('img');
-    if (existing?.src === url) return true;
-
-    return await new Promise(resolve => {
+  function installImage(container, title, urls, cacheKey) {
+    return new Promise(resolve => {
+      let index = 0;
       const img = new Image();
       img.loading = 'lazy';
       img.alt = `Обложка ${title}`;
-      img.referrerPolicy = 'no-referrer';
+      const tryNext = () => {
+        if (!container?.isConnected || index >= urls.length) { resolve(false); return; }
+        img.src = urls[index++];
+      };
       img.onload = () => {
-        if (!container.isConnected) return resolve(false);
-        existing?.remove();
+        if (!container?.isConnected) { resolve(false); return; }
+        container.querySelector('img')?.remove();
         container.prepend(img);
         container.classList.add('has-image');
         container.classList.remove('image-failed');
         container.dataset.coverSource = 'gametdb-switch';
+        const cache = readJson(COVER_CACHE_KEY, {});
+        cache[cacheKey] = { at: Date.now(), url: img.currentSrc || img.src };
+        writeJson(COVER_CACHE_KEY, cache);
         resolve(true);
       };
-      img.onerror = () => resolve(false);
-      img.src = url;
+      img.onerror = tryNext;
+      tryNext();
     });
+  }
+
+  async function enhance(container) {
+    if (!container?.isConnected) return;
+    const title = getTitle(container);
+    if (!title) return;
+    const key = normalize(title);
+    const cache = readJson(COVER_CACHE_KEY, {});
+    const hit = cache[key];
+    let urls = [];
+    if (hit?.url && Date.now() - Number(hit.at || 0) < HIT_TTL) urls.push(hit.url);
+    urls.push(...await buildCandidates(title));
+    urls = [...new Set(urls)];
+    if (!urls.length) {
+      if (!hit || Date.now() - Number(hit.at || 0) > MISS_TTL) {
+        cache[key] = { at: Date.now(), url: '' };
+        writeJson(COVER_CACHE_KEY, cache);
+      }
+      container.dataset.switchCoverRetryAt = String(Date.now() + DOM_RETRY_MS);
+      return;
+    }
+    const ok = await installImage(container, title, urls, key);
+    if (!ok) {
+      cache[key] = { at: Date.now(), url: '' };
+      writeJson(COVER_CACHE_KEY, cache);
+      container.dataset.switchCoverRetryAt = String(Date.now() + DOM_RETRY_MS);
+    }
   }
 
   async function pump() {
@@ -231,16 +227,8 @@
     try {
       while (queue.length && !document.hidden) {
         const container = queue.shift();
-        if (!container?.isConnected) continue;
-        container.dataset.switchCoverState = 'working';
-        const ok = await enhance(container);
-        if (ok) {
-          container.dataset.switchCoverState = 'done';
-          delete container.dataset.switchCoverRetryAt;
-        } else {
-          container.dataset.switchCoverState = 'retry';
-          container.dataset.switchCoverRetryAt = String(Date.now() + DOM_RETRY_MS);
-        }
+        try { await enhance(container); }
+        finally { if (container) container.dataset.switchCoverQueued = ''; }
         await new Promise(resolve => setTimeout(resolve, 0));
       }
     } finally { working = false; }
@@ -252,29 +240,28 @@
       if (!(el instanceof HTMLElement)) continue;
       const badge = el.querySelector('.cover-platform-badge');
       if (!badge || badge.textContent.trim().toLowerCase() !== 'switch') continue;
-      const state = el.dataset.switchCoverState || '';
-      if (state === 'queued' || state === 'working') continue;
       const retryAt = Number(el.dataset.switchCoverRetryAt || 0);
       if (retryAt && retryAt > now) continue;
-      el.dataset.switchCoverState = 'queued';
+      if (el.dataset.switchCoverQueued === '1') continue;
+      el.dataset.switchCoverQueued = '1';
       queue.push(el);
     }
     pump();
   }
 
-  function scheduleScan(delay = 800) {
+  function scheduleScan(delay = 600) {
     clearTimeout(scanTimer);
     scanTimer = setTimeout(() => {
       const run = () => scan();
-      if ('requestIdleCallback' in window) requestIdleCallback(run, { timeout: 1400 });
+      if ('requestIdleCallback' in window) requestIdleCallback(run, { timeout: 1100 });
       else setTimeout(run, 0);
     }, delay);
   }
 
-  window.addEventListener('load', () => scheduleScan(1200));
-  window.addEventListener('pageshow', () => scheduleScan(900));
-  document.addEventListener('click', () => scheduleScan(550));
-  document.addEventListener('change', () => scheduleScan(550));
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) scheduleScan(800); });
-  setInterval(() => { if (!document.hidden) scheduleScan(0); }, 15_000);
+  window.addEventListener('load', () => scheduleScan(1000));
+  window.addEventListener('pageshow', () => scheduleScan(700));
+  document.addEventListener('click', () => scheduleScan(450));
+  document.addEventListener('change', () => scheduleScan(450));
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) scheduleScan(700); });
+  setInterval(() => { if (!document.hidden) scheduleScan(0); }, 15000);
 })();
