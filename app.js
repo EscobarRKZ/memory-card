@@ -27,6 +27,19 @@ const LEGACY_SQL_CATALOG = {
 };
 const LEGACY_SQL_BASE = 'https://raw.githubusercontent.com/bocaletto-luca/Videogames-Database/main/';
 
+// Verified box-art source. Unlike Wikipedia page images, Libretro keeps box art in a
+// dedicated Named_Boxarts tree, so a successful match is actually packaging artwork.
+const LIBRETRO_COVER_REPOS = {
+  PSP: ['Sony_-_PlayStation_Portable'],
+  VITA: ['Sony_-_PlayStation_Vita'],
+  DSI: ['Nintendo_-_Nintendo_DS', 'Nintendo_-_Nintendo_DSi'],
+  '3DS': ['Nintendo_-_Nintendo_3DS'],
+  GBA: ['Nintendo_-_Game_Boy_Advance'],
+  PS3: ['Sony_-_PlayStation_3', 'Sony_-_PlayStation_3_Downloadable'],
+  WIIU: ['Nintendo_-_Wii_U'],
+};
+const LIBRETRO_INDEX_MAX_AGE = 1000 * 60 * 60 * 24 * 30;
+
 const DEFAULT_SETTINGS = {
   sheetEndpoint: '',
   syncSecret: '',
@@ -37,8 +50,10 @@ const DEFAULT_SETTINGS = {
   currentDesktop: 'SWITCH',
   settingsUpdatedAt: '',
   lastSync: null,
-  autoSync: true,
-  coverResolverVersion: 3,
+  autoSync: false,
+  coverResolverVersion: 4,
+  syncSafetyVersion: 1,
+  lastLocalBackupAt: null,
 };
 
 let state = {
@@ -58,10 +73,13 @@ let state = {
 let autoSyncTimer = null;
 let syncInFlight = false;
 const coverLookups = new Map();
+const libretroIndexMemory = new Map();
 
 const DB_NAME = 'memory-card-db';
 const STORE = 'state';
 const KEY = 'main';
+const BACKUP_KEY = 'sync-backups-v1';
+const MAX_LOCAL_BACKUPS = 10;
 const systemThemeQuery = window.matchMedia?.('(prefers-color-scheme: dark)');
 
 function dbOpen() {
@@ -73,6 +91,65 @@ function dbOpen() {
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
+}
+
+
+async function storeGet(key, fallback = null) {
+  const db = await dbOpen();
+  return new Promise(resolve => {
+    const tx = db.transaction(STORE, 'readonly');
+    const req = tx.objectStore(STORE).get(key);
+    req.onsuccess = () => resolve(req.result ?? fallback);
+    req.onerror = () => resolve(fallback);
+  });
+}
+
+async function storePut(key, value) {
+  const db = await dbOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    tx.objectStore(STORE).put(value, key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+function clonePlain(value) {
+  if (typeof structuredClone === 'function') return structuredClone(value);
+  return JSON.parse(JSON.stringify(value));
+}
+
+async function createLocalSnapshot(reason = 'manual') {
+  const backups = await storeGet(BACKUP_KEY, []);
+  const snapshot = {
+    id: uid(),
+    createdAt: nowIso(),
+    reason,
+    games: clonePlain(state.games),
+    settings: clonePlain(state.settings),
+  };
+  const next = [snapshot, ...(Array.isArray(backups) ? backups : [])].slice(0, MAX_LOCAL_BACKUPS);
+  await storePut(BACKUP_KEY, next);
+  state.settings.lastLocalBackupAt = snapshot.createdAt;
+  return snapshot;
+}
+
+async function restoreLatestSnapshot() {
+  const backups = await storeGet(BACKUP_KEY, []);
+  const target = Array.isArray(backups) ? backups[0] : null;
+  if (!target) {
+    alert('Локальных резервных копий пока нет. Они создаются автоматически перед каждой синхронизацией.');
+    return;
+  }
+  const when = new Date(target.createdAt).toLocaleString('ru-RU');
+  if (!confirm(`Восстановить локальную копию от ${when}?\\n\\nТекущее состояние сначала тоже будет сохранено отдельной резервной копией.`)) return;
+  await createLocalSnapshot('before-restore');
+  state.games = Array.isArray(target.games) ? target.games.map(migrateGame) : [];
+  state.settings = migrateSettings(target.settings || {});
+  applyTheme();
+  await persist();
+  render();
+  setToast(`Восстановлена копия от ${when}`);
 }
 
 function nowIso() { return new Date().toISOString(); }
@@ -366,6 +443,12 @@ function migrateSettings(raw = {}) {
   if (!merged.desktopRotation.includes(merged.currentDesktop)) merged.currentDesktop = merged.desktopRotation[0];
   if (!['system', 'light', 'dark'].includes(merged.theme)) merged.theme = 'system';
   merged.coverResolverVersion = Number(merged.coverResolverVersion || 0);
+  // v0.10 safety migration: after the old destructive sync bug, existing installs get
+  // auto-sync switched off once. The user may enable it again after a successful manual sync.
+  if (Number(raw.syncSafetyVersion || 0) < 1) {
+    merged.autoSync = false;
+    merged.syncSafetyVersion = 1;
+  }
   return merged;
 }
 
@@ -416,18 +499,21 @@ async function loadState() {
       mergeCatalog(cat.catalog);
       state.catalogMeta = cat.catalogMeta || {};
     }
-    // v0.9: older resolvers used generic page images and could pick logos, screenshots or people.
-    // Keep only manual artwork; everything else is rebuilt from the verified Wikipedia infobox.
-    if (state.settings.coverResolverVersion < 3) {
+    // v0.10: Wikipedia artwork was still too error-prone. Keep only manual artwork
+    // and already verified Libretro box art; other automatic covers are rebuilt.
+    if (state.settings.coverResolverVersion < 4) {
       for (const g of state.games) {
-        if (g.coverUrl && g.coverSource !== 'manual') {
+        if (g.coverUrl && g.coverSource !== 'manual' && !String(g.coverSource || '').startsWith('libretro:')) {
           g.coverUrl = '';
           g.coverSource = '';
         }
       }
-      for (const e of state.catalog) { e.coverUrl = ''; e.coverSource = ''; }
-      state.settings.coverResolverVersion = 3;
-      state.settings.settingsUpdatedAt = nowIso();
+      for (const e of state.catalog) {
+        if (e.coverSource !== 'manual' && !String(e.coverSource || '').startsWith('libretro:')) {
+          e.coverUrl = ''; e.coverSource = '';
+        }
+      }
+      state.settings.coverResolverVersion = 4;
       await persistCatalog();
     }
   } catch (e) {
@@ -782,8 +868,8 @@ function renderSettings() {
   return `<div class="section-head"><div><h2>Настройки</h2><p>Ротации, тема, синхронизация и резервная копия.</p></div></div><div class="settings-grid">
     <section class="panel"><h3>Оформление</h3><div class="field theme-field"><label>Тема</label><select id="themeMode"><option value="system" ${state.settings.theme === 'system' ? 'selected' : ''}>Системная</option><option value="light" ${state.settings.theme === 'light' ? 'selected' : ''}>Светлая</option><option value="dark" ${state.settings.theme === 'dark' ? 'selected' : ''}>Тёмная</option></select></div><div class="footer-note">В режиме «Системная» приложение автоматически следует теме устройства.</div></section>
     <div class="rotation-settings-grid">${rotationEditor('handheld')}${rotationEditor('desktop')}</div>
-    <section class="panel"><div class="settings-panel-head"><div><h3>Каталог игр и обложки</h3><p class="status-line">Каталог нужен для автоподстановки названия, года и жанра. Обложки для твоих записей ищутся через страницу конкретной игры в Wikipedia и проверяются по Wikidata, чтобы не подставлять фотографии людей или случайные изображения.</p></div><div class="settings-actions"><button class="secondary" data-action="catalog-refresh-all">Обновить каталог</button><button class="secondary" data-action="covers-refresh">Обновить обложки</button></div></div><div id="catalogStatus" class="catalog-status">${PLATFORMS.map(p => `${p.abbr}: <b>${catalogCounts()[p.id] || 0}</b>`).join(' · ')}</div><div class="footer-note">Обновление каталога теперь также обогащает уже добавленные игры. Если конкретной обложки нет в Wikidata, приложение ищет её отдельно по названию игры.</div></section>
-    <section class="panel"><h3>Google Sheets · облачная синхронизация</h3><p class="status-line">Одна Google Таблица может быть общим облаком для Mac и телефона. Конфликты решаются по времени последнего изменения записи.</p><div class="form-grid"><div class="field span-2"><label>Apps Script endpoint</label><input id="sheetEndpoint" placeholder="https://script.google.com/macros/s/.../exec" value="${esc(state.settings.sheetEndpoint || '')}"></div><div class="field span-2"><label>Секрет синхронизации</label><input id="syncSecret" type="password" value="${esc(state.settings.syncSecret || '')}"></div><label class="sync-toggle span-2"><input id="autoSync" type="checkbox" ${state.settings.autoSync !== false ? 'checked' : ''}><span><b>Автосинхронизация</b><small>Подтягивать изменения при открытии приложения и отправлять изменения после сохранения.</small></span></label></div><div class="settings-actions"><button class="primary" data-action="sync">Синхронизировать сейчас</button><button class="secondary" data-action="save-settings">Сохранить настройки</button></div><div class="status-line sync-status">${state.settings.lastSync ? `Последняя синхронизация: ${new Date(state.settings.lastSync).toLocaleString('ru-RU')}` : 'Синхронизация ещё не выполнялась.'}</div><div class="footer-note">Endpoint и секрет намеренно хранятся только локально на каждом устройстве и не записываются в Google Таблицу.</div></section>
+    <section class="panel"><div class="settings-panel-head"><div><h3>Каталог игр и обложки</h3><p class="status-line">Каталог нужен для автоподстановки названия, года и жанра. Для PSP, Vita, DS/DSi, 3DS, GBA, PS3 и Wii U обложки теперь берутся только из Libretro Named_Boxarts — отдельной базы именно коробок игр. Для Switch используется осторожный резервный поиск.</p></div><div class="settings-actions"><button class="secondary" data-action="catalog-refresh-all">Обновить каталог</button><button class="secondary" data-action="covers-refresh">Обновить обложки</button></div></div><div id="catalogStatus" class="catalog-status">${PLATFORMS.map(p => `${p.abbr}: <b>${catalogCounts()[p.id] || 0}</b>`).join(' · ')}</div><div class="footer-note">Если надёжная обложка не найдена, Memory Card оставит цветную заглушку вместо случайной фотографии или логотипа.</div></section>
+    <section class="panel"><h3>Google Sheets · безопасная синхронизация</h3><p class="status-line">Перед каждым обменом автоматически создаётся локальная резервная копия. Локальная библиотека и облачная библиотека всегда объединяются по ID и времени изменения — пустой ответ сервера больше не может стереть игры на устройстве.</p><div class="form-grid"><div class="field span-2"><label>Apps Script endpoint</label><input id="sheetEndpoint" placeholder="https://script.google.com/macros/s/.../exec" value="${esc(state.settings.sheetEndpoint || '')}"></div><div class="field span-2"><label>Секрет синхронизации</label><input id="syncSecret" type="password" value="${esc(state.settings.syncSecret || '')}"></div><label class="sync-toggle span-2"><input id="autoSync" type="checkbox" ${state.settings.autoSync === true ? 'checked' : ''}><span><b>Автосинхронизация</b><small>После обновления до v0.10 она один раз отключается из соображений безопасности. Сначала проверь ручную синхронизацию, затем можешь включить снова.</small></span></label></div><div class="settings-actions"><button class="primary" data-action="sync">Синхронизировать сейчас</button><button class="secondary" data-action="save-settings">Сохранить настройки</button><button class="secondary" data-action="restore-backup">Восстановить локальную копию</button></div><div class="status-line sync-status">${state.settings.lastSync ? `Последняя синхронизация: ${new Date(state.settings.lastSync).toLocaleString('ru-RU')}` : 'Синхронизация ещё не выполнялась.'}${state.settings.lastLocalBackupAt ? ` · Резервная копия: ${new Date(state.settings.lastLocalBackupAt).toLocaleString('ru-RU')}` : ''}</div><div class="footer-note">Endpoint и секрет остаются только на этом устройстве. В Google Таблицу они не записываются.</div></section>
     <section class="panel"><h3>Резервная копия</h3><div class="settings-actions"><button class="secondary" data-action="export">Экспорт JSON</button><label class="secondary file-label">Импорт JSON<input id="importFile" type="file" accept="application/json" hidden></label></div><div class="footer-note">Экспорт содержит игры и настройки приложения.</div></section>
   </div>`;
 }
@@ -849,7 +935,8 @@ function bind() {
   document.querySelectorAll('[data-action="delete"]').forEach(x => x.onclick = () => deleteGame(x.dataset.id));
   document.querySelectorAll('[data-action="clear-platform"]').forEach(x => x.onclick = () => { state.platformFilter = ''; render(); });
   document.querySelectorAll('[data-action="save-settings"]').forEach(x => x.onclick = saveSettings);
-  document.querySelectorAll('[data-action="sync"]').forEach(x => x.onclick = syncSheets);
+  document.querySelectorAll('[data-action="sync"]').forEach(x => x.onclick = () => syncSheets({ silent: false }));
+  document.querySelectorAll('[data-action="restore-backup"]').forEach(x => x.onclick = restoreLatestSnapshot);
   document.querySelectorAll('[data-action="export"]').forEach(x => x.onclick = exportData);
   document.querySelectorAll('[data-action="rotation-move"]').forEach(x => x.onclick = () => moveRotation(x.dataset.group, x.dataset.id, x.dataset.direction));
   document.querySelectorAll('[data-action="catalog-refresh-all"]').forEach(x => x.onclick = refreshAllCatalog);
@@ -1001,6 +1088,114 @@ async function fetchWikipediaInfoboxImage(host, pageTitle, gameTitle) {
   return best.url;
 }
 
+
+function stripCoverTags(value = '') {
+  return String(value)
+    .replace(/\.[a-z0-9]{2,5}$/i, '')
+    .replace(/\s*[\[(](?:USA|Europe|Japan|World|Australia|Korea|Asia|En(?:,[A-Za-z]+)*|Rev[^\])]*|Disc[^\])]*|Disk[^\])]*|v\d[^\])]*)[\])]/gi, ' ')
+    .replace(/\s*[\[(][^\])]*(?:Proto|Beta|Demo|Sample|Unl|Virtual Console|PSN)[^\])]*[\])]/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function coverMatchScore(filename, title) {
+  const a = normalizeText(stripCoverTags(filename));
+  const b = normalizeText(title);
+  if (!a || !b) return 999;
+  if (a === b) return 0;
+  if (a.startsWith(b) || b.startsWith(a)) return 8 + Math.abs(a.length - b.length) / 8;
+  if (a.includes(b) || b.includes(a)) return 14 + Math.abs(a.length - b.length) / 6;
+  const at = new Set(a.split(' ').filter(Boolean));
+  const bt = new Set(b.split(' ').filter(Boolean));
+  const common = [...bt].filter(x => at.has(x)).length;
+  const union = new Set([...at, ...bt]).size || 1;
+  const similarity = common / union;
+  return 100 - similarity * 80 + Math.abs(at.size - bt.size) * 2;
+}
+
+function coverRegionPenalty(path = '') {
+  if (/\(USA\)|\(World\)/i.test(path)) return 0;
+  if (/\(Europe\)/i.test(path)) return 1;
+  if (/\(Australia\)/i.test(path)) return 2;
+  if (/\(Japan\)/i.test(path)) return 6;
+  return 3;
+}
+
+function rawGithubUrl(repo, path) {
+  const encoded = String(path).split('/').map(encodeURIComponent).join('/');
+  return `https://raw.githubusercontent.com/libretro-thumbnails/${repo}/master/${encoded}`;
+}
+
+async function fetchLibretroBoxartIndex(repo) {
+  if (libretroIndexMemory.has(repo)) return libretroIndexMemory.get(repo);
+  const job = (async () => {
+    const key = `libretro-index:${repo}`;
+    const cached = await storeGet(key, null);
+    const cachedAge = cached?.updatedAt ? Date.now() - new Date(cached.updatedAt).getTime() : Infinity;
+    if (cached?.paths?.length && cachedAge < LIBRETRO_INDEX_MAX_AGE) return cached.paths;
+    const url = `https://api.github.com/repos/libretro-thumbnails/${repo}/git/trees/master?recursive=1`;
+    const r = await fetch(url, { headers: { 'Accept': 'application/vnd.github+json' } });
+    if (!r.ok) {
+      if (cached?.paths?.length) return cached.paths;
+      throw new Error(`Libretro index HTTP ${r.status}`);
+    }
+    const data = await r.json();
+    const paths = (data.tree || [])
+      .filter(x => x.type === 'blob' && /^Named_Boxarts\/.+\.(png|jpe?g|webp)$/i.test(x.path || ''))
+      .map(x => x.path);
+    if (!paths.length) throw new Error(`Libretro: пустой индекс ${repo}`);
+    await storePut(key, { updatedAt: nowIso(), paths });
+    return paths;
+  })();
+  libretroIndexMemory.set(repo, job);
+  try {
+    const result = await job;
+    libretroIndexMemory.set(repo, Promise.resolve(result));
+    return result;
+  } catch (e) {
+    libretroIndexMemory.delete(repo);
+    throw e;
+  }
+}
+
+async function fetchLibretroCover(title, platformId = '') {
+  const repos = LIBRETRO_COVER_REPOS[platformId] || [];
+  if (!repos.length) return { url: '', source: '', matchedTitle: '' };
+  const candidates = [];
+  for (const repo of repos) {
+    try {
+      const paths = await fetchLibretroBoxartIndex(repo);
+      for (const path of paths) {
+        const filename = path.split('/').pop() || '';
+        const score = coverMatchScore(filename, title) + coverRegionPenalty(path);
+        if (score <= 34) candidates.push({ repo, path, filename, score });
+      }
+    } catch (e) {
+      console.warn('Libretro cover index failed', repo, e);
+    }
+  }
+  candidates.sort((a,b) => a.score - b.score || a.filename.length - b.filename.length);
+  const best = candidates[0];
+  if (!best || best.score > 28) return { url: '', source: '', matchedTitle: '' };
+  return {
+    url: rawGithubUrl(best.repo, best.path),
+    source: `libretro:${best.repo}`,
+    matchedTitle: stripCoverTags(best.filename),
+  };
+}
+
+async function fetchCoverForGame(title, releaseYear = '', platformId = '') {
+  if (LIBRETRO_COVER_REPOS[platformId]?.length) {
+    const libretro = await fetchLibretroCover(title, platformId);
+    if (libretro.url) return libretro;
+    // For covered systems we prefer a clean placeholder over an unverified web image.
+    return { url: '', source: '', matchedTitle: '' };
+  }
+  // Switch does not currently have a Libretro thumbnail repository in the master set.
+  // Keep the conservative Wikipedia resolver only as a fallback for such platforms.
+  return fetchWikipediaCover(title, releaseYear, platformId);
+}
+
 async function fetchWikipediaCover(title, releaseYear = '', platformId = '') {
   const cacheKey = `infobox-v3|${normalizeText(title)}|${releaseYear}|${platformId}`;
   if (coverLookups.has(cacheKey)) return coverLookups.get(cacheKey);
@@ -1057,14 +1252,14 @@ async function fetchWikipediaCover(title, releaseYear = '', platformId = '') {
 
 async function hydrateGameCover(game, { force = false } = {}) {
   if (!game || game.deletedAt) return false;
-  if (!force && game.coverUrl && game.coverSource === 'wikipedia-infobox-v3') return false;
+  if (!force && game.coverUrl && (game.coverSource === 'manual' || String(game.coverSource || '').startsWith('libretro:') || game.coverSource === 'wikipedia-infobox-v3')) return false;
   const titleKey = normalizeText(game.title);
-  const cat = state.catalog.find(e => e.platform === game.platform && normalizeText(e.title) === titleKey && e.coverUrl && e.coverSource === 'wikipedia-infobox-v3')
-    || state.catalog.find(e => normalizeText(e.title) === titleKey && e.coverUrl && e.coverSource === 'wikipedia-infobox-v3');
+  const cat = state.catalog.find(e => e.platform === game.platform && normalizeText(e.title) === titleKey && e.coverUrl)
+    || state.catalog.find(e => normalizeText(e.title) === titleKey && e.coverUrl);
   let found = safeImage(cat?.coverUrl || '');
   let source = cat?.coverSource || '';
   if (!found) {
-    const resolved = await fetchWikipediaCover(game.title, game.releaseYear, game.platform);
+    const resolved = await fetchCoverForGame(game.title, game.releaseYear, game.platform);
     found = safeImage(resolved?.url || '');
     source = resolved?.source || '';
   }
@@ -1074,7 +1269,7 @@ async function hydrateGameCover(game, { force = false } = {}) {
     return before !== game.coverUrl;
   }
   game.coverUrl = found;
-  game.coverSource = source || 'wikipedia-infobox-v3';
+  game.coverSource = source || '';
   game.updatedAt = nowIso();
   const matches = state.catalog.filter(e => e.platform === game.platform && normalizeText(e.title) === titleKey);
   matches.forEach(e => { e.coverUrl = found; e.coverSource = game.coverSource; });
@@ -1083,7 +1278,7 @@ async function hydrateGameCover(game, { force = false } = {}) {
 
 async function hydrateMissingCoversForGames(platformId = '', limit = 60, options = {}) {
   const { force = false, label = 'Ищу обложки' } = options;
-  let pending = liveGames().filter(g => (!platformId || g.platform === platformId) && (force || !g.coverUrl || g.coverSource !== 'wikipedia-infobox-v3'));
+  let pending = liveGames().filter(g => (!platformId || g.platform === platformId) && (force || !g.coverUrl));
   if (Number.isFinite(limit)) pending = pending.slice(0, limit);
   if (!pending.length) return 0;
   let changed = 0, processed = 0;
@@ -1141,11 +1336,11 @@ async function applyCatalogSuggestion(key) {
   hideAutocomplete(form);
   if (!e.coverUrl) {
     if (picked) picked.innerHTML += `${picked.innerHTML ? ' · ' : ''}ищу обложку…`;
-    const resolved = await fetchWikipediaCover(e.title, e.releaseYear, e.platform);
+    const resolved = await fetchCoverForGame(e.title, e.releaseYear, e.platform);
     const found = safeImage(resolved?.url || '');
     if (found) {
       e.coverUrl = found;
-      e.coverSource = resolved?.source || 'wikipedia-infobox-v3';
+      e.coverSource = resolved?.source || '';
       if (cover) cover.value = found;
       await persistCatalog();
       if (picked) picked.innerHTML = [e.genre ? `Жанр: <b>${esc(e.genre)}</b>` : '', f ? `Франшиза: <b>${esc(f)}</b>` : '', 'Обложка: <b>найдена</b>'].filter(Boolean).join(' · ');
@@ -1291,11 +1486,12 @@ async function saveSettings(silent = false) {
   const secret = document.querySelector('#syncSecret');
   const theme = document.querySelector('#themeMode');
   const autoSync = document.querySelector('#autoSync');
+  const previousTheme = state.settings.theme;
   if (endpoint) state.settings.sheetEndpoint = endpoint.value.trim();
   if (secret) state.settings.syncSecret = secret.value;
   if (theme) state.settings.theme = theme.value;
   if (autoSync) state.settings.autoSync = autoSync.checked;
-  state.settings.settingsUpdatedAt = nowIso();
+  if (state.settings.theme !== previousTheme) state.settings.settingsUpdatedAt = nowIso();
   applyTheme();
   await persist();
   if (!silent) setToast('Настройки сохранены');
@@ -1321,120 +1517,153 @@ function syncableSettings() {
   };
 }
 
-function iframePullRequest(baseUrl, params = {}, timeoutMs = 25000) {
+function jsonpPullRequest(baseUrl, params = {}, timeoutMs = 22000) {
   return new Promise((resolve, reject) => {
-    const requestId = `mc_${crypto.randomUUID?.() || `${Date.now()}_${Math.random().toString(36).slice(2)}`}`;
-    const iframe = document.createElement('iframe');
-    iframe.setAttribute('aria-hidden', 'true');
-    iframe.tabIndex = -1;
-    iframe.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;left:-9999px;top:-9999px;border:0';
+    const callbackName = `__memoryCardSync_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const script = document.createElement('script');
     let timer = null;
-
     const cleanup = () => {
       if (timer) clearTimeout(timer);
-      window.removeEventListener('message', onMessage);
-      iframe.remove();
+      script.remove();
+      try { delete window[callbackName]; } catch (_) { window[callbackName] = undefined; }
     };
-
-    const onMessage = event => {
-      // Apps Script HtmlService may insert an internal Google sandbox frame, so event.source
-      // is not guaranteed to equal our outer iframe WindowProxy. Authenticate with the
-      // per-request cryptographically random requestId instead.
-      const msg = event.data;
-      if (!msg || msg.type !== 'memory-card-sync' || msg.requestId !== requestId) return;
+    window[callbackName] = payload => {
       cleanup();
-      resolve(msg.payload);
+      resolve(payload);
     };
-
-    window.addEventListener('message', onMessage);
     try {
       const u = new URL(baseUrl);
       Object.entries(params).forEach(([k, v]) => u.searchParams.set(k, String(v ?? '')));
-      u.searchParams.set('action', 'pull-frame');
-      u.searchParams.set('requestId', requestId);
+      u.searchParams.set('action', 'pull');
+      u.searchParams.set('callback', callbackName);
       u.searchParams.set('_', Date.now().toString());
-      iframe.src = u.toString();
-    } catch (e) {
+      script.src = u.toString();
+      script.async = true;
+    } catch (_) {
       cleanup();
       reject(new Error('Некорректный Apps Script endpoint'));
       return;
     }
-
-    iframe.onerror = () => {
+    script.onerror = () => {
       cleanup();
-      reject(new Error('Не удалось открыть транспорт Google Apps Script'));
+      reject(new Error('Не удалось получить ответ Google Apps Script'));
     };
     timer = setTimeout(() => {
       cleanup();
-      reject(new Error('Google Apps Script не вернул данные вовремя'));
+      reject(new Error('Google Apps Script не ответил вовремя'));
     }, timeoutMs);
-    document.body.appendChild(iframe);
+    document.head.appendChild(script);
   });
 }
 
-function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+function mergeClientGames(localGames = [], remoteGames = []) {
+  const map = new Map();
+  const feed = raw => {
+    const g = migrateGame(raw);
+    if (!g.id) return;
+    const old = map.get(g.id);
+    if (!old || String(g.updatedAt || '') >= String(old.updatedAt || '')) map.set(g.id, g);
+  };
+  localGames.forEach(feed);
+  remoteGames.forEach(feed);
+  return [...map.values()];
+}
+
+function mergeClientSettings(local, remote) {
+  const localMigrated = migrateSettings(local || {});
+  const remoteMigrated = migrateSettings(remote || {});
+  const remoteIsNewer = String(remoteMigrated.settingsUpdatedAt || '') > String(localMigrated.settingsUpdatedAt || '');
+  const chosen = remoteIsNewer ? remoteMigrated : localMigrated;
+  // Connection credentials and device-only safety state never come from Sheets.
+  return migrateSettings({
+    ...chosen,
+    sheetEndpoint: localMigrated.sheetEndpoint,
+    syncSecret: localMigrated.syncSecret,
+    autoSync: localMigrated.autoSync,
+    lastSync: localMigrated.lastSync,
+    lastLocalBackupAt: localMigrated.lastLocalBackupAt,
+    coverResolverVersion: localMigrated.coverResolverVersion,
+    syncSafetyVersion: 1,
+  });
+}
 
 async function syncSheets(options = {}) {
   const { silent = false, skipSaveSettings = false } = options;
-  if (syncInFlight) return;
+  if (syncInFlight) {
+    if (!silent) setToast('Синхронизация уже выполняется');
+    return;
+  }
   if (!skipSaveSettings) await saveSettings(true);
   const url = String(state.settings.sheetEndpoint || '').trim();
   if (!url) {
-    alert('Сначала укажи Apps Script endpoint в настройках.');
+    if (!silent) alert('Сначала укажи Apps Script endpoint в настройках.');
     return;
   }
-  if (!silent) { setToast('Синхронизация…'); setTaskProgress('Синхронизация', 8, 100, 'Подготавливаю локальные данные'); }
+
   syncInFlight = true;
+  const localBefore = clonePlain(state.games);
+  const settingsBefore = clonePlain(state.settings);
   try {
-    // Google Apps Script ContentService отвечает через redirect на googleusercontent.
-    // Обычный cross-origin fetch пытается прочитать этот ответ и Safari/Chrome может
-    // заблокировать его CORS. Поэтому POST только отправляет данные в режиме no-cors,
-    // а актуальное состояние читаем через скрытый iframe + postMessage (без CORS).
-    if (!silent) setTaskProgress('Синхронизация', 24, 100, 'Отправляю локальные данные');
+    if (!silent) { setToast('Синхронизация…'); setTaskProgress('Синхронизация', 5, 100, 'Создаю локальную резервную копию'); }
+    await createLocalSnapshot('before-sync');
+    await persist();
+
+    if (!silent) setTaskProgress('Синхронизация', 22, 100, 'Отправляю локальные изменения');
     await fetch(url, {
       method: 'POST',
       mode: 'no-cors',
       cache: 'no-store',
       redirect: 'follow',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: 'sync', secret: state.settings.syncSecret, games: state.games, settings: syncableSettings() }),
+      body: JSON.stringify({ action: 'sync', secret: state.settings.syncSecret, games: localBefore, settings: syncableSettings() }),
     });
 
-    if (!silent) setTaskProgress('Синхронизация', 48, 100, 'Google Sheets объединяет изменения');
-    await sleep(350);
-
-    if (!silent) setTaskProgress('Синхронизация', 68, 100, 'Получаю актуальную библиотеку');
-    const data = await iframePullRequest(url, {
-      secret: state.settings.syncSecret,
-    });
+    if (!silent) setTaskProgress('Синхронизация', 55, 100, 'Получаю облачную библиотеку');
+    const data = await jsonpPullRequest(url, { secret: state.settings.syncSecret });
     if (!data || !data.ok) throw new Error(data?.error || 'Google Apps Script вернул ошибку');
 
-    if (Array.isArray(data.games)) state.games = data.games.map(migrateGame);
-    if (data.settings) state.settings = migrateSettings({ ...state.settings, ...data.settings });
+    const remoteGames = Array.isArray(data.games) ? data.games : [];
+    const mergedGames = mergeClientGames(localBefore, remoteGames);
+    const localLive = localBefore.filter(g => !g.deletedAt).length;
+    const remoteLive = remoteGames.filter(g => !g.deletedAt).length;
+
+    // Never replace local state with the server response. Even a totally empty cloud result
+    // can only contribute zero records to the merge, not delete local records.
+    state.games = mergedGames;
+    state.settings = mergeClientSettings(settingsBefore, data.settings || {});
     state.settings.lastSync = nowIso();
     applyTheme();
-    if (!silent) setTaskProgress('Синхронизация', 90, 100, 'Сохраняю данные на устройстве');
+
+    if (!silent) setTaskProgress('Синхронизация', 88, 100, 'Сохраняю объединённые данные');
     await persist();
-    if (silent) render();
-    else {
-      finishTaskProgress('Синхронизация завершена', `${state.games.filter(g => !g.deletedAt).length} игр`);
-      setToast(`Синхронизировано: ${state.games.filter(g => !g.deletedAt).length} игр`);
+    render();
+
+    const liveCount = state.games.filter(g => !g.deletedAt).length;
+    const detail = remoteLive === 0 && localLive > 0
+      ? `${liveCount} игр · облако было пустым, локальные данные сохранены`
+      : `${liveCount} игр · облако ${remoteLive} · устройство ${localLive}`;
+    if (!silent) {
+      finishTaskProgress('Синхронизация завершена', detail);
+      setToast(`Синхронизировано: ${liveCount} игр`);
     }
   } catch (e) {
     console.error(e);
+    // No remote failure is allowed to mutate the library: return to the exact pre-sync state.
+    state.games = localBefore.map(migrateGame);
+    state.settings = migrateSettings({ ...settingsBefore, lastLocalBackupAt: state.settings.lastLocalBackupAt || settingsBefore.lastLocalBackupAt });
+    await persist();
+    render();
     if (!silent) {
       failTaskProgress('Ошибка синхронизации', e.message || 'Проверь настройки');
-      alert(`Не удалось синхронизировать. Проверь endpoint, права Apps Script и секрет.\n\n${e.message}`);
+      alert(`Не удалось синхронизировать. Локальные данные не изменены.\\n\\n${e.message || e}`);
     }
-    state.toast = '';
-    if (!silent) render();
   } finally {
     syncInFlight = false;
   }
 }
 
 function exportData() {
-  const blob = new Blob([JSON.stringify({ version: 8, exportedAt: nowIso(), games: state.games, settings: state.settings }, null, 2)], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify({ version: 10, exportedAt: nowIso(), games: state.games, settings: state.settings }, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = `memory-card-${new Date().toISOString().slice(0, 10)}.json`;
