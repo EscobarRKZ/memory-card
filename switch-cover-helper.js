@@ -1,10 +1,12 @@
-/* Memory Card — Nintendo Switch cover enhancer, idle/background v2 */
+/* Memory Card — Nintendo Switch cover enhancer, retryable/background v3 */
 (() => {
   const DB_URL = 'https://www.gametdb.com/switchtdb.txt?LANG=EN';
   const DB_CACHE_KEY = 'memory-card-switchtdb-v2';
-  const COVER_CACHE_KEY = 'memory-card-switch-covers-v2';
+  const COVER_CACHE_KEY = 'memory-card-switch-covers-v3';
   const DB_TTL = 1000 * 60 * 60 * 24 * 7;
-  const COVER_TTL = 1000 * 60 * 60 * 24 * 30;
+  const HIT_TTL = 1000 * 60 * 60 * 24 * 30;
+  const MISS_TTL = 1000 * 60 * 8;
+  const DOM_RETRY_MS = 45_000;
   let dbPromise = null;
   let indexPromise = null;
   let scanTimer = 0;
@@ -39,9 +41,7 @@
       const text = await response.text();
       if (!text.includes(' = ')) throw new Error('Unexpected GameTDB response');
       return text;
-    } finally {
-      clearTimeout(timer);
-    }
+    } finally { clearTimeout(timer); }
   }
 
   async function loadDatabase() {
@@ -117,15 +117,35 @@
     return best && best.score <= 30 ? best : null;
   }
 
-  function imageWorks(url, timeoutMs = 3500) {
+  function imageWorks(url, timeoutMs = 2200) {
     return new Promise(resolve => {
       const img = new Image();
-      const timer = setTimeout(() => { img.src = ''; resolve(false); }, timeoutMs);
-      img.onload = () => { clearTimeout(timer); resolve(true); };
-      img.onerror = () => { clearTimeout(timer); resolve(false); };
+      let settled = false;
+      const done = ok => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        img.onload = img.onerror = null;
+        resolve(ok);
+      };
+      const timer = setTimeout(() => { img.src = ''; done(false); }, timeoutMs);
+      img.onload = () => done(true);
+      img.onerror = () => done(false);
       img.referrerPolicy = 'no-referrer';
       img.src = url;
     });
+  }
+
+  function artworkUrls(id) {
+    const urls = [];
+    for (const type of ['coverHQ', 'coverM', 'cover']) {
+      for (const region of ['US', 'EN', 'AU', 'CA', 'DE', 'FR', 'ES', 'JA']) {
+        // GameTDB artwork is usually JPG; try it before PNG to reduce failed requests.
+        urls.push(`https://art.gametdb.com/switch/${type}/${region}/${id}.jpg`);
+        urls.push(`https://art.gametdb.com/switch/${type}/${region}/${id}.png`);
+      }
+    }
+    return urls;
   }
 
   async function resolveCover(title) {
@@ -133,7 +153,11 @@
     if (!key) return '';
     const cache = readJson(COVER_CACHE_KEY, {});
     const hit = cache[key];
-    if (hit && Date.now() - Number(hit.at || 0) < COVER_TTL) return hit.url || '';
+    if (hit) {
+      const age = Date.now() - Number(hit.at || 0);
+      if (hit.url && age < HIT_TTL) return hit.url;
+      if (!hit.url && age < MISS_TTL) return '';
+    }
 
     try {
       const match = await findGameId(title);
@@ -142,25 +166,21 @@
         writeJson(COVER_CACHE_KEY, cache);
         return '';
       }
-      const candidates = [];
-      for (const type of ['coverHQ', 'coverM']) {
-        for (const region of ['US', 'EN', 'AU', 'CA']) {
-          candidates.push(`https://art.gametdb.com/switch/${type}/${region}/${match.id}.png`);
-          candidates.push(`https://art.gametdb.com/switch/${type}/${region}/${match.id}.jpg`);
-        }
-      }
-      for (const url of candidates) {
+      for (const url of artworkUrls(match.id)) {
         if (await imageWorks(url)) {
-          cache[key] = { at: Date.now(), url, matchedTitle: match.name };
+          cache[key] = { at: Date.now(), url, matchedTitle: match.name, id: match.id };
           writeJson(COVER_CACHE_KEY, cache);
           return url;
         }
       }
+      // A miss is short-lived. Previously empty results were cached for a month,
+      // which made temporary CDN/network failures look permanent.
       cache[key] = { at: Date.now(), url: '' };
       writeJson(COVER_CACHE_KEY, cache);
       return '';
     } catch (e) {
       console.warn('Memory Card Switch cover lookup:', e);
+      // Network/bridge failures are not a real negative result, so do not cache them.
       return '';
     }
   }
@@ -178,26 +198,31 @@
   }
 
   async function enhance(container) {
-    if (!container?.isConnected) return;
+    if (!container?.isConnected) return true;
     const title = getTitle(container);
-    if (!title) return;
+    if (!title) return false;
     const url = await resolveCover(title);
-    if (!url || !container.isConnected) return;
+    if (!url || !container.isConnected) return false;
     const existing = container.querySelector('img');
-    if (existing?.src === url) return;
-    const img = new Image();
-    img.loading = 'lazy';
-    img.alt = `Обложка ${title}`;
-    img.referrerPolicy = 'no-referrer';
-    img.onload = () => {
-      if (!container.isConnected) return;
-      existing?.remove();
-      container.prepend(img);
-      container.classList.add('has-image');
-      container.classList.remove('image-failed');
-      container.dataset.coverSource = 'gametdb-switch';
-    };
-    img.src = url;
+    if (existing?.src === url) return true;
+
+    return await new Promise(resolve => {
+      const img = new Image();
+      img.loading = 'lazy';
+      img.alt = `Обложка ${title}`;
+      img.referrerPolicy = 'no-referrer';
+      img.onload = () => {
+        if (!container.isConnected) return resolve(false);
+        existing?.remove();
+        container.prepend(img);
+        container.classList.add('has-image');
+        container.classList.remove('image-failed');
+        container.dataset.coverSource = 'gametdb-switch';
+        resolve(true);
+      };
+      img.onerror = () => resolve(false);
+      img.src = url;
+    });
   }
 
   async function pump() {
@@ -206,40 +231,50 @@
     try {
       while (queue.length && !document.hidden) {
         const container = queue.shift();
-        await enhance(container);
+        if (!container?.isConnected) continue;
+        container.dataset.switchCoverState = 'working';
+        const ok = await enhance(container);
+        if (ok) {
+          container.dataset.switchCoverState = 'done';
+          delete container.dataset.switchCoverRetryAt;
+        } else {
+          container.dataset.switchCoverState = 'retry';
+          container.dataset.switchCoverRetryAt = String(Date.now() + DOM_RETRY_MS);
+        }
         await new Promise(resolve => setTimeout(resolve, 0));
       }
-    } finally {
-      working = false;
-    }
+    } finally { working = false; }
   }
 
   function scan() {
+    const now = Date.now();
     for (const el of document.querySelectorAll('.cover, .detail-cover, .mini-cover, .playing-cover')) {
-      if (!(el instanceof HTMLElement) || el.dataset.switchCoverAttempted === '1') continue;
+      if (!(el instanceof HTMLElement)) continue;
       const badge = el.querySelector('.cover-platform-badge');
       if (!badge || badge.textContent.trim().toLowerCase() !== 'switch') continue;
-      el.dataset.switchCoverAttempted = '1';
+      const state = el.dataset.switchCoverState || '';
+      if (state === 'queued' || state === 'working') continue;
+      const retryAt = Number(el.dataset.switchCoverRetryAt || 0);
+      if (retryAt && retryAt > now) continue;
+      el.dataset.switchCoverState = 'queued';
       queue.push(el);
     }
     pump();
   }
 
-  function scheduleScan(delay = 1200) {
+  function scheduleScan(delay = 800) {
     clearTimeout(scanTimer);
     scanTimer = setTimeout(() => {
       const run = () => scan();
-      if ('requestIdleCallback' in window) requestIdleCallback(run, { timeout: 1800 });
+      if ('requestIdleCallback' in window) requestIdleCallback(run, { timeout: 1400 });
       else setTimeout(run, 0);
     }, delay);
   }
 
-  // Covers are enrichment, never startup-critical. Do them only after the UI has had
-  // time to become interactive and after user-driven redraws have settled.
-  window.addEventListener('load', () => scheduleScan(2500));
-  window.addEventListener('pageshow', () => scheduleScan(1800));
-  document.addEventListener('click', () => scheduleScan(1200));
-  document.addEventListener('change', () => scheduleScan(1200));
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) scheduleScan(1600); });
-  setInterval(() => { if (!document.hidden) scheduleScan(0); }, 10000);
+  window.addEventListener('load', () => scheduleScan(1200));
+  window.addEventListener('pageshow', () => scheduleScan(900));
+  document.addEventListener('click', () => scheduleScan(550));
+  document.addEventListener('change', () => scheduleScan(550));
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) scheduleScan(800); });
+  setInterval(() => { if (!document.hidden) scheduleScan(0); }, 15_000);
 })();
