@@ -1,0 +1,48 @@
+/* Memory Card cover presentation — v0.15 */
+.cover,
+.detail-cover,
+.mini-cover,
+.playing-cover {
+  aspect-ratio: 2 / 3 !important;
+  background:
+    radial-gradient(circle at 50% 18%, color-mix(in srgb, var(--accent2) 10%, transparent), transparent 48%),
+    linear-gradient(145deg, color-mix(in srgb, var(--panel2) 92%, #000), color-mix(in srgb, var(--panel) 94%, #000));
+}
+
+.cover img,
+.detail-cover img,
+.mini-cover img,
+.playing-cover img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+  object-position: center !important;
+  background: color-mix(in srgb, var(--panel2) 94%, #000);
+}
+
+.cover img,
+.detail-cover img {
+  padding: 7px;
+}
+
+.mini-cover img,
+.playing-cover img {
+  padding: 2px;
+}
+
+.cover.has-image:after,
+.detail-cover.has-image:after {
+  background: linear-gradient(180deg, transparent 74%, rgba(3,5,15,.22)) !important;
+}
+
+.cover,
+.detail-cover,
+.mini-cover,
+.playing-cover {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--line) 76%, transparent);
+}
+
+@media(max-width:600px){
+  .cover img,
+  .detail-cover img { padding: 5px; }
+}
