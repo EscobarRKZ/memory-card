@@ -6,7 +6,43 @@ const SK=['theme','handheldRotation','desktopRotation','currentHandheld','curren
 function doGet(e){if(String(e&&e.parameter&&e.parameter.action||'')==='bridge')return bridge_(String(e.parameter.parentOrigin||'*'));return json_({ok:true,service:'Memory Card Network',version:MC.V,time:new Date().toISOString()});}
 function doPost(e){try{return json_(bridgeRequest(JSON.parse(e&&e.postData&&e.postData.contents||'{}')));}catch(x){return json_({ok:false,error:err_(x)});}}
 function bridgeRequest(p){try{p=p||{};const a=String(p.action||'');if(a==='ping')return ping_(p);if(a==='sync')return legacySync_(p);if(a==='profileBootstrap')return bootstrap_(p);if(a==='profileSync')return profileSync_(p);if(a==='profileUpdate')return profileUpdate_(p);if(a==='socialState')return socialAction_(p);if(a==='friendRequest')return friendRequest_(p);if(a==='friendRespond')return friendRespond_(p);if(a==='friendRemove')return friendRemove_(p);if(a==='friendProfile')return friendProfile_(p);return{ok:false,error:'Unknown action'};}catch(x){return{ok:false,error:err_(x)};}}
-function bridge_(origin){origin=origin&&origin!=='null'?origin:'*';const h=`<!doctype html><meta charset="utf-8"><script>(function(){var o=${JSON.stringify(origin)};function s(m){parent.postMessage(m,o)}addEventListener('message',function(e){var m=e.data;if(!m||m.type!=='memory-card-bridge-request'||!m.requestId)return;google.script.run.withSuccessHandler(function(p){s({type:'memory-card-bridge-response',requestId:m.requestId,payload:p})}).withFailureHandler(function(x){s({type:'memory-card-bridge-response',requestId:m.requestId,payload:{ok:false,error:String(x&&x.message||x)}})}).bridgeRequest(m.payload||{})});s({type:'memory-card-bridge-ready',version:${MC.V}})})();</script>`;return HtmlService.createHtmlOutput(h).setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);}
+function bridge_(allowedOrigin){
+  const origin=String(allowedOrigin||'*');
+  const originJson=JSON.stringify(origin);
+  const h=`<!doctype html><html><head><meta charset="utf-8"></head><body><script>
+  (function(){
+    var expectedOrigin=${originJson};
+    function emit(message, origin){
+      var targetOrigin=origin||(expectedOrigin&&expectedOrigin!=='*'?expectedOrigin:'*');
+      try{if(window.parent&&window.parent!==window)window.parent.postMessage(message,targetOrigin);}catch(_){}
+      try{if(window.top&&window.top!==window.parent)window.top.postMessage(message,targetOrigin);}catch(_){}
+    }
+    function errorText(err){
+      try{return String((err&&err.message)||err||'Unknown Apps Script error');}
+      catch(_){return 'Unknown Apps Script error';}
+    }
+    window.addEventListener('message',function(event){
+      var msg=event.data||{};
+      if(expectedOrigin!=='*'&&event.origin!==expectedOrigin)return;
+      if(msg.type!=='memory-card-bridge-request'||!msg.requestId)return;
+      var requestId=msg.requestId;
+      var payload=msg.payload||{};
+      google.script.run
+        .withSuccessHandler(function(result){
+          emit({type:'memory-card-bridge-response',requestId:requestId,payload:result},event.origin||'*');
+        })
+        .withFailureHandler(function(err){
+          emit({type:'memory-card-bridge-response',requestId:requestId,payload:{ok:false,error:errorText(err),version:${MC.V}}},event.origin||'*');
+        })
+        .bridgeRequest(payload);
+    });
+    emit({type:'memory-card-bridge-ready',version:${MC.V}},expectedOrigin!=='*'?expectedOrigin:'*');
+  })();
+  <\/script></body></html>`;
+  return HtmlService.createHtmlOutput(h)
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+    .setTitle('Memory Card Network Bridge');
+}
 function ping_(p){const ex=secret_();if(p.secret&&ex&&String(p.secret)!==ex)return{ok:false,error:'Invalid secret'};const ss=SpreadsheetApp.getActiveSpreadsheet();return{ok:true,version:MC.V,count:allGames_(ss).length,users:profiles_(ss).length};}
 
 function bootstrap_(p){return locked_(()=>{const ss=SpreadsheetApp.getActiveSpreadsheet();ensure_(ss);const rid=uid_(p.userId),tok=String(p.authToken||'');let id='',auth=tok;if(rid&&tok&&authorized_(ss,rid,tok)){id=rid;touch_(ss,id,tok);}else if(rid&&validSecret_(p.secret)&&rid===owner_()){id=rid;auth=issue_(ss,id);}else if(!rid&&validSecret_(p.secret)){id=owner_()||claimOwner_(ss,p.displayName||'Игрок');auth=issue_(ss,id);}else if(!rid){const q=createProfile_(ss,p.displayName||'Игрок');id=q.userId;auth=issue_(ss,id);}else return{ok:false,error:'Не удалось подтвердить профиль на этом устройстве'};const pr=profile_(ss,id),st=userSettings_(ss,id),so=social_(ss,id);return{ok:true,authToken:auth,profile:publicProfile_(pr,st),games:userGames_(ss,id),settings:st,friends:so.friends,incoming:so.incoming,outgoing:so.outgoing};});}
