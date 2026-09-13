@@ -1,4 +1,3 @@
-/* Memory Card — Nintendo Switch cover enhancer, resilient v4 */
 (() => {
   const DB_URL = 'https://www.gametdb.com/switchtdb.txt?LANG=EN';
   const DB_CACHE_KEY = 'memory-card-switchtdb-v2';
