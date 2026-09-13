@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#09111f" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Memory Card · Backend v2</title>
+  <script>try{const t=localStorage.getItem('memory-card-theme-v3')||localStorage.getItem('memory-card-theme-v2');if(t)document.documentElement.dataset.mcThemeRuntime=t}catch(_){}</script>
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" href="./logo-192.png" type="image/png" />
+  <link rel="apple-touch-icon" href="./logo-192.png" />
+  <link rel="stylesheet" href="./styles.css" />
+  <link rel="stylesheet" href="./mobile.css" />
+  <link rel="stylesheet" href="./cover-fixes.css" />
+  <link rel="stylesheet" href="./ui-enhancements.css" />
+  <link rel="stylesheet" href="./profile-social.css" />
+  <link rel="stylesheet" href="./product-v13.css" />
+  <link rel="stylesheet" href="./product-v14.css" />
+  <link rel="stylesheet" href="./product-v16.css" />
+  <link rel="stylesheet" href="./product-v17.css" />
+  <link rel="stylesheet" href="./theme-unified-v18.css" />
+  <link rel="stylesheet" href="./collection-card-badges-v18.css" />
+  <link rel="stylesheet" href="./manual-cover-picker-v18.css" />
+  <link rel="stylesheet" href="./settings-dashboard-v18.css" />
+  <link rel="stylesheet" href="./onboarding-v20.css" />
+  <link rel="stylesheet" href="./backend-v2.css" />
+</head>
+<body>
+  <div id="app"></div>
+  <script>window.MemoryCardInstallProbe=new Promise(resolve=>{try{const request=indexedDB.open('memory-card-db',1);let fresh=false;request.onupgradeneeded=()=>{fresh=true;const db=request.result;if(!db.objectStoreNames.contains('state'))db.createObjectStore('state')};request.onerror=()=>resolve(true);request.onsuccess=()=>{const db=request.result;try{const tx=db.transaction('state','readonly');const get=tx.objectStore('state').get('main');get.onsuccess=()=>resolve(Boolean(get.result));get.onerror=()=>resolve(true);tx.oncomplete=()=>db.close()}catch(_){db.close();resolve(!fresh)}}}catch(_){resolve(true)}})</script>
+  <script src="./title-search-helper.js"></script>
+  <script src="./switch-cover-helper.js"></script>
+  <script src="./ps3-cover-helper.js"></script>
+  <script src="./ps3-wikipedia-cover-helper.js"></script>
+  <script src="./ui-enhancements.js"></script>
+  <script src="./catalog-refresh-helper.js"></script>
+  <script src="./modal-draft-helper.js"></script>
+  <script src="./app.js"></script>
+  <script src="./cover-sources.js"></script>
+  <script src="./profile-core.js"></script>
+  <script src="./onboarding-v20.js"></script>
+  <script src="./friends.js"></script>
+  <script src="./cover-refresh-helper.js"></script>
+  <script src="./product-v13.js"></script>
+  <script src="./mutation-stability-guard.js"></script>
+  <script src="./product-v14.js"></script>
+  <script src="./achievements-v16.js"></script>
+  <script src="./product-v16.js"></script>
+  <script src="./product-v17.js"></script>
+  <script src="./manual-cover-picker-v18.js"></script>
+  <script src="./collection-card-badges-v18.js"></script>
+  <script src="./settings-dashboard-v18.js"></script>
+  <script src="./catalog-dashboard-runtime-v18.js"></script>
+  <script src="./theme-core-v19.js"></script>
+  <script src="./backend-config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
+  <script src="./backend-v2.js"></script>
+</body>
+</html>
