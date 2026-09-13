@@ -1,4 +1,3 @@
-/* Memory Card search fix — title-only filtering, same-frame v4 */
 (() => {
   let queued = false;
 
@@ -54,9 +53,6 @@
   function scheduleApply() {
     if (queued) return;
     queued = true;
-    // app.js redraws synchronously inside the original input/change/click handler.
-    // A microtask runs after that handler but before the browser paints, so the user
-    // never sees the broader intermediate list and then a second title-only list.
     queueMicrotask(() => {
       queued = false;
       applyTitleOnlySearch();
