@@ -1,4 +1,4 @@
-/* Memory Card v12 — friend list and multi-user cloud sync */
+
 (() => {
   state.social = state.social || {loading:false,loaded:false,friends:[],incoming:[],outgoing:[],profile:null,error:''};
   state.friendProfile = null;

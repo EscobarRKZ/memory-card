@@ -1,4 +1,4 @@
-/* Memory Card v12 — profiles, consoles and optional rotations */
+
 (() => {
   const originalIds = new Set(PLATFORMS.map(p => p.id));
   const extras = [

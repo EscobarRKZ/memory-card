@@ -1,4 +1,4 @@
-/* Memory Card v0.13 — home platform limit, appearance options, EN localization and friend removal notices */
+
 (() => {
   const HOME_LIMIT = 7;
   let homeExpanded = false;

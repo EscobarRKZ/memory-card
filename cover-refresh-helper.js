@@ -1,7 +1,4 @@
-/* Memory Card — unified bulk cover refresh v5 / product v0.15
-   Uses the same shared Libretro registry as the normal app resolver, while preserving
-   the stronger platform-specific resolvers for PSP, PS Vita, PS3 and Nintendo Switch.
-*/
+
 (() => {
   const DB_NAME = 'memory-card-db';
   const STORE = 'state';
@@ -658,9 +655,9 @@
     const libretro = await resolveLibretro(game);
     if (libretro) return libretro;
 
-    // PS5, Xbox One and Xbox Series currently have no maintained Libretro Named_Boxarts
-    // repository. Wikipedia is intentionally last, conservative fallback for those and
-    // for rare titles missing from otherwise supported repositories.
+    
+    
+    
     return resolveWikipedia(game);
   }
 

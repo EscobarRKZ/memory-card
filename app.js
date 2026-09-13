@@ -27,8 +27,8 @@ const LEGACY_SQL_CATALOG = {
 };
 const LEGACY_SQL_BASE = 'https://raw.githubusercontent.com/bocaletto-luca/Videogames-Database/main/';
 
-// Verified box-art source. Unlike Wikipedia page images, Libretro keeps box art in a
-// dedicated Named_Boxarts tree, so a successful match is actually packaging artwork.
+
+
 const LIBRETRO_COVER_REPOS = {
   PSP: ['Sony_-_PlayStation_Portable'],
   VITA: ['Sony_-_PlayStation_Vita'],
@@ -443,8 +443,8 @@ function migrateSettings(raw = {}) {
   if (!merged.desktopRotation.includes(merged.currentDesktop)) merged.currentDesktop = merged.desktopRotation[0];
   if (!['system', 'light', 'dark'].includes(merged.theme)) merged.theme = 'system';
   merged.coverResolverVersion = Number(merged.coverResolverVersion || 0);
-  // v0.10 safety migration: after the old destructive sync bug, existing installs get
-  // auto-sync switched off once. The user may enable it again after a successful manual sync.
+  
+  
   if (Number(raw.syncSafetyVersion || 0) < 1) {
     merged.autoSync = false;
     merged.syncSafetyVersion = 1;
@@ -499,8 +499,8 @@ async function loadState() {
       mergeCatalog(cat.catalog);
       state.catalogMeta = cat.catalogMeta || {};
     }
-    // v0.10: Wikipedia artwork was still too error-prone. Keep only manual artwork
-    // and already verified Libretro box art; other automatic covers are rebuilt.
+    
+    
     if (state.settings.coverResolverVersion < 4) {
       for (const g of state.games) {
         if (g.coverUrl && g.coverSource !== 'manual' && !String(g.coverSource || '').startsWith('libretro:')) {
@@ -1083,8 +1083,8 @@ async function fetchWikipediaInfoboxImage(host, pageTitle, gameTitle) {
   }).filter(x => x.url && !badRx.test(x.meta)).sort((a,b) => a.score - b.score);
 
   const best = scored[0];
-  // If we cannot find something that looks like actual packaging, prefer the generated fallback
-  // over showing a random photo/logo again.
+  
+  
   if (!best || best.score > 8) return '';
   return best.url;
 }
@@ -1189,11 +1189,11 @@ async function fetchCoverForGame(title, releaseYear = '', platformId = '') {
   if (LIBRETRO_COVER_REPOS[platformId]?.length) {
     const libretro = await fetchLibretroCover(title, platformId);
     if (libretro.url) return libretro;
-    // For covered systems we prefer a clean placeholder over an unverified web image.
+    
     return { url: '', source: '', matchedTitle: '' };
   }
-  // Switch does not currently have a Libretro thumbnail repository in the master set.
-  // Keep the conservative Wikipedia resolver only as a fallback for such platforms.
+  
+  
   return fetchWikipediaCover(title, releaseYear, platformId);
 }
 
@@ -1211,8 +1211,8 @@ async function fetchWikipediaCover(title, releaseYear = '', platformId = '') {
     }
     for (const attempt of attempts) {
       try {
-        // Search only identifies the correct article. We deliberately do NOT use pageimages here:
-        // pageimages frequently chooses a developer photo, a logo or a gameplay screenshot.
+        
+        
         const searchUrl = `https://${attempt.host}/w/api.php?action=query&format=json&origin=*&generator=search&gsrnamespace=0&gsrlimit=10&gsrsearch=${encodeURIComponent(attempt.query)}&prop=pageprops&ppprop=wikibase_item`;
         const sr = await fetch(searchUrl);
         if (!sr.ok) continue;
@@ -1610,7 +1610,7 @@ function mergeClientSettings(local, remote) {
   const remoteMigrated = migrateSettings(remote || {});
   const remoteIsNewer = String(remoteMigrated.settingsUpdatedAt || '') > String(localMigrated.settingsUpdatedAt || '');
   const chosen = remoteIsNewer ? remoteMigrated : localMigrated;
-  // Connection credentials and device-only safety state never come from Sheets.
+  
   return migrateSettings({
     ...chosen,
     sheetEndpoint: localMigrated.sheetEndpoint,
@@ -1679,8 +1679,8 @@ async function syncSheets(options = {}) {
     const localLive = localBefore.filter(g => !g.deletedAt).length;
     const remoteLive = remoteGames.filter(g => !g.deletedAt).length;
 
-    // Never replace local state with the server response. Even a totally empty cloud result
-    // can only contribute zero records to the merge, not delete local records.
+    
+    
     state.games = mergedGames;
     state.settings = mergeClientSettings(settingsBefore, data.settings || {});
     state.settings.lastSync = nowIso();
@@ -1700,7 +1700,7 @@ async function syncSheets(options = {}) {
     }
   } catch (e) {
     console.error(e);
-    // No remote failure is allowed to mutate the library: return to the exact pre-sync state.
+    
     state.games = localBefore.map(migrateGame);
     state.settings = migrateSettings({ ...settingsBefore, lastLocalBackupAt: state.settings.lastLocalBackupAt || settingsBefore.lastLocalBackupAt });
     await persist();

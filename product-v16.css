@@ -1,4 +1,4 @@
-/* Memory Card v0.16 */
+
 :root{--v16-accent:#7657ff;--v16-accent-2:#ff5fc8;--v16-glow:rgba(118,87,255,.18);--v16-platform:#7657ff}
 :root[data-mc-accent="memory"]{--v16-accent:#7657ff;--v16-accent-2:#d95cff;--v16-glow:rgba(118,87,255,.22)}
 :root[data-mc-accent="ps2"]{--v16-accent:#386cff;--v16-accent-2:#6aa7ff;--v16-glow:rgba(56,108,255,.2)}

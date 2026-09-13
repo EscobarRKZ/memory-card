@@ -1,4 +1,4 @@
-/* Memory Card v0.16 — Game Identity, Backlog, Collections, Rotations, Social */
+
 (() => {
   const VIEW_KEY='memory-card-games-view-v2';
   const ROTATION_MODES=['classic','balance','random'];
