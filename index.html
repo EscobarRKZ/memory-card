@@ -24,9 +24,11 @@
   <link rel="stylesheet" href="./collection-card-badges-v18.css" />
   <link rel="stylesheet" href="./manual-cover-picker-v18.css" />
   <link rel="stylesheet" href="./settings-dashboard-v18.css" />
+  <link rel="stylesheet" href="./onboarding-v20.css" />
 </head>
 <body>
   <div id="app"></div>
+  <script>window.MemoryCardInstallProbe=new Promise(resolve=>{try{const request=indexedDB.open('memory-card-db',1);let fresh=false;request.onupgradeneeded=()=>{fresh=true;const db=request.result;if(!db.objectStoreNames.contains('state'))db.createObjectStore('state')};request.onerror=()=>resolve(true);request.onsuccess=()=>{const db=request.result;try{const tx=db.transaction('state','readonly');const get=tx.objectStore('state').get('main');get.onsuccess=()=>resolve(Boolean(get.result));get.onerror=()=>resolve(true);tx.oncomplete=()=>db.close()}catch(_){db.close();resolve(!fresh)}}}catch(_){resolve(true)}})</script>
   <script src="./title-search-helper.js"></script>
   <script src="./switch-cover-helper.js"></script>
   <script src="./ps3-cover-helper.js"></script>
@@ -37,6 +39,7 @@
   <script src="./app.js"></script>
   <script src="./cover-sources.js"></script>
   <script src="./profile-core.js"></script>
+  <script src="./onboarding-v20.js"></script>
   <script src="./friends.js"></script>
   <script src="./cover-refresh-helper.js"></script>
   <script src="./product-v13.js"></script>
