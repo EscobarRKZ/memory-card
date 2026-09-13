@@ -1,0 +1,58 @@
+/* Memory Card social/profile extension */
+.nav button { position: relative; }
+.nav-badge { display:inline-grid; place-items:center; min-width:18px; height:18px; padding:0 5px; margin-left:auto; border-radius:999px; background:var(--accent,#7c5cff); color:#fff; font-size:11px; font-weight:800; }
+.memory-id { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; letter-spacing:.05em; font-size:12px; opacity:.72; }
+.social-me-card,.friend-profile-hero { display:flex; align-items:center; gap:14px; }
+.social-me-main,.friend-main,.friend-profile-title { min-width:0; flex:1; }
+.social-avatar { width:52px; height:52px; flex:0 0 52px; display:grid; place-items:center; border-radius:18px; font-weight:900; font-size:20px; color:#fff; background:linear-gradient(145deg,var(--accent,#7c5cff),#ff6f91); box-shadow:0 10px 28px rgba(80,62,180,.2); }
+.social-avatar.small { width:40px; height:40px; flex-basis:40px; border-radius:13px; font-size:15px; }
+.social-avatar.xl { width:72px; height:72px; flex-basis:72px; border-radius:22px; font-size:28px; }
+.friend-search { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; margin-top:14px; }
+.friend-search input { min-width:0; }
+.friend-list { display:flex; flex-direction:column; gap:8px; }
+.friend-row { display:flex; align-items:center; gap:12px; padding:12px; border:1px solid var(--border,#dde3ee); border-radius:16px; background:var(--surface-2,rgba(255,255,255,.45)); }
+.friend-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+.muted-row { opacity:.78; }
+.request-status { font-size:12px; opacity:.65; }
+.friend-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px; }
+.friend-card { display:flex; align-items:center; gap:12px; padding:14px; text-align:left; border:1px solid var(--border,#dde3ee); border-radius:18px; background:var(--surface-2,rgba(255,255,255,.45)); color:inherit; cursor:pointer; transition:.18s ease; }
+.friend-card:hover { transform:translateY(-1px); border-color:var(--accent,#7c5cff); }
+.friend-mini-stats { display:flex; gap:10px; flex-wrap:wrap; margin-top:6px; font-size:11px; opacity:.68; }
+.social-loader { padding:28px 10px; text-align:center; opacity:.7; }
+.friend-platforms { display:flex; gap:9px; flex-wrap:wrap; }
+.friend-platform-chip { display:flex; align-items:center; gap:7px; padding:8px 10px; border:1px solid var(--border,#dde3ee); border-radius:14px; background:var(--surface-2,rgba(255,255,255,.45)); }
+.friend-platform-chip .device-icon { width:34px; }
+.profile-settings-card .id-field { display:flex; gap:8px; }
+.profile-settings-card .id-field input { flex:1; min-width:0; }
+.console-picker { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:9px; margin-top:14px; }
+.console-choice { display:flex; align-items:center; gap:10px; min-height:66px; padding:10px 12px; border:1px solid var(--border,#dde3ee); border-radius:16px; cursor:pointer; transition:.18s ease; background:var(--surface-2,rgba(255,255,255,.42)); }
+.console-choice input { position:absolute; opacity:0; pointer-events:none; }
+.console-choice.selected { border-color:var(--accent,#7c5cff); box-shadow:inset 0 0 0 1px var(--accent,#7c5cff); background:color-mix(in srgb,var(--accent,#7c5cff) 8%,transparent); }
+.console-choice-icon { width:48px; flex:0 0 48px; }
+.console-choice .device-icon { width:46px; }
+.console-choice b,.console-choice small { display:block; }
+.console-choice small { margin-top:2px; opacity:.64; font-size:11px; line-height:1.25; }
+.mini-switch { display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none; }
+.mini-switch input { width:18px; height:18px; accent-color:var(--accent,#7c5cff); }
+.rotation-add-list { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; padding-top:12px; border-top:1px dashed var(--border,#dde3ee); }
+.rotation-disabled { opacity:.88; }
+.friend-profile-hero .danger { margin-left:auto; }
+.empty-social p { max-width:650px; }
+
+@media (max-width: 760px) {
+  .friend-search { grid-template-columns:1fr; }
+  .social-me-card,.friend-profile-hero { align-items:flex-start; flex-wrap:wrap; }
+  .social-me-card > button,.friend-profile-hero .danger { width:100%; margin-left:0; }
+  .friend-row { align-items:flex-start; flex-wrap:wrap; }
+  .friend-actions { width:100%; justify-content:stretch; }
+  .friend-actions button { flex:1; }
+  .console-picker { grid-template-columns:1fr 1fr; }
+  .console-choice { min-height:74px; padding:9px; }
+  .console-choice-icon { width:42px; flex-basis:42px; }
+  .console-choice .device-icon { width:40px; }
+  .profile-settings-card .id-field { flex-direction:column; }
+}
+@media (max-width: 430px) {
+  .console-picker { grid-template-columns:1fr; }
+  .friend-grid { grid-template-columns:1fr; }
+}
