@@ -1,5 +1,3 @@
-/* Memory Card auto-sync reliability helper — v0.13
-   Keeps app.js untouched: app.js binds its own syncSheets handler to this hidden hook. */
 (() => {
   const DB_NAME = 'memory-card-db';
   const STORE = 'state';
@@ -59,8 +57,6 @@
 
     lastAttemptAt = Date.now();
     try {
-      // app.js accepts an options object here. Silent sync still re-renders the app
-      // after merging remote and local records, so newly added games appear immediately.
       await handler({ silent: true, skipSaveSettings: true, source: reason });
     } catch (err) {
       console.warn('Memory Card auto-sync helper:', err);
@@ -72,7 +68,6 @@
     scheduledTimer = setTimeout(() => runAutoSync(reason), delay);
   }
 
-  // First opening, returning from background/PWA task switcher, network reconnect and desktop focus.
   window.addEventListener('load', () => scheduleAutoSync('open', 1600));
   window.addEventListener('pageshow', () => scheduleAutoSync('pageshow', 900));
   window.addEventListener('focus', () => scheduleAutoSync('focus', 700));
@@ -81,8 +76,6 @@
     if (!document.hidden) scheduleAutoSync('resume', 450);
   });
 
-  // The checkbox previously looked enabled before the user pressed "Save settings".
-  // Save it immediately and start the first background sync when it is turned on.
   document.addEventListener('change', event => {
     const target = event.target;
     if (!(target instanceof HTMLInputElement) || target.id !== 'autoSync') return;
