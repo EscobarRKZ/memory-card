@@ -1,4 +1,3 @@
-/* Memory Card social/profile extension */
 .nav button { position: relative; }
 .nav-badge { display:inline-grid; place-items:center; min-width:18px; height:18px; padding:0 5px; margin-left:auto; border-radius:999px; background:var(--accent,#7c5cff); color:#fff; font-size:11px; font-weight:800; }
 .memory-id { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; letter-spacing:.05em; font-size:12px; opacity:.72; }
