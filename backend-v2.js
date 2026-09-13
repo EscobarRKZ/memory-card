@@ -18,13 +18,14 @@
 
   function escHtml(value=''){return String(value).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
   function newer(a,b){return String(a||'').localeCompare(String(b||''))>=0?a:b;}
+  function appUrl(){return `${location.origin}${location.pathname}`;}
   function disableLegacySync(){
     if(!state?.settings) return;
     state.settings.autoSync=false;
   }
   function omitLocalSettings(source={}){
     const out={...source};
-    for(const key of ['sheetEndpoint','syncSecret','authToken','userId','profileUpdatedAt','lastSync','autoSync']) delete out[key];
+    for(const key of ['sheetEndpoint','syncSecret','authToken','userId','profileUpdatedAt','lastSync','autoSync','accentTheme']) delete out[key];
     return out;
   }
   function gameToRow(g){
@@ -95,12 +96,14 @@
       profile=cloud.profile;
       const localSettings={...(state.settings||{})};
       const remoteSettings=cloud.settings?.payload&&typeof cloud.settings.payload==='object'?cloud.settings.payload:{};
+      const localAccent=localSettings.accentTheme;
       const localStamp=String(localSettings.settingsUpdatedAt||'');
       const remoteStamp=String(cloud.settings?.updated_at||remoteSettings.settingsUpdatedAt||'');
       const chosen=remoteStamp>localStamp?{...localSettings,...remoteSettings}:{...remoteSettings,...localSettings};
       chosen.profileName=profile.display_name||chosen.profileName||'Игрок';
       chosen.userId=profile.memory_id;
       chosen.autoSync=false;
+      if(localAccent) chosen.accentTheme=localAccent;
       chosen.settingsUpdatedAt=newer(localStamp,remoteStamp)||new Date().toISOString();
       state.settings=migrateSettings(chosen);
       state.settings.autoSync=false;
@@ -156,6 +159,10 @@
     document.querySelector('.mc-auth-shell')?.remove();
     document.body.insertAdjacentHTML('beforeend',`<div class="mc-auth-shell"><section class="mc-auth-card mc-auth-confirm"><div class="mc-auth-logo" style="margin:0 auto">✓</div><h2>Подтверди email</h2><p>Мы отправили письмо на <b>${escHtml(email)}</b>. Перейди по ссылке в письме, затем вернись в Memory Card.</p><button class="primary" type="button" data-auth-back>Вернуться ко входу</button></section></div>`);
   }
+  function showPasswordRecovery(){
+    document.querySelector('.mc-auth-shell')?.remove();
+    document.body.insertAdjacentHTML('beforeend',`<div class="mc-auth-shell"><section class="mc-auth-card"><div class="mc-auth-brand"><div class="mc-auth-logo">MC</div><div><h1>Новый пароль</h1><p>Придумай новый пароль для аккаунта Memory Card</p></div></div><form class="mc-auth-form" data-auth-recovery><label class="mc-auth-field"><span>Новый пароль</span><input type="password" name="password" autocomplete="new-password" minlength="8" required></label><label class="mc-auth-field"><span>Повтори пароль</span><input type="password" name="repeat" autocomplete="new-password" minlength="8" required></label><div class="mc-auth-status"></div><button class="primary mc-auth-submit" type="submit">Сохранить новый пароль</button></form></section></div>`);
+  }
   function hideAuth(){document.querySelector('.mc-auth-shell')?.remove();}
 
   async function signUp(form){
@@ -164,8 +171,9 @@
     const displayName=form.name.value.trim();
     if(cfg.turnstileSiteKey&&!captchaToken()){authStatus('Подтверди проверку','error');return;}
     authStatus('Создаю аккаунт…');
-    const {data,error}=await client.auth.signUp({email,password,options:{data:{display_name:displayName},captchaToken:captchaToken()}});
+    const {data,error}=await client.auth.signUp({email,password,options:{data:{display_name:displayName},captchaToken:captchaToken(),emailRedirectTo:appUrl()}});
     if(error){authStatus(error.message,'error');resetCaptcha();return;}
+    resetCaptcha();
     if(data.session){session=data.session;hideAuth();await reconcile();}
     else showConfirmation(email);
   }
@@ -176,13 +184,34 @@
     authStatus('Вхожу…');
     const {data,error}=await client.auth.signInWithPassword({email,password,options:{captchaToken:captchaToken()}});
     if(error){authStatus(error.message,'error');resetCaptcha();return;}
+    resetCaptcha();
     session=data.session;hideAuth();await reconcile();
   }
   async function resetPassword(){
     const email=document.querySelector('[data-auth-form="login"] input[name="email"]')?.value.trim();
     if(!email){authStatus('Сначала введи email','error');return;}
-    const {error}=await client.auth.resetPasswordForEmail(email,{redirectTo:location.origin+location.pathname});
-    authStatus(error?error.message:'Письмо для восстановления отправлено',error?'error':'ok');
+    if(cfg.turnstileSiteKey&&!captchaToken()){authStatus('Подтверди проверку','error');return;}
+    authStatus('Отправляю письмо…');
+    try{
+      const {error}=await client.auth.resetPasswordForEmail(email,{redirectTo:appUrl(),captchaToken:captchaToken()});
+      authStatus(error?error.message:'Письмо для восстановления отправлено',error?'error':'ok');
+    }catch(error){
+      authStatus(error?.message||'Не удалось отправить письмо','error');
+    }finally{
+      resetCaptcha();
+    }
+  }
+  async function updatePassword(form){
+    const password=form.password.value;
+    const repeat=form.repeat.value;
+    if(password.length<8){authStatus('Пароль должен быть не короче 8 символов','error');return;}
+    if(password!==repeat){authStatus('Пароли не совпадают','error');return;}
+    authStatus('Сохраняю пароль…');
+    const {error}=await client.auth.updateUser({password});
+    if(error){authStatus(error.message,'error');return;}
+    hideAuth();
+    await reconcile();
+    setToast('Пароль изменён');
   }
   async function logout(){await client.auth.signOut();session=null;profile=null;showAuth();}
 
@@ -216,15 +245,27 @@
   },true);
   document.addEventListener('submit',event=>{
     const form=event.target instanceof HTMLFormElement?event.target:null;
-    if(!form?.dataset.authForm) return;
+    if(!form) return;
+    if(form.hasAttribute('data-auth-recovery')){
+      event.preventDefault();
+      updatePassword(form);
+      return;
+    }
+    if(!form.dataset.authForm) return;
     event.preventDefault();
     form.dataset.authForm==='signup'?signUp(form):signIn(form);
   },true);
 
-  client.auth.onAuthStateChange(async(_,next)=>{
+  client.auth.onAuthStateChange((event,next)=>{
     session=next;
-    if(session){hideAuth();await reconcile();}
-    else showAuth();
+    setTimeout(()=>{
+      if(event==='PASSWORD_RECOVERY'){
+        showPasswordRecovery();
+        return;
+      }
+      if(session){hideAuth();reconcile();}
+      else showAuth();
+    },0);
   });
 
   async function init(){
