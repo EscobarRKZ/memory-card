@@ -1,4 +1,3 @@
-/* Memory Card — PS3 cover enhancer, resilient v3 */
 (() => {
   const DB_URL = 'https://www.gametdb.com/ps3tdb.txt?LANG=EN';
   const DB_CACHE_KEY = 'memory-card-ps3tdb-v1';
