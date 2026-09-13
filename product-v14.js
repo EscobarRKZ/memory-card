@@ -1,4 +1,3 @@
-/* Memory Card v0.14 — stats cleanup, compact settings and library view modes */
 (() => {
   const CONSOLE_LIMIT = 8;
   const FRANCHISE_LIMIT = 8;
