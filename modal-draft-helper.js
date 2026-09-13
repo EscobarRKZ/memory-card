@@ -1,8 +1,3 @@
-/* Memory Card — modal draft guard v1
-   app.js is intentionally allowed to rerender the application, but background catalog,
-   cover and sync updates must never wipe a form the user is currently filling out.
-   This helper snapshots modal fields and restores them immediately after DOM rebuilds.
-*/
 (() => {
   const TRACKED = new Set(['gameForm', 'playingForm', 'finishRotationForm']);
   let draft = null;
@@ -94,8 +89,6 @@
     if (form && TRACKED.has(form.id)) snapshotSoon();
   });
 
-  // Catalog suggestions, rating stars and other modal buttons often update several fields
-  // programmatically without firing input events for every field. Snapshot after the click.
   document.addEventListener('click', event => {
     const target = event.target?.closest?.('[data-catalog-select], [data-rating]');
     if (target) snapshotSoon();
