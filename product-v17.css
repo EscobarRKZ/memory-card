@@ -1,5 +1,3 @@
-/* Memory Card v0.17 — UI polish */
-
 .v16-meta-list>div,.v16-helpbox,.v16-info{background:var(--panel2)!important;color:var(--text)!important}
 .v16-meta-list small{color:var(--muted)!important;opacity:1!important}
 .v16-meta-list b,.v16-helpbox b,.v16-rotation-mode,.v16-accent-panel{color:var(--text)}
