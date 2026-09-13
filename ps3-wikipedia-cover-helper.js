@@ -1,4 +1,3 @@
-/* Memory Card — strict Wikipedia PS3 cover fallback v1 */
 (() => {
   const CACHE_KEY = 'memory-card-ps3-wikipedia-covers-v1';
   const HIT_TTL = 1000 * 60 * 60 * 24 * 30;
