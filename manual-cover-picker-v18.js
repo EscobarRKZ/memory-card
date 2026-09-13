@@ -1,4 +1,3 @@
-/* Memory Card v0.17.3 — manual cover picker and strict exact-first resolver */
 (() => {
   const repoMapCache = new Map();
   const originalFetchCoverForGame = fetchCoverForGame;
@@ -300,7 +299,6 @@
     }
   }
 
-  // Exact Libretro title match now wins before the older fuzzy resolver for future imports/additions.
   fetchCoverForGame = async function(title, releaseYear = '', platformId = '') {
     try {
       const exact = await libretroExactCandidates({ title, releaseYear, platform: platformId });
@@ -309,7 +307,6 @@
     return originalFetchCoverForGame(title, releaseYear, platformId);
   };
 
-  // Capture before product-v17's delegated bubble handler so the old single-result refresh never runs.
   document.addEventListener('click', event => {
     const target = event.target instanceof Element ? event.target : null;
     const refresh = target?.closest('[data-v17-cover-refresh]');
