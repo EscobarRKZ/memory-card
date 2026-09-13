@@ -1,4 +1,3 @@
-/* Memory Card v0.17.3 — collection badges on library cards */
 (() => {
   const baseGameCard = gameCard;
 
