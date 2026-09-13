@@ -117,12 +117,10 @@ alter table public.friendships enable row level security;
 
 create policy profiles_select_self on public.profiles for select using (auth.uid()=user_id);
 create policy profiles_update_self on public.profiles for update using (auth.uid()=user_id) with check (auth.uid()=user_id);
-
 create policy settings_all_self on public.user_settings for all using (auth.uid()=user_id) with check (auth.uid()=user_id);
 create policy games_all_self on public.games for all using (auth.uid()=user_id) with check (auth.uid()=user_id);
 create policy collections_all_self on public.collections for all using (auth.uid()=user_id) with check (auth.uid()=user_id);
 create policy collection_games_all_self on public.collection_games for all using (auth.uid()=user_id) with check (auth.uid()=user_id);
-
 create policy friendships_select_participant on public.friendships for select using (auth.uid()=requester_id or auth.uid()=addressee_id);
 create policy friendships_insert_requester on public.friendships for insert with check (auth.uid()=requester_id and status='pending');
 create policy friendships_update_participant on public.friendships for update using (auth.uid()=requester_id or auth.uid()=addressee_id) with check (auth.uid()=requester_id or auth.uid()=addressee_id);
@@ -138,13 +136,25 @@ declare
   target_id uuid;
   row_id uuid;
 begin
+  if auth.uid() is null then raise exception 'NOT_AUTHENTICATED'; end if;
   select user_id into target_id from public.profiles where upper(memory_id)=upper(trim(target_memory_id));
   if target_id is null then raise exception 'USER_NOT_FOUND'; end if;
   if target_id=auth.uid() then raise exception 'SELF_REQUEST'; end if;
-  insert into public.friendships(requester_id,addressee_id,status)
-  values(auth.uid(),target_id,'pending')
-  on conflict(least(requester_id,addressee_id),greatest(requester_id,addressee_id)) do update set updated_at=now()
-  returning id into row_id;
+  select id into row_id from public.friendships
+  where least(requester_id,addressee_id)=least(auth.uid(),target_id)
+    and greatest(requester_id,addressee_id)=greatest(auth.uid(),target_id)
+  limit 1;
+  if row_id is not null then return row_id; end if;
+  begin
+    insert into public.friendships(requester_id,addressee_id,status)
+    values(auth.uid(),target_id,'pending')
+    returning id into row_id;
+  exception when unique_violation then
+    select id into row_id from public.friendships
+    where least(requester_id,addressee_id)=least(auth.uid(),target_id)
+      and greatest(requester_id,addressee_id)=greatest(auth.uid(),target_id)
+    limit 1;
+  end;
   return row_id;
 end;
 $$;
@@ -156,6 +166,7 @@ security definer
 set search_path=public
 as $$
 begin
+  if auth.uid() is null then return false; end if;
   update public.friendships set status='accepted',updated_at=now()
   where id=friendship_id and addressee_id=auth.uid() and status='pending';
   return found;
@@ -173,6 +184,7 @@ declare
   allowed boolean;
   result jsonb;
 begin
+  if auth.uid() is null then raise exception 'NOT_AUTHENTICATED'; end if;
   select user_id into target_id from public.profiles where upper(memory_id)=upper(trim(target_memory_id));
   if target_id is null then return null; end if;
   select exists(
