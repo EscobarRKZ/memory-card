@@ -1,7 +1,3 @@
-/* Memory Card catalog refresh helper — v0.22
-   Supports refreshing selected consoles or every known console catalog.
-   Existing local catalog entries are never deleted when a remote source fails.
-*/
 (() => {
   const DB_NAME = 'memory-card-db';
   const STORE = 'state';
