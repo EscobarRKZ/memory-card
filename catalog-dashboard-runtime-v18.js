@@ -1,4 +1,3 @@
-/* Memory Card v0.17.4 — keep the new catalog dashboard intact after data refresh */
 (() => {
   const baseUpdateCatalogStatusDomV174 = updateCatalogStatusDom;
 
