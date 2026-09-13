@@ -18,9 +18,13 @@
 
   function escHtml(value=''){return String(value).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
   function newer(a,b){return String(a||'').localeCompare(String(b||''))>=0?a:b;}
+  function disableLegacySync(){
+    if(!state?.settings) return;
+    state.settings.autoSync=false;
+  }
   function omitLocalSettings(source={}){
     const out={...source};
-    for(const key of ['sheetEndpoint','syncSecret','authToken','userId','profileUpdatedAt','lastSync']) delete out[key];
+    for(const key of ['sheetEndpoint','syncSecret','authToken','userId','profileUpdatedAt','lastSync','autoSync']) delete out[key];
     return out;
   }
   function gameToRow(g){
@@ -58,6 +62,7 @@
     if(!session||syncing) return;
     syncing=true;
     try{
+      disableLegacySync();
       const payload=omitLocalSettings(state.settings||{});
       const settingsUpdatedAt=state.settings?.settingsUpdatedAt||new Date().toISOString();
       const profileName=String(state.settings?.profileName||profile?.display_name||'Игрок').trim().slice(0,40)||'Игрок';
@@ -82,9 +87,10 @@
   }
 
   async function reconcile(){
-    if(!session) return;
+    if(!session||syncing) return;
     syncing=true;
     try{
+      disableLegacySync();
       const cloud=await loadCloud();
       profile=cloud.profile;
       const localSettings={...(state.settings||{})};
@@ -94,12 +100,15 @@
       const chosen=remoteStamp>localStamp?{...localSettings,...remoteSettings}:{...remoteSettings,...localSettings};
       chosen.profileName=profile.display_name||chosen.profileName||'Игрок';
       chosen.userId=profile.memory_id;
+      chosen.autoSync=false;
       chosen.settingsUpdatedAt=newer(localStamp,remoteStamp)||new Date().toISOString();
       state.settings=migrateSettings(chosen);
+      state.settings.autoSync=false;
       const remoteGames=(cloud.games||[]).map(rowToGame);
       state.games=mergeGames(state.games||[],remoteGames).map(migrateGame);
       await localPersist();
       baseRender();
+      queueMicrotask(injectAccount);
     }catch(error){
       console.error('Memory Card cloud sync failed',error);
     }finally{
@@ -109,12 +118,13 @@
   }
 
   persist=async function(){
+    disableLegacySync();
     await localPersist();
     schedulePush();
   };
 
   function authStatus(text='',kind=''){
-    const el=document.querySelector('.mc-auth-status');
+    const el=document.querySelector('.mc-auth-form:not([hidden]) .mc-auth-status');
     if(!el) return;
     el.textContent=text;
     el.className=`mc-auth-status${kind?` ${kind}`:''}`;
@@ -124,9 +134,10 @@
     lastCaptchaToken='';
     if(window.turnstile&&turnstileWidget!=null){try{window.turnstile.reset(turnstileWidget);}catch(_){}}
   }
-  function mountCaptcha(){
-    if(!cfg.turnstileSiteKey||!window.turnstile) return;
-    const host=document.querySelector('.mc-auth-turnstile');
+  function mountCaptcha(attempt=0){
+    if(!cfg.turnstileSiteKey) return;
+    if(!window.turnstile){if(attempt<30)setTimeout(()=>mountCaptcha(attempt+1),200);return;}
+    const host=document.querySelector('.mc-auth-form:not([hidden]) .mc-auth-turnstile');
     if(!host||host.dataset.ready==='1') return;
     host.dataset.ready='1';
     turnstileWidget=window.turnstile.render(host,{sitekey:cfg.turnstileSiteKey,theme:'auto',callback:token=>{lastCaptchaToken=token;},'expired-callback':()=>{lastCaptchaToken='';},'error-callback':()=>{lastCaptchaToken='';}});
@@ -136,8 +147,10 @@
   }
   function showAuth(){
     document.querySelector('.mc-auth-shell')?.remove();
+    turnstileWidget=null;
+    lastCaptchaToken='';
     document.body.insertAdjacentHTML('beforeend',authShell());
-    queueMicrotask(mountCaptcha);
+    queueMicrotask(()=>mountCaptcha());
   }
   function showConfirmation(email){
     document.querySelector('.mc-auth-shell')?.remove();
@@ -173,7 +186,14 @@
   }
   async function logout(){await client.auth.signOut();session=null;profile=null;showAuth();}
 
+  function hideLegacySyncUi(){
+    document.querySelectorAll('.panel').forEach(panel=>{
+      const title=panel.querySelector('h3')?.textContent||'';
+      if(title.includes('Google Sheets')) panel.hidden=true;
+    });
+  }
   function injectAccount(){
+    hideLegacySyncUi();
     if(state.view!=='settings'||!session) return;
     const root=document.querySelector('.settings-grid')||document.querySelector('.content');
     if(!root||root.querySelector('[data-v2-account]')) return;
@@ -208,6 +228,8 @@
   });
 
   async function init(){
+    disableLegacySync();
+    await localPersist();
     const {data}=await client.auth.getSession();
     session=data.session||null;
     if(session){hideAuth();await reconcile();}
