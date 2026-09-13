@@ -1,0 +1,90 @@
+/* Memory Card v0.13 — product polish */
+.mc-platform-hidden,
+.mc-platform-collapsed {
+  display: none !important;
+}
+
+.home-platform-toggle-row {
+  display: flex;
+  justify-content: center;
+  margin: 14px 0 4px;
+}
+
+.home-platform-toggle-row .secondary {
+  min-width: 180px;
+}
+
+.friend-removed-panel {
+  border: 1px solid color-mix(in srgb, var(--danger, #ff5b6e) 34%, transparent);
+}
+
+.friend-removed-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.friend-removed-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--danger, #ff5b6e) 7%, var(--card, #fff));
+}
+
+.friend-removed-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.friend-removed-main .status-line {
+  margin-top: 3px;
+}
+
+.appearance-extra-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.appearance-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line, rgba(120,130,170,.22));
+  border-radius: 12px;
+}
+
+.appearance-toggle input {
+  width: 18px;
+  height: 18px;
+}
+
+html.mc-reduced-motion *,
+html.mc-reduced-motion *::before,
+html.mc-reduced-motion *::after {
+  scroll-behavior: auto !important;
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+}
+
+@media (max-width: 720px) {
+  .appearance-extra-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .friend-removed-row {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .friend-removed-row .friend-actions {
+    width: 100%;
+  }
+}
