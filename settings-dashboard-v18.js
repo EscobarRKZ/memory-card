@@ -1,4 +1,3 @@
-/* Memory Card v0.17.4 — categorized settings dashboard + cleaner home hero */
 (() => {
   const TAB_KEY = 'memory-card-settings-tab-v1';
   const TAB_IDS = ['basic', 'rotation', 'appearance', 'catalog', 'data'];
@@ -117,7 +116,6 @@
       child.dataset.settingsCategory = categoryFor(child);
     }
 
-    // In case the base catalog block was already modified by another layer.
     const catalog = [...grid.children].find(x => x.dataset.settingsCategory === 'catalog');
     if (catalog && !catalog.classList.contains('mc-catalog-panel')) {
       const template = document.createElement('template');
