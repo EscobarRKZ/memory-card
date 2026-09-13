@@ -1,0 +1,67 @@
+/* Memory Card v0.17 — UI polish */
+
+.v16-meta-list>div,.v16-helpbox,.v16-info{background:var(--panel2)!important;color:var(--text)!important}
+.v16-meta-list small{color:var(--muted)!important;opacity:1!important}
+.v16-meta-list b,.v16-helpbox b,.v16-rotation-mode,.v16-accent-panel{color:var(--text)}
+.v16-rotation-mode select,.v16-accent-panel select{background:var(--field);color:var(--text);border:1px solid var(--line)}
+html[data-theme="light"] .v16-meta-list>div,html[data-theme="light"] .v16-helpbox,html[data-theme="light"] .v16-info{background:#f0f1ff!important;color:#17152a!important}
+
+.v17-detail-cover-column{display:grid;gap:9px;align-self:start;width:230px}
+.v17-detail-cover-column .v16-detail-cover,.v17-detail-cover-column>.cover{width:230px!important}
+.v17-cover-refresh{width:100%;background:color-mix(in srgb,var(--panel) 84%,transparent);backdrop-filter:blur(10px);color:var(--text)}
+
+.v17-catalog-field{position:relative;min-width:0}
+.v17-catalog-field>input{width:100%}
+.v17-catalog-suggestions{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:80;padding:6px;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);max-height:320px;overflow:auto}
+.v17-catalog-suggestions button{display:grid;width:100%;gap:2px;text-align:left;padding:10px 11px;border:0;border-radius:10px;background:transparent;color:var(--text)}
+.v17-catalog-suggestions button:hover{background:var(--panel2)}
+.v17-catalog-suggestions b{font-size:13px}
+.v17-catalog-suggestions span{font-size:11px;color:var(--muted)}
+
+.v17-rotation-select-compat{display:none!important}
+.v17-rotation-buttons{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.v17-rotation-buttons button{min-height:72px;padding:11px 12px;text-align:left;border:1px solid var(--line);border-radius:14px;background:var(--panel2);color:var(--text);transition:.16s ease}
+.v17-rotation-buttons button:hover{transform:translateY(-1px);border-color:color-mix(in srgb,var(--v16-accent) 35%,var(--line))}
+.v17-rotation-buttons button.active{border-color:var(--v16-accent);background:color-mix(in srgb,var(--v16-accent) 11%,var(--panel));box-shadow:0 8px 22px var(--v16-glow)}
+.v17-rotation-buttons b,.v17-rotation-buttons small{display:block}
+.v17-rotation-buttons b{font-size:13px}
+.v17-rotation-buttons small{margin-top:4px;color:var(--muted);font-size:10px;line-height:1.35}
+
+:root[data-mc-accent="ps1"]{--v16-accent:#777b8a;--v16-accent-2:#c5c9d3;--v16-glow:rgba(119,123,138,.18)}
+:root[data-mc-accent="psp"]{--v16-accent:#2777d8;--v16-accent-2:#59c0ef;--v16-glow:rgba(39,119,216,.2)}
+:root[data-mc-accent="ps3"]{--v16-accent:#2e62a4;--v16-accent-2:#8da8d8;--v16-glow:rgba(46,98,164,.2)}
+:root[data-mc-accent="switch"]{--v16-accent:#e60012;--v16-accent-2:#00c3e3;--v16-glow:rgba(230,0,18,.18)}
+:root[data-mc-accent="gamecube"]{--v16-accent:#6246a8;--v16-accent-2:#9c7ae0;--v16-glow:rgba(98,70,168,.21)}
+:root[data-mc-accent="wii"]{--v16-accent:#58b8d6;--v16-accent-2:#d9f1f8;--v16-glow:rgba(88,184,214,.17)}
+:root[data-mc-accent="n64"]{--v16-accent:#2a9d55;--v16-accent-2:#e9b429;--v16-glow:rgba(42,157,85,.18)}
+:root[data-mc-accent="snes"]{--v16-accent:#6e5ca8;--v16-accent-2:#b9a9dc;--v16-glow:rgba(110,92,168,.2)}
+:root[data-mc-accent="genesis"]{--v16-accent:#23252d;--v16-accent-2:#e04646;--v16-glow:rgba(224,70,70,.16)}
+:root[data-mc-accent="x360"]{--v16-accent:#73b833;--v16-accent-2:#d2e638;--v16-glow:rgba(115,184,51,.2)}
+:root[data-mc-accent="dsi"]{--v16-accent:#74a9d8;--v16-accent-2:#d8e7f5;--v16-glow:rgba(116,169,216,.17)}
+:root[data-mc-accent="3ds"]{--v16-accent:#d92836;--v16-accent-2:#ef7180;--v16-glow:rgba(217,40,54,.18)}
+
+.v16-theme-swatches{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:9px!important}
+.v16-swatch{height:auto!important;min-height:62px;padding:7px!important;display:grid;grid-template-columns:42px 1fr;gap:9px;align-items:center;text-align:left;color:var(--text);background:var(--panel2)!important}
+.v16-swatch i{height:38px!important;border:1px solid color-mix(in srgb,var(--line) 75%,transparent)}
+.v16-swatch span{font-size:11px;font-weight:800;line-height:1.15}
+.v16-swatch.active{outline:2px solid var(--v16-accent)!important;outline-offset:1px!important;background:color-mix(in srgb,var(--v16-accent) 8%,var(--panel))!important}
+.v17-theme-collapsed{display:none!important}
+.v17-themes-toggle{margin-top:12px}
+.v16-swatch[data-v16-accent="ps1"] i{--sw1:#777b8a;--sw2:#c5c9d3}
+.v16-swatch[data-v16-accent="psp"] i{--sw1:#2777d8;--sw2:#59c0ef}
+.v16-swatch[data-v16-accent="ps3"] i{--sw1:#1f477f;--sw2:#8da8d8}
+.v16-swatch[data-v16-accent="switch"] i{--sw1:#e60012;--sw2:#00c3e3}
+.v16-swatch[data-v16-accent="gamecube"] i{--sw1:#51368e;--sw2:#9c7ae0}
+.v16-swatch[data-v16-accent="wii"] i{--sw1:#58b8d6;--sw2:#ecfaff}
+.v16-swatch[data-v16-accent="n64"] i{--sw1:#2a9d55;--sw2:#e9b429}
+.v16-swatch[data-v16-accent="snes"] i{--sw1:#6e5ca8;--sw2:#c9bee4}
+.v16-swatch[data-v16-accent="genesis"] i{--sw1:#23252d;--sw2:#e04646}
+.v16-swatch[data-v16-accent="x360"] i{--sw1:#73b833;--sw2:#d2e638}
+.v16-swatch[data-v16-accent="dsi"] i{--sw1:#74a9d8;--sw2:#f6fbff}
+.v16-swatch[data-v16-accent="3ds"] i{--sw1:#d92836;--sw2:#ef7180}
+
+.v17-home-empty{border-style:dashed}
+
+@media(max-width:900px){.v16-theme-swatches{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
+@media(max-width:700px){.v17-rotation-buttons{grid-template-columns:1fr}.v16-theme-swatches{grid-template-columns:repeat(2,minmax(0,1fr))!important}.v17-detail-cover-column{width:100%}.v17-detail-cover-column .v16-detail-cover,.v17-detail-cover-column>.cover{width:min(230px,100%)!important;margin-inline:auto}}
+@media(max-width:560px){.v17-backlog-form{grid-template-columns:1fr!important}.v17-backlog-form textarea{grid-column:auto!important}.v16-theme-swatches{grid-template-columns:1fr 1fr!important}}
