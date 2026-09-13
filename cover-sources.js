@@ -1,4 +1,3 @@
-/* Memory Card v0.15 — shared cover source registry */
 (() => {
   const libretroRepos = Object.freeze({
     PSP: ['Sony_-_PlayStation_Portable'],
@@ -36,8 +35,6 @@
 
   window.MemoryCardCoverSources = registry;
 
-  // app.js owns this lexical binding. Because all scripts are classic scripts,
-  // later scripts can safely extend it without duplicating the resolver itself.
   try {
     if (typeof LIBRETRO_COVER_REPOS !== 'undefined') {
       Object.assign(LIBRETRO_COVER_REPOS, libretroRepos);
