@@ -1,181 +1,72 @@
-const MASTER_SHEET = 'Games';
-const STATS_SHEET = 'Stats';
-const SETTINGS_SHEET = 'Settings';
-const HEADERS = ['id','platform','title','releaseYear','genre','franchise','coverUrl','status','rating','replay','notes','addedAt','updatedAt','deletedAt'];
-const SETTINGS_KEYS = ['theme','handheldRotation','desktopRotation','currentHandheld','currentDesktop','settingsUpdatedAt'];
+const MC={V:12,G:'Games',P:'Profiles',D:'ProfileDevices',US:'UserSettings',F:'Friends',S:'Stats',LS:'Settings',OWNER:'MEMORY_CARD_LEGACY_OWNER_ID'};
+const GH=['id','platform','title','releaseYear','genre','franchise','coverUrl','status','rating','replay','notes','addedAt','updatedAt','deletedAt'];
+const MH=['userId'].concat(GH),PH=['userId','displayName','createdAt','updatedAt'],DH=['tokenHash','userId','createdAt','lastSeenAt'],UH=['userId','settingsJson','updatedAt'],FH=['requestId','fromUserId','toUserId','status','createdAt','updatedAt'];
+const SK=['theme','handheldRotation','desktopRotation','currentHandheld','currentDesktop','ownedPlatforms','rotationHandheldEnabled','rotationDesktopEnabled','settingsUpdatedAt'];
 
-function doGet() {
-  return json_({ ok:true, service:'Memory Card Sync', version:5, time:new Date().toISOString() });
-}
+function doGet(e){if(String(e&&e.parameter&&e.parameter.action||'')==='bridge')return bridge_(String(e.parameter.parentOrigin||'*'));return json_({ok:true,service:'Memory Card Network',version:MC.V,time:new Date().toISOString()});}
+function doPost(e){try{return json_(bridgeRequest(JSON.parse(e&&e.postData&&e.postData.contents||'{}')));}catch(x){return json_({ok:false,error:err_(x)});}}
+function bridgeRequest(p){try{p=p||{};const a=String(p.action||'');if(a==='ping')return ping_(p);if(a==='sync')return legacySync_(p);if(a==='profileBootstrap')return bootstrap_(p);if(a==='profileSync')return profileSync_(p);if(a==='profileUpdate')return profileUpdate_(p);if(a==='socialState')return socialAction_(p);if(a==='friendRequest')return friendRequest_(p);if(a==='friendRespond')return friendRespond_(p);if(a==='friendRemove')return friendRemove_(p);if(a==='friendProfile')return friendProfile_(p);return{ok:false,error:'Unknown action'};}catch(x){return{ok:false,error:err_(x)};}}
+function bridge_(origin){origin=origin&&origin!=='null'?origin:'*';const h=`<!doctype html><meta charset="utf-8"><script>(function(){var o=${JSON.stringify(origin)};function s(m){parent.postMessage(m,o)}addEventListener('message',function(e){var m=e.data;if(!m||m.type!=='memory-card-bridge-request'||!m.requestId)return;google.script.run.withSuccessHandler(function(p){s({type:'memory-card-bridge-response',requestId:m.requestId,payload:p})}).withFailureHandler(function(x){s({type:'memory-card-bridge-response',requestId:m.requestId,payload:{ok:false,error:String(x&&x.message||x)}})}).bridgeRequest(m.payload||{})});s({type:'memory-card-bridge-ready',version:${MC.V}})})();</script>`;return HtmlService.createHtmlOutput(h).setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);}
+function ping_(p){const ex=secret_();if(p.secret&&ex&&String(p.secret)!==ex)return{ok:false,error:'Invalid secret'};const ss=SpreadsheetApp.getActiveSpreadsheet();return{ok:true,version:MC.V,count:allGames_(ss).length,users:profiles_(ss).length};}
 
-function doPost(e) {
-  try {
-    const body = JSON.parse(e.postData && e.postData.contents ? e.postData.contents : '{}');
-    if (body.action !== 'sync') return json_({ok:false,error:'Unknown action'});
-    const props = PropertiesService.getScriptProperties();
-    const expected = props.getProperty('SYNC_SECRET') || '';
-    if (expected && body.secret !== expected) return json_({ok:false,error:'Invalid secret'});
+function bootstrap_(p){return locked_(()=>{const ss=SpreadsheetApp.getActiveSpreadsheet();ensure_(ss);const rid=uid_(p.userId),tok=String(p.authToken||'');let id='',auth=tok;if(rid&&tok&&authorized_(ss,rid,tok)){id=rid;touch_(ss,id,tok);}else if(rid&&validSecret_(p.secret)&&rid===owner_()){id=rid;auth=issue_(ss,id);}else if(!rid&&validSecret_(p.secret)){id=owner_()||claimOwner_(ss,p.displayName||'Игрок');auth=issue_(ss,id);}else if(!rid){const q=createProfile_(ss,p.displayName||'Игрок');id=q.userId;auth=issue_(ss,id);}else return{ok:false,error:'Не удалось подтвердить профиль на этом устройстве'};const pr=profile_(ss,id),st=userSettings_(ss,id),so=social_(ss,id);return{ok:true,authToken:auth,profile:publicProfile_(pr,st),games:userGames_(ss,id),settings:st,friends:so.friends,incoming:so.incoming,outgoing:so.outgoing};});}
+function profileSync_(p){return locked_(()=>{const ss=SpreadsheetApp.getActiveSpreadsheet(),id=require_(ss,p);const games=mergeGames_(userGames_(ss,id),Array.isArray(p.games)?p.games:[]);writeUserGames_(ss,id,games);const st=mergeSettings_(userSettings_(ss,id),normSettings_(p.settings||{}));writeUserSettings_(ss,id,st);if(p.profile&&p.profile.displayName!==undefined)rename_(ss,id,p.profile.displayName);touch_(ss,id,String(p.authToken||''));statsSheet_(ss);return{ok:true,games,settings:st,profile:publicProfile_(profile_(ss,id),st),social:social_(ss,id),updatedAt:new Date().toISOString()};});}
+function profileUpdate_(p){return locked_(()=>{const ss=SpreadsheetApp.getActiveSpreadsheet(),id=require_(ss,p);rename_(ss,id,p.displayName);return{ok:true,profile:publicProfile_(profile_(ss,id),userSettings_(ss,id))};});}
+function socialAction_(p){const ss=SpreadsheetApp.getActiveSpreadsheet(),id=require_(ss,p),s=social_(ss,id);return{ok:true,profile:publicProfile_(profile_(ss,id),userSettings_(ss,id)),friends:s.friends,incoming:s.incoming,outgoing:s.outgoing};}
 
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = getOrCreate_(ss, MASTER_SHEET);
-    const remoteGames = readGamesFlexible_(sheet);
-    const localGames = Array.isArray(body.games) ? body.games.map(normalizeGame_) : [];
-    const mergedGames = mergeGames_(remoteGames, localGames);
-    writeGames_(sheet, mergedGames);
+function friendRequest_(p){return locked_(()=>{const ss=SpreadsheetApp.getActiveSpreadsheet(),id=require_(ss,p),fid=uid_(p.friendId);if(!fid)return{ok:false,error:'Укажи Memory Card ID'};if(fid===id)return{ok:false,error:'Нельзя добавить самого себя'};const target=profile_(ss,fid);if(!target)return{ok:false,error:'Пользователь с таким ID не найден'};const r=friends_(ss);if(r.some(x=>x.status==='accepted'&&pair_(x,id,fid)))return{ok:false,error:'Этот пользователь уже у тебя в друзьях'};if(r.some(x=>x.status==='pending'&&x.fromUserId===fid&&x.toUserId===id))return{ok:false,error:'Этот пользователь уже отправил тебе приглашение. Прими его во входящих.'};let x=r.find(x=>x.fromUserId===id&&x.toUserId===fid),n=new Date().toISOString();if(x&&x.status==='pending')return{ok:true,target:baseProfile_(target),requestId:x.requestId,alreadyPending:true};if(x){x.status='pending';x.updatedAt=n;}else{x={requestId:Utilities.getUuid(),fromUserId:id,toUserId:fid,status:'pending',createdAt:n,updatedAt:n};r.push(x);}writeFriends_(ss,r);return{ok:true,target:baseProfile_(target),requestId:x.requestId};});}
+function friendRespond_(p){return locked_(()=>{const ss=SpreadsheetApp.getActiveSpreadsheet(),id=require_(ss,p),r=friends_(ss),x=r.find(x=>x.requestId===String(p.requestId||'')&&x.toUserId===id&&x.status==='pending');if(!x)return{ok:false,error:'Приглашение не найдено или уже обработано'};x.status=p.accept?'accepted':'rejected';x.updatedAt=new Date().toISOString();writeFriends_(ss,r);return{ok:true,accepted:x.status==='accepted'};});}
+function friendRemove_(p){return locked_(()=>{const ss=SpreadsheetApp.getActiveSpreadsheet(),id=require_(ss,p),fid=uid_(p.friendId),r=friends_(ss);let ok=false;r.forEach(x=>{if(x.status==='accepted'&&pair_(x,id,fid)){x.status='removed';x.updatedAt=new Date().toISOString();ok=true;}});if(!ok)return{ok:false,error:'Дружба не найдена'};writeFriends_(ss,r);return{ok:true};});}
+function friendProfile_(p){const ss=SpreadsheetApp.getActiveSpreadsheet(),id=require_(ss,p),fid=uid_(p.friendId);if(!friends_(ss).some(x=>x.status==='accepted'&&pair_(x,id,fid)))return{ok:false,error:'Профиль доступен только друзьям'};const pr=profile_(ss,fid);if(!pr)return{ok:false,error:'Профиль не найден'};const st=userSettings_(ss,fid),games=userGames_(ss,fid).filter(g=>!g.deletedAt).map(g=>{g=normGame_(g);g.notes='';g.deletedAt='';return g;});return{ok:true,profile:publicProfile_(pr,st),games,stats:gameStats_(games)};}
+function social_(ss,id){const pm={};profiles_(ss).forEach(p=>pm[p.userId]=p);const rows=friends_(ss),games=allGames_(ss),friends=[],incoming=[],outgoing=[];rows.forEach(x=>{if(x.status==='accepted'&&(x.fromUserId===id||x.toUserId===id)){const oid=x.fromUserId===id?x.toUserId:x.fromUserId,p=pm[oid];if(!p)return;const st=gameStats_(games.filter(g=>g.userId===oid&&!g.deletedAt));friends.push({userId:oid,displayName:p.displayName,completed:st.completed,playing:st.playing,averageRating:st.averageRating});}else if(x.status==='pending'&&x.toUserId===id){const p=pm[x.fromUserId];if(p)incoming.push({requestId:x.requestId,userId:p.userId,displayName:p.displayName,createdAt:x.createdAt});}else if(x.status==='pending'&&x.fromUserId===id){const p=pm[x.toUserId];if(p)outgoing.push({requestId:x.requestId,userId:p.userId,displayName:p.displayName,createdAt:x.createdAt});}});friends.sort((a,b)=>a.displayName.localeCompare(b.displayName));incoming.sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));outgoing.sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));return{friends,incoming,outgoing};}
 
-    const remoteSettings = readSettings_(ss);
-    const localSettings = normalizeSettings_(body.settings || {});
-    const mergedSettings = mergeSettings_(remoteSettings, localSettings);
-    writeSettings_(ss, mergedSettings);
+function legacySync_(p){if(!validSecret_(p.secret))return{ok:false,error:'Invalid secret'};return locked_(()=>{const ss=SpreadsheetApp.getActiveSpreadsheet(),id=owner_()||claimOwner_(ss,'Игрок'),games=mergeGames_(userGames_(ss,id),Array.isArray(p.games)?p.games:[]);writeUserGames_(ss,id,games);const st=mergeSettings_(userSettings_(ss,id),normSettings_(p.settings||{}));writeUserSettings_(ss,id,st);statsSheet_(ss);return{ok:true,games,settings:st,updatedAt:new Date().toISOString(),version:MC.V};});}
+function claimOwner_(ss,name){const old=owner_();if(old)return old;ensure_(ss);const p=createProfile_(ss,name),id=p.userId,sh=ss.getSheetByName(MC.G);if(sh&&sh.getLastRow()>=1){const h=sh.getRange(1,1,1,Math.max(1,sh.getLastColumn())).getValues()[0].map(String);if(h.indexOf('userId')<0)writeAllGames_(ss,legacyGames_(sh).map(g=>Object.assign({userId:id},g)));}writeUserSettings_(ss,id,legacySettings_(ss));PropertiesService.getScriptProperties().setProperty(MC.OWNER,id);return id;}
 
-    const live = mergedGames.filter(g => !g.deletedAt);
-    rebuildPlatformSheets_(ss, live);
-    rebuildStats_(ss, live);
-    return json_({ok:true,games:mergedGames,settings:mergedSettings,updatedAt:new Date().toISOString()});
-  } catch (err) {
-    return json_({ok:false,error:String(err && err.stack || err)});
-  }
-}
+function ensure_(ss){sheet_(ss,MC.P,PH);sheet_(ss,MC.D,DH);sheet_(ss,MC.US,UH);sheet_(ss,MC.F,FH);if(!ss.getSheetByName(MC.G))sheet_(ss,MC.G,MH);}
+function createProfile_(ss,name){ensure_(ss);const a=profiles_(ss),used=new Set(a.map(x=>x.userId));let id=newId_();while(used.has(id))id=newId_();const n=new Date().toISOString(),p={userId:id,displayName:name_(name),createdAt:n,updatedAt:n};a.push(p);writeObjs_(sheet_(ss,MC.P,PH),PH,a);writeUserSettings_(ss,id,normSettings_({settingsUpdatedAt:n}));return p;}
+function rename_(ss,id,name){const a=profiles_(ss),p=a.find(x=>x.userId===id);if(!p)throw new Error('Профиль не найден');p.displayName=name_(name);p.updatedAt=new Date().toISOString();writeObjs_(sheet_(ss,MC.P,PH),PH,a);}
+function profiles_(ss){return readObjs_(sheet_(ss,MC.P,PH)).map(x=>({userId:uid_(x.userId),displayName:String(x.displayName||'Игрок'),createdAt:String(x.createdAt||''),updatedAt:String(x.updatedAt||'')})).filter(x=>x.userId);}
+function profile_(ss,id){return profiles_(ss).find(x=>x.userId===uid_(id))||null;}
+function issue_(ss,id){const token=Utilities.getUuid().replace(/-/g,'')+Utilities.getUuid().replace(/-/g,''),sh=sheet_(ss,MC.D,DH),a=readObjs_(sh),n=new Date().toISOString();a.push({tokenHash:hash_(token),userId:id,createdAt:n,lastSeenAt:n});const mine=a.filter(x=>x.userId===id).sort((x,y)=>String(y.lastSeenAt).localeCompare(String(x.lastSeenAt))),keep=new Set(mine.slice(0,12).map(x=>x.tokenHash));writeObjs_(sh,DH,a.filter(x=>x.userId!==id||keep.has(x.tokenHash)));return token;}
+function authorized_(ss,id,t){if(!id||!t)return false;const h=hash_(t);return readObjs_(sheet_(ss,MC.D,DH)).some(x=>x.userId===id&&x.tokenHash===h);}
+function require_(ss,p){const id=uid_(p.userId),t=String(p.authToken||'');if(!authorized_(ss,id,t))throw new Error('Сессия профиля недействительна. Переподключи профиль в настройках.');touch_(ss,id,t);return id;}
+function touch_(ss,id,t){if(!t)return;const sh=sheet_(ss,MC.D,DH),a=readObjs_(sh),h=hash_(t),x=a.find(x=>x.userId===id&&x.tokenHash===h);if(x){x.lastSeenAt=new Date().toISOString();writeObjs_(sh,DH,a);}}
 
-function getOrCreate_(ss, name) { return ss.getSheetByName(name) || ss.insertSheet(name); }
+function allGames_(ss){const sh=ss.getSheetByName(MC.G);if(!sh||sh.getLastRow()<1)return[];const c=Math.max(sh.getLastColumn(),1),h=sh.getRange(1,1,1,c).getValues()[0].map(String);if(h.indexOf('userId')<0)return legacyGames_(sh).map(g=>Object.assign({userId:''},g));if(sh.getLastRow()<2)return[];return sh.getRange(2,1,sh.getLastRow()-1,c).getValues().map(r=>{const o={};h.forEach((k,i)=>{if(k)o[k]=cell_(r[i]);});const g=normGame_(o);g.userId=uid_(o.userId);return g;}).filter(g=>g.userId&&g.id);}
+function userGames_(ss,id){return allGames_(ss).filter(g=>g.userId===id).map(g=>{const o={};GH.forEach(k=>o[k]=g[k]===undefined?'':g[k]);return normGame_(o);});}
+function writeUserGames_(ss,id,games){const all=allGames_(ss).filter(g=>g.userId!==id);games.map(normGame_).forEach(g=>all.push(Object.assign({userId:id},g)));writeAllGames_(ss,all);}
+function writeAllGames_(ss,games){const sh=sheet_(ss,MC.G,MH),rows=games.map(x=>{const g=normGame_(x);g.userId=uid_(x.userId);return MH.map(k=>k==='userId'?g.userId:(g[k]===undefined?'':g[k]));});sh.clearContents();sh.getRange(1,1,1,MH.length).setValues([MH]);if(rows.length)sh.getRange(2,1,rows.length,MH.length).setValues(rows);sh.setFrozenRows(1);}
+function legacyGames_(sh){if(!sh||sh.getLastRow()<2)return[];const c=Math.max(sh.getLastColumn(),1),h=sh.getRange(1,1,1,c).getValues()[0].map(String);return sh.getRange(2,1,sh.getLastRow()-1,c).getValues().map(r=>{const o={};h.forEach((k,i)=>{if(k)o[k]=cell_(r[i]);});return normGame_(o);}).filter(g=>g.id);}
+function normGame_(g){const a=g.addedAt||g.createdAt||(g.completedAt?String(g.completedAt)+'T12:00:00.000Z':'')||new Date().toISOString(),rn=Number(g.rating||0);return{id:String(g.id||''),platform:String(g.platform||''),title:String(g.title||''),releaseYear:String(g.releaseYear||''),genre:String(g.genre||''),franchise:String(g.franchise||''),coverUrl:String(g.coverUrl||''),status:String(g.status||'completed'),rating:rn?String(Math.max(1,Math.min(10,Math.round(rn)))):'',replay:Number(g.replay||0),notes:String(g.notes||''),addedAt:String(a),updatedAt:String(g.updatedAt||a),deletedAt:String(g.deletedAt||'')};}
+function mergeGames_(a,b){const m=new Map();[].concat(a||[],b||[]).forEach(x=>{const g=normGame_(x);if(!g.id)return;const o=m.get(g.id);if(!o||String(g.updatedAt||'')>=String(o.updatedAt||''))m.set(g.id,g);});return Array.from(m.values()).sort((x,y)=>String(x.addedAt||x.updatedAt||'').localeCompare(String(y.addedAt||y.updatedAt||'')));}
 
-function readGamesFlexible_(sheet) {
-  if (sheet.getLastRow() < 1) return [];
-  const lastCol = Math.max(sheet.getLastColumn(), 1);
-  const headers = sheet.getRange(1,1,1,lastCol).getValues()[0].map(String);
-  if (sheet.getLastRow() < 2 || !headers.some(Boolean)) return [];
-  const rows = sheet.getRange(2,1,sheet.getLastRow()-1,lastCol).getValues();
-  return rows.filter(r => r[headers.indexOf('id')] || r[0]).map(row => {
-    const obj = {};
-    headers.forEach((h,i) => { if (h) obj[h] = normalizeCell_(row[i]); });
-    return normalizeGame_(obj);
-  });
-}
+function userSettings_(ss,id){const x=readObjs_(sheet_(ss,MC.US,UH)).find(x=>uid_(x.userId)===id);if(!x)return normSettings_({});try{return normSettings_(JSON.parse(String(x.settingsJson||'{}')));}catch(_){return normSettings_({});}}
+function writeUserSettings_(ss,id,st){const sh=sheet_(ss,MC.US,UH),a=readObjs_(sh),clean=normSettings_(st||{}),o={userId:id,settingsJson:JSON.stringify(clean),updatedAt:clean.settingsUpdatedAt||new Date().toISOString()},i=a.findIndex(x=>uid_(x.userId)===id);if(i>=0)a[i]=o;else a.push(o);writeObjs_(sh,UH,a);}
+function legacySettings_(ss){const sh=ss.getSheetByName(MC.LS);if(!sh||sh.getLastRow()<2)return normSettings_({});const o={};sh.getRange(2,1,sh.getLastRow()-1,2).getValues().forEach(([k,v])=>{if(!k)return;if(['handheldRotation','desktopRotation','ownedPlatforms'].includes(String(k))){try{o[k]=JSON.parse(String(v));}catch(_){o[k]=[];}}else o[k]=cell_(v);});return normSettings_(o);}
+function normSettings_(s){s=s||{};const o={};SK.forEach(k=>{if(s[k]!==undefined)o[k]=s[k];});['handheldRotation','desktopRotation','ownedPlatforms'].forEach(k=>{if(typeof o[k]==='string')try{o[k]=JSON.parse(o[k]);}catch(_){}});if(!Array.isArray(o.handheldRotation))o.handheldRotation=['DSI','VITA','3DS','PSP','GBA'];if(!Array.isArray(o.desktopRotation))o.desktopRotation=['PS3','WIIU','SWITCH'];if(!Array.isArray(o.ownedPlatforms))o.ownedPlatforms=['PSP','VITA','DSI','3DS','GBA','PS3','WIIU','SWITCH'];o.theme=['system','light','dark'].includes(o.theme)?o.theme:'system';o.currentHandheld=o.currentHandheld||o.handheldRotation[0]||'PSP';o.currentDesktop=o.currentDesktop||o.desktopRotation[0]||'SWITCH';o.rotationHandheldEnabled=o.rotationHandheldEnabled!==false&&String(o.rotationHandheldEnabled)!=='false';o.rotationDesktopEnabled=o.rotationDesktopEnabled!==false&&String(o.rotationDesktopEnabled)!=='false';o.settingsUpdatedAt=String(o.settingsUpdatedAt||'');return o;}
+function mergeSettings_(r,l){r=normSettings_(r);l=normSettings_(l);return String(l.settingsUpdatedAt||'')>=String(r.settingsUpdatedAt||'')?l:r;}
 
-function normalizeGame_(g) {
-  const legacyAdded = g.addedAt || g.createdAt || (g.completedAt ? String(g.completedAt) + 'T12:00:00.000Z' : '') || new Date().toISOString();
-  const ratingNumber = Number(g.rating || 0);
-  return {
-    id:String(g.id || ''),
-    platform:String(g.platform || ''),
-    title:String(g.title || ''),
-    releaseYear:String(g.releaseYear || ''),
-    genre:String(g.genre || ''),
-    franchise:String(g.franchise || ''),
-    coverUrl:String(g.coverUrl || ''),
-    status:String(g.status || 'completed'),
-    rating:ratingNumber ? String(Math.max(1, Math.min(10, Math.round(ratingNumber)))) : '',
-    replay:Number(g.replay || 0),
-    notes:String(g.notes || ''),
-    addedAt:String(legacyAdded),
-    updatedAt:String(g.updatedAt || legacyAdded),
-    deletedAt:String(g.deletedAt || '')
-  };
-}
+function friends_(ss){return readObjs_(sheet_(ss,MC.F,FH)).map(x=>({requestId:String(x.requestId||''),fromUserId:uid_(x.fromUserId),toUserId:uid_(x.toUserId),status:String(x.status||''),createdAt:String(x.createdAt||''),updatedAt:String(x.updatedAt||'')})).filter(x=>x.requestId&&x.fromUserId&&x.toUserId);}
+function writeFriends_(ss,a){writeObjs_(sheet_(ss,MC.F,FH),FH,a);}
+function pair_(x,a,b){return(x.fromUserId===a&&x.toUserId===b)||(x.fromUserId===b&&x.toUserId===a);}
+function baseProfile_(p){return{userId:p.userId,displayName:p.displayName};}
+function publicProfile_(p,s){return Object.assign(baseProfile_(p),{createdAt:p.createdAt,updatedAt:p.updatedAt,ownedPlatforms:s.ownedPlatforms,handheldRotation:s.handheldRotation,desktopRotation:s.desktopRotation,currentHandheld:s.currentHandheld,currentDesktop:s.currentDesktop,rotationHandheldEnabled:s.rotationHandheldEnabled,rotationDesktopEnabled:s.rotationDesktopEnabled});}
+function gameStats_(g){const live=g.filter(x=>!x.deletedAt),c=live.filter(x=>x.status==='completed'),p=live.filter(x=>x.status==='playing'),r=c.map(x=>Number(x.rating)).filter(n=>n>0);return{completed:c.length,playing:p.length,averageRating:r.length?(r.reduce((a,b)=>a+b,0)/r.length).toFixed(1):'—',tens:c.filter(x=>Number(x.rating)===10).length};}
+function statsSheet_(ss){const sh=get_(ss,MC.S),p=profiles_(ss),g=allGames_(ss),rows=[['userId','displayName','completed','playing','averageRating','tens','updatedAt']];p.forEach(x=>{const s=gameStats_(g.filter(y=>y.userId===x.userId));rows.push([x.userId,x.displayName,s.completed,s.playing,s.averageRating,s.tens,new Date()]);});sh.clearContents();sh.getRange(1,1,rows.length,rows[0].length).setValues(rows);sh.setFrozenRows(1);}
 
-function normalizeCell_(v) {
-  if (v instanceof Date) return Utilities.formatDate(v, 'UTC', "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
-  return v === null || v === undefined ? '' : v;
-}
-
-function mergeGames_(a,b) {
-  const m = new Map();
-  [...a,...b].forEach(raw => {
-    const g = normalizeGame_(raw);
-    if (!g.id) return;
-    const old = m.get(g.id);
-    if (!old || String(g.updatedAt || '') >= String(old.updatedAt || '')) m.set(g.id, g);
-  });
-  return [...m.values()].sort((x,y) => String(x.addedAt || x.updatedAt || '').localeCompare(String(y.addedAt || y.updatedAt || '')));
-}
-
-function writeGames_(sheet, games) {
-  sheet.clearContents();
-  sheet.getRange(1,1,1,HEADERS.length).setValues([HEADERS]);
-  if (games.length) {
-    const rows = games.map(g => HEADERS.map(h => g[h] === undefined ? '' : g[h]));
-    sheet.getRange(2,1,rows.length,HEADERS.length).setValues(rows);
-  }
-  sheet.setFrozenRows(1);
-  sheet.autoResizeColumns(1,HEADERS.length);
-}
-
-function normalizeSettings_(s) {
-  const out = {};
-  SETTINGS_KEYS.forEach(k => { if (s[k] !== undefined) out[k] = s[k]; });
-  if (typeof out.handheldRotation === 'string') { try { out.handheldRotation = JSON.parse(out.handheldRotation); } catch (_) {} }
-  if (typeof out.desktopRotation === 'string') { try { out.desktopRotation = JSON.parse(out.desktopRotation); } catch (_) {} }
-  if (!Array.isArray(out.handheldRotation)) out.handheldRotation = ['DSI','VITA','3DS','PSP','GBA'];
-  if (!Array.isArray(out.desktopRotation)) out.desktopRotation = ['PS3','WIIU','SWITCH'];
-  out.theme = ['system','light','dark'].includes(out.theme) ? out.theme : 'system';
-  out.currentHandheld = out.currentHandheld || out.handheldRotation[0] || 'PSP';
-  out.currentDesktop = out.currentDesktop || out.desktopRotation[0] || 'SWITCH';
-  out.settingsUpdatedAt = out.settingsUpdatedAt || '';
-  return out;
-}
-
-function readSettings_(ss) {
-  const sh = ss.getSheetByName(SETTINGS_SHEET);
-  if (!sh || sh.getLastRow() < 2) return normalizeSettings_({});
-  const rows = sh.getRange(2,1,sh.getLastRow()-1,2).getValues();
-  const obj = {};
-  rows.forEach(([k,v]) => {
-    if (!k) return;
-    if (k === 'handheldRotation' || k === 'desktopRotation') {
-      try { obj[k] = JSON.parse(String(v)); } catch (_) { obj[k] = []; }
-    } else obj[k] = normalizeCell_(v);
-  });
-  return normalizeSettings_(obj);
-}
-
-function mergeSettings_(remote, local) {
-  remote = normalizeSettings_(remote);
-  local = normalizeSettings_(local);
-  return String(local.settingsUpdatedAt || '') >= String(remote.settingsUpdatedAt || '') ? local : remote;
-}
-
-function writeSettings_(ss, settings) {
-  const sh = getOrCreate_(ss, SETTINGS_SHEET);
-  sh.clearContents();
-  sh.getRange(1,1,1,2).setValues([['key','value']]);
-  const rows = SETTINGS_KEYS.map(k => [k, Array.isArray(settings[k]) ? JSON.stringify(settings[k]) : (settings[k] === undefined ? '' : settings[k])]);
-  sh.getRange(2,1,rows.length,2).setValues(rows);
-  sh.setFrozenRows(1);
-  sh.autoResizeColumns(1,2);
-}
-
-function rebuildPlatformSheets_(ss, games) {
-  const ids = [...new Set(games.map(g => g.platform).filter(Boolean))];
-  ids.forEach(id => {
-    const sh = getOrCreate_(ss, id);
-    sh.clearContents();
-    sh.getRange(1,1,1,HEADERS.length).setValues([HEADERS]);
-    const rows = games.filter(g => g.platform === id).map(g => HEADERS.map(h => g[h] === undefined ? '' : g[h]));
-    if (rows.length) sh.getRange(2,1,rows.length,HEADERS.length).setValues(rows);
-    sh.setFrozenRows(1);
-    sh.autoResizeColumns(1,HEADERS.length);
-  });
-}
-
-function rebuildStats_(ss, games) {
-  const sh = getOrCreate_(ss, STATS_SHEET);
-  sh.clearContents();
-  const completed = games.filter(g => g.status === 'completed');
-  const playing = games.filter(g => g.status === 'playing');
-  const rated = completed.map(g => Number(g.rating)).filter(n => n > 0);
-  const by = {};
-  completed.forEach(g => by[g.platform] = (by[g.platform] || 0) + 1);
-  const rows = [
-    ['Показатель','Значение'],
-    ['Всего пройдено',completed.length],
-    ['Сейчас играю',playing.length],
-    ['Средняя оценка',rated.length ? (rated.reduce((a,b) => a+b,0)/rated.length).toFixed(2) : ''],
-    ['Игр на 10/10',completed.filter(g => Number(g.rating) === 10).length],
-    ['Последнее обновление',new Date()]
-  ];
-  Object.keys(by).sort().forEach(k => rows.push([k,by[k]]));
-  sh.getRange(1,1,rows.length,2).setValues(rows);
-  sh.autoResizeColumns(1,2);
-}
-
-function json_(obj) { return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON); }
+function get_(ss,n){return ss.getSheetByName(n)||ss.insertSheet(n);}
+function sheet_(ss,n,h){const sh=get_(ss,n);if(sh.getLastRow()<1)sh.getRange(1,1,1,h.length).setValues([h]);return sh;}
+function readObjs_(sh){if(!sh||sh.getLastRow()<2)return[];const c=Math.max(sh.getLastColumn(),1),h=sh.getRange(1,1,1,c).getValues()[0].map(String);return sh.getRange(2,1,sh.getLastRow()-1,c).getValues().map(r=>{const o={};h.forEach((k,i)=>{if(k)o[k]=cell_(r[i]);});return o;});}
+function writeObjs_(sh,h,a){sh.clearContents();sh.getRange(1,1,1,h.length).setValues([h]);if(a.length)sh.getRange(2,1,a.length,h.length).setValues(a.map(o=>h.map(k=>o[k]===undefined?'':o[k])));sh.setFrozenRows(1);}
+function cell_(v){if(v instanceof Date)return Utilities.formatDate(v,'UTC',"yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");return v===null||v===undefined?'':v;}
+function name_(v){const s=String(v||'Игрок').trim().replace(/[\r\n\t]+/g,' ').slice(0,40);return s||'Игрок';}
+function uid_(v){return String(v||'').trim().toUpperCase();}
+function newId_(){const x=Utilities.getUuid().replace(/-/g,'').toUpperCase().slice(0,8);return'MC-'+x.slice(0,4)+'-'+x.slice(4,8);}
+function secret_(){return String(PropertiesService.getScriptProperties().getProperty('SYNC_SECRET')||'');}
+function validSecret_(v){const s=secret_();return!!s&&String(v||'')===s;}
+function owner_(){return uid_(PropertiesService.getScriptProperties().getProperty(MC.OWNER)||'');}
+function hash_(t){return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,String(t||''),Utilities.Charset.UTF_8).map(b=>('0'+((b+256)%256).toString(16)).slice(-2)).join('');}
+function locked_(fn){const l=LockService.getScriptLock();l.waitLock(30000);try{return fn();}finally{l.releaseLock();}}
+function err_(x){return String(x&&x.message||x&&x.stack||x||'Unknown error');}
+function json_(o){return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);}
