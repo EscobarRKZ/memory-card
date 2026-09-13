@@ -17,9 +17,7 @@
       return ['1','4','6','8'].includes(v) ? v : '4';
     } catch (_) { return '4'; }
   }
-  function writeView(v) {
-    try { localStorage.setItem(VIEW_KEY, v); } catch (_) {}
-  }
+  function writeView(v) { try { localStorage.setItem(VIEW_KEY, v); } catch (_) {} }
 
   renderStats = function() {
     const games = liveGames();
@@ -41,7 +39,6 @@
     const maxFranchise = franchises[0]?.[1] || 1;
 
     const platformRows = visiblePlatforms.map(p => `<div class="game-row static-row stats-platform-row" data-stats-platform="${p.id}"><div class="platform-inline">${platformIcon(p.id)}<div><div class="game-title">${esc(p.name)}</div><div class="meta">${p.group === 'handheld' ? tr('Портативная','Handheld') : 'Desktop'}</div></div></div><div class="rating">${counts[p.id] || 0}</div></div>`).join('');
-
     const franchiseRows = franchises.map(([name,count], index) => `<div class="franchise-stat v14-franchise ${!franchisesExpanded && index >= FRANCHISE_LIMIT ? 'v14-franchise-collapsed' : ''}" style="--franchiseHue:${franchiseHue(name)};--franchiseShare:${Math.max(8, Math.round(count / maxFranchise * 100))}%"><div class="franchise-stat-main"><span>${esc(name)}</span><strong>${count}</strong></div><i aria-hidden="true"></i></div>`).join('');
     const franchiseToggle = franchises.length > FRANCHISE_LIMIT ? `<div class="v14-center-action"><button type="button" class="secondary compact" data-v14-action="franchises-toggle">${franchisesExpanded ? tr('Скрыть','Show less') : tr(`Показать все франшизы (${franchises.length})`,`Show all franchises (${franchises.length})`)}</button></div>` : '';
 
@@ -54,25 +51,28 @@
   function enhanceConsolePicker() {
     const picker = document.querySelector('.console-picker');
     if (!picker) return;
-    let choices = [...picker.querySelectorAll('.console-choice')];
-    if (!choices.length) return;
-    choices.forEach((el,i) => { if (!el.dataset.v14Order) el.dataset.v14Order = String(i + 1); });
-    choices.sort((a,b) => {
+    const current = [...picker.querySelectorAll('.console-choice')];
+    if (!current.length) return;
+    current.forEach((el,i) => { if (!el.dataset.v14Order) el.dataset.v14Order = String(i + 1); });
+    const desired = [...current].sort((a,b) => {
       const ac = a.querySelector('input')?.checked ? 1 : 0;
       const bc = b.querySelector('input')?.checked ? 1 : 0;
       return bc - ac || Number(a.dataset.v14Order) - Number(b.dataset.v14Order);
     });
-    choices.forEach(el => picker.appendChild(el));
-    choices.forEach((el,i) => el.classList.toggle('v14-console-collapsed', !consolesExpanded && i >= CONSOLE_LIMIT));
+    if (desired.some((el,i) => current[i] !== el)) desired.forEach(el => picker.appendChild(el));
+    desired.forEach((el,i) => el.classList.toggle('v14-console-collapsed', !consolesExpanded && i >= CONSOLE_LIMIT));
 
     const panel = picker.closest('.panel');
     if (!panel) return;
-    panel.querySelector('.v14-console-footer')?.remove();
-    const selectedCount = choices.filter(el => el.querySelector('input')?.checked).length;
-    const footer = document.createElement('div');
-    footer.className = 'v14-console-footer';
-    footer.innerHTML = `<span class="v14-count-pill">${selectedCount} ${tr('выбрано','selected')}</span>${choices.length > CONSOLE_LIMIT ? `<button type="button" class="secondary compact" data-v14-action="consoles-toggle">${consolesExpanded ? tr('Скрыть','Show less') : tr(`Показать все приставки (${choices.length})`,`Show all consoles (${choices.length})`)}</button>` : ''}`;
-    picker.insertAdjacentElement('afterend', footer);
+    const selectedCount = desired.filter(el => el.querySelector('input')?.checked).length;
+    const html = `<span class="v14-count-pill">${selectedCount} ${tr('выбрано','selected')}</span>${desired.length > CONSOLE_LIMIT ? `<button type="button" class="secondary compact" data-v14-action="consoles-toggle">${consolesExpanded ? tr('Скрыть','Show less') : tr(`Показать все приставки (${desired.length})`,`Show all consoles (${desired.length})`)}</button>` : ''}`;
+    let footer = panel.querySelector('.v14-console-footer');
+    if (!footer) {
+      footer = document.createElement('div');
+      footer.className = 'v14-console-footer';
+      footer.innerHTML = html;
+      picker.insertAdjacentElement('afterend', footer);
+    } else if (footer.innerHTML !== html) footer.innerHTML = html;
   }
 
   function enhanceAppearance() {
@@ -80,11 +80,11 @@
     if (!wrap) return;
     wrap.classList.add('v14-appearance-grid');
     const toggle = wrap.querySelector('.appearance-toggle');
-    if (toggle) {
-      toggle.classList.add('v14-switch-row');
-      const small = toggle.querySelector('small');
-      if (small) small.textContent = tr('Меньше переходов и движущихся эффектов.','Fewer transitions and moving effects.');
-    }
+    if (!toggle) return;
+    toggle.classList.add('v14-switch-row');
+    const small = toggle.querySelector('small');
+    const text = tr('Меньше переходов и движущихся эффектов.','Fewer transitions and moving effects.');
+    if (small && small.textContent !== text) small.textContent = text;
   }
 
   function enhanceCatalogButtons() {
@@ -102,26 +102,26 @@
     const search = document.querySelector('#search');
     const toolbar = search?.closest('.toolbar');
     if (!toolbar) return;
+    let field = toolbar.querySelector('.games-view-field');
     let select = toolbar.querySelector('#gamesView');
     if (!select) {
-      const field = document.createElement('div');
+      field = document.createElement('div');
       field.className = 'field games-view-field';
       field.innerHTML = `<label for="gamesView">${tr('Вид отображения','View')}</label><select id="gamesView"><option value="4">${tr('4 в ряд','4 columns')}</option><option value="6">${tr('6 в ряд','6 columns')}</option><option value="8">${tr('8 в ряд','8 columns')}</option><option value="1">${tr('1 в ряд — подробно','1 row — detailed')}</option></select>`;
-      const sortField = toolbar.querySelector('#gamesSort')?.closest('.field');
-      if (sortField) sortField.insertAdjacentElement('afterend', field); else toolbar.appendChild(field);
+      toolbar.appendChild(field);
       select = field.querySelector('#gamesView');
       select.addEventListener('change', () => { writeView(select.value); applyGameView(); });
     }
+    const sortField = toolbar.querySelector('#gamesSort')?.closest('.field');
+    if (sortField && sortField.nextElementSibling !== field) sortField.insertAdjacentElement('afterend', field);
     select.value = readView();
   }
 
   function addListDetails(card) {
     if (card.querySelector('.v14-list-extra')) return;
-    const id = card.dataset.game;
-    const g = state.games.find(x => x.id === id && !x.deletedAt);
-    if (!g) return;
+    const g = state.games.find(x => x.id === card.dataset.game && !x.deletedAt);
     const body = card.querySelector('.game-body');
-    if (!body) return;
+    if (!g || !body) return;
     const extra = document.createElement('div');
     extra.className = 'v14-list-extra';
     const note = String(g.notes || '').trim();
@@ -148,7 +148,6 @@
     ensureGamesViewControl();
     applyGameView();
   }
-
   function schedule() {
     if (queued) return;
     queued = true;
@@ -163,8 +162,7 @@
       event.preventDefault();
       consolesExpanded = !consolesExpanded;
       enhanceConsolePicker();
-    }
-    if (action === 'franchises-toggle') {
+    } else if (action === 'franchises-toggle') {
       event.preventDefault();
       franchisesExpanded = !franchisesExpanded;
       render();
