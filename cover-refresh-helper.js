@@ -1,13 +1,13 @@
-/* Memory Card — repository-backed bulk cover refresh v4
-   Important: repository tree membership is the proof that a cover exists.
-   We no longer reject known files just because a browser Image probe did not finish
-   within a few seconds while dozens of covers were being checked at once.
+/* Memory Card — unified bulk cover refresh v5 / product v0.15
+   Uses the same shared Libretro registry as the normal app resolver, while preserving
+   the stronger platform-specific resolvers for PSP, PS Vita, PS3 and Nintendo Switch.
 */
 (() => {
   const DB_NAME = 'memory-card-db';
   const STORE = 'state';
   const MAIN_KEY = 'main';
   const CATALOG_KEY = 'catalog-v1';
+  const TREE_TTL = 1000 * 60 * 60 * 24 * 30;
 
   const TITLE_DB_KEY = 'aldostools-titleid-v1';
   const TITLE_DB_URL = 'https://raw.githubusercontent.com/aldostools/Resources/main/titleid.txt';
@@ -16,7 +16,10 @@
   const VITA_DB_KEY = 'vita-title-db-v1';
   const VITA_DB_URL = 'https://raw.githubusercontent.com/VitaSmith/VitaDB/master/VitaDB.sql';
   const VITA_DB_TTL = 1000 * 60 * 60 * 24 * 30;
-  const TREE_TTL = 1000 * 60 * 60 * 24 * 30;
+
+  const SWITCH_DB_KEY = 'switch-title-db-v15';
+  const SWITCH_DB_URL = 'https://www.gametdb.com/switchtdb.txt?LANG=EN';
+  const SWITCH_DB_TTL = 1000 * 60 * 60 * 24 * 7;
 
   const COVER_TREES = {
     PS3_ALDO: {
@@ -41,20 +44,34 @@
     },
   };
 
-  const LIBRETRO_REPOS = {
+  const FALLBACK_LIBRETRO = {
     PSP: ['Sony_-_PlayStation_Portable'],
     VITA: ['Sony_-_PlayStation_Vita'],
     DSI: ['Nintendo_-_Nintendo_DS', 'Nintendo_-_Nintendo_DSi'],
     '3DS': ['Nintendo_-_Nintendo_3DS'],
     GBA: ['Nintendo_-_Game_Boy_Advance'],
+    PS1: ['Sony_-_PlayStation'],
+    PS2: ['Sony_-_PlayStation_2'],
     PS3: ['Sony_-_PlayStation_3', 'Sony_-_PlayStation_3_Downloadable'],
+    PS4: ['Sony_-_PlayStation_4'],
+    XBOX: ['Microsoft_-_Xbox'],
+    X360: ['Microsoft_-_Xbox_360'],
+    WII: ['Nintendo_-_Wii'],
     WIIU: ['Nintendo_-_Wii_U'],
+    GC: ['Nintendo_-_GameCube'],
+    DREAMCAST: ['Sega_-_Dreamcast'],
+    N64: ['Nintendo_-_Nintendo_64'],
+    SNES: ['Nintendo_-_Super_Nintendo_Entertainment_System'],
+    NES: ['Nintendo_-_Nintendo_Entertainment_System'],
+    GENESIS: ['Sega_-_Mega_Drive_-_Genesis'],
   };
+  const LIBRETRO_REPOS = window.MemoryCardCoverSources?.libretroRepos || FALLBACK_LIBRETRO;
 
   let running = false;
+  let progressHideTimer = null;
   let titleDbPromise = null;
   let vitaDbPromise = null;
-  let progressHideTimer = null;
+  let switchDbPromise = null;
   const coverTreePromises = new Map();
   const libretroIndexPromises = new Map();
 
@@ -69,8 +86,8 @@
     .trim();
 
   const simplify = value => normalize(value)
-    .replace(/\b(playstation|psvita|vita|psp|psone|ps2|ps3|ps4|demo|trial|mini)\b/g, ' ')
-    .replace(/\b(game of the year|goty|ultimate|remastered|remaster|edition|version)\b/g, ' ')
+    .replace(/\b(playstation|psvita|vita|psp|psone|ps2|ps3|ps4|ps5|xbox series|xbox one|xbox|demo|trial|mini)\b/g, ' ')
+    .replace(/\b(game of the year|goty|ultimate|deluxe|complete|remastered|remaster|edition|version)\b/g, ' ')
     .replace(/\bhd\b/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -88,23 +105,28 @@
 
   async function getValue(key, fallback = null) {
     const db = await openDb();
-    return new Promise(resolve => {
-      const tx = db.transaction(STORE, 'readonly');
-      const req = tx.objectStore(STORE).get(key);
-      req.onsuccess = () => resolve(req.result ?? fallback);
-      req.onerror = () => resolve(fallback);
-    });
+    try {
+      return await new Promise(resolve => {
+        const tx = db.transaction(STORE, 'readonly');
+        const req = tx.objectStore(STORE).get(key);
+        req.onsuccess = () => resolve(req.result ?? fallback);
+        req.onerror = () => resolve(fallback);
+      });
+    } finally { db.close(); }
   }
 
   async function putValues(entries) {
     const db = await openDb();
-    await new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE, 'readwrite');
-      const store = tx.objectStore(STORE);
-      for (const [key, value] of entries) store.put(value, key);
-      tx.oncomplete = resolve;
-      tx.onerror = () => reject(tx.error);
-    });
+    try {
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE, 'readwrite');
+        const store = tx.objectStore(STORE);
+        for (const [key, value] of entries) store.put(value, key);
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error || new Error('IndexedDB transaction aborted'));
+      });
+    } finally { db.close(); }
   }
 
   function ensureProgress() {
@@ -133,7 +155,7 @@
     el.querySelector('[data-task-detail]').textContent = detail;
   }
 
-  function hideProgressAfter(ms = 3600) {
+  function hideProgressAfter(ms = 4200) {
     clearTimeout(progressHideTimer);
     progressHideTimer = setTimeout(() => {
       const el = document.querySelector('#taskProgress');
@@ -145,7 +167,7 @@
 
   function finish(label, detail = '') {
     progress(label, 100, 100, detail);
-    hideProgressAfter(4200);
+    hideProgressAfter();
   }
 
   function fail(message) {
@@ -160,8 +182,6 @@
     hideProgressAfter(6500);
   }
 
-  // Used only to validate URLs that are already stored in the user's library.
-  // New repository-backed matches do NOT depend on this timing-sensitive check.
   function imageWorks(url, timeoutMs = 3200) {
     return new Promise(resolve => {
       if (!/^https?:\/\//i.test(String(url || ''))) return resolve(false);
@@ -195,6 +215,16 @@
     return 100 - common / union * 84 + Math.abs(a.size - b.size) * 2;
   }
 
+  function indexItems(items) {
+    const exact = new Map();
+    for (const item of items) {
+      const bucket = exact.get(item.key) || [];
+      bucket.push(item);
+      exact.set(item.key, bucket);
+    }
+    return exact;
+  }
+
   function sonyPlatformForEntry(id, rawTitle) {
     const title = String(rawTitle || '');
     if (/\[PSVita\]/i.test(title) || /^PC[A-Z]{2}\d{5}$/i.test(id)) return 'VITA';
@@ -209,16 +239,6 @@
       .replace(/\[(PSVita|PSP|PSOne|PS2|PS4)\]/gi, ' ')
       .replace(/\s+/g, ' ')
       .trim();
-  }
-
-  function indexItems(items) {
-    const exact = new Map();
-    for (const item of items) {
-      const bucket = exact.get(item.key) || [];
-      bucket.push(item);
-      exact.set(item.key, bucket);
-    }
-    return exact;
   }
 
   async function loadTitleDb() {
@@ -257,7 +277,7 @@
       return { byPlatform, exact };
     })();
     try { return await titleDbPromise; }
-    catch (e) { titleDbPromise = null; throw e; }
+    catch (error) { titleDbPromise = null; throw error; }
   }
 
   async function loadVitaDb() {
@@ -296,7 +316,7 @@
       return { items, exact: indexItems(items) };
     })();
     try { return await vitaDbPromise; }
-    catch (e) { vitaDbPromise = null; throw e; }
+    catch (error) { vitaDbPromise = null; throw error; }
   }
 
   function regionRank(id, platform) {
@@ -306,20 +326,17 @@
       if (/^(BLES|BCES|NPEB|NPEA)/.test(x)) return 1;
       if (/^(BLAS|BCAS|NPHB|NPHA)/.test(x)) return 2;
       if (/^(BLJM|BCJS|NPJB|NPJA)/.test(x)) return 4;
-      return 3;
     }
     if (platform === 'VITA') {
       if (/^(PCSA|PCSE)/.test(x)) return 0;
       if (/^(PCSB|PCSF)/.test(x)) return 1;
       if (/^PCSH/.test(x)) return 2;
       if (/^(PCSC|PCSG)/.test(x)) return 4;
-      return 3;
     }
     if (platform === 'PSP') {
       if (/^(ULUS|UCUS|NPUH)/.test(x)) return 0;
       if (/^(ULES|UCES|NPEH)/.test(x)) return 1;
       if (/^(ULJM|ULJS|NPJH)/.test(x)) return 4;
-      return 3;
     }
     return 3;
   }
@@ -328,11 +345,11 @@
     const wanted = normalize(game.title);
     const simpleWanted = simplify(game.title);
     const direct = exact?.get(wanted) || [];
-    const scored = direct.map(x => ({ ...x, score: 0 }));
+    const scored = direct.map(item => ({ ...item, score: 0 }));
     if (!scored.length) {
-      const tokens = simpleWanted.split(' ').filter(x => x.length > 2);
+      const tokens = simpleWanted.split(' ').filter(token => token.length > 2);
       const anchor = tokens[0] || simpleWanted.split(' ')[0] || '';
-      const pool = (items || []).filter(x => !anchor || x.simple.includes(anchor));
+      const pool = (items || []).filter(item => !anchor || item.simple.includes(anchor));
       for (const item of pool) {
         const score = Math.min(titleScore(item.key, wanted), titleScore(item.simple, simpleWanted));
         if (score <= threshold) scored.push({ ...item, score });
@@ -351,9 +368,8 @@
   }
 
   function candidateTitleIds(db, game) {
-    const platform = game.platform;
-    if (!['PS3', 'VITA', 'PSP'].includes(platform)) return [];
-    return scoreCandidates(db.byPlatform[platform] || [], db.exact[platform], game, platform, 24);
+    if (!['PS3', 'VITA', 'PSP'].includes(game.platform)) return [];
+    return scoreCandidates(db.byPlatform[game.platform] || [], db.exact[game.platform], game, game.platform, 24);
   }
 
   async function loadCoverTree(name) {
@@ -371,8 +387,8 @@
         } else {
           const data = await response.json();
           const fresh = (data.tree || [])
-            .filter(x => x.type === 'blob' && /\.(png|jpe?g|webp)$/i.test(x.path || ''))
-            .map(x => x.path);
+            .filter(item => item.type === 'blob' && /\.(png|jpe?g|webp)$/i.test(item.path || ''))
+            .map(item => item.path);
           if (fresh.length) {
             paths = fresh;
             await putValues([[def.key, { updatedAt: new Date().toISOString(), paths }]]);
@@ -385,7 +401,7 @@
     })();
     coverTreePromises.set(name, job);
     try { return await job; }
-    catch (e) { coverTreePromises.delete(name); throw e; }
+    catch (error) { coverTreePromises.delete(name); throw error; }
   }
 
   function exactTreeCover(tree, id) {
@@ -393,8 +409,7 @@
     const stem = String(id).trim().toUpperCase();
     for (const ext of ['.PNG', '.JPG', '.JPEG', '.WEBP']) {
       const actual = tree.paths.get(`${stem}${ext}`);
-      if (!actual) continue;
-      return tree.def.base + actual.split('/').map(encodeURIComponent).join('/');
+      if (actual) return tree.def.base + actual.split('/').map(encodeURIComponent).join('/');
     }
     return '';
   }
@@ -402,26 +417,23 @@
   async function resolveVita(game) {
     const candidates = [];
     const seen = new Set();
-
     try {
       const db = await loadVitaDb();
       for (const item of scoreCandidates(db.items, db.exact, game, 'VITA', 21)) {
         if (!seen.has(item.id)) { seen.add(item.id); candidates.push(item); }
       }
-    } catch (e) { console.warn('VitaDB unavailable', e); }
-
+    } catch (error) { console.warn('VitaDB unavailable', error); }
     try {
-      const titleDb = await loadTitleDb();
-      for (const item of candidateTitleIds(titleDb, { ...game, platform: 'VITA' })) {
+      const db = await loadTitleDb();
+      for (const item of candidateTitleIds(db, { ...game, platform: 'VITA' })) {
         if (!seen.has(item.id)) { seen.add(item.id); candidates.push(item); }
       }
-    } catch (e) { console.warn('Title ID database unavailable for Vita', e); }
+    } catch (error) { console.warn('Title ID database unavailable for Vita', error); }
 
     let hex = null;
     let aldo = null;
     try { [hex, aldo] = await Promise.all([loadCoverTree('VITA_HEX'), loadCoverTree('VITA_ALDO')]); }
-    catch (e) { console.warn('Vita cover trees unavailable', e); }
-
+    catch (error) { console.warn('Vita cover trees unavailable', error); }
     for (const item of candidates) {
       const hexUrl = exactTreeCover(hex, item.id);
       if (hexUrl) return { url: hexUrl, source: `hexflow-vita:${item.id}`, matchedTitle: item.title };
@@ -434,14 +446,13 @@
   async function resolveAldoSony(game) {
     const treeName = game.platform === 'PS3' ? 'PS3_ALDO' : game.platform === 'PSP' ? 'PSP_ALDO' : '';
     if (!treeName) return null;
-    let db;
-    let tree;
-    try { [db, tree] = await Promise.all([loadTitleDb(), loadCoverTree(treeName)]); }
-    catch (e) { console.warn('Sony cover index unavailable', e); return null; }
-    for (const item of candidateTitleIds(db, game)) {
-      const url = exactTreeCover(tree, item.id);
-      if (url) return { url, source: `aldostools:${game.platform}:${item.id}`, matchedTitle: item.title };
-    }
+    try {
+      const [db, tree] = await Promise.all([loadTitleDb(), loadCoverTree(treeName)]);
+      for (const item of candidateTitleIds(db, game)) {
+        const url = exactTreeCover(tree, item.id);
+        if (url) return { url, source: `aldostools:${game.platform}:${item.id}`, matchedTitle: item.title };
+      }
+    } catch (error) { console.warn('Sony cover index unavailable', error); }
     return null;
   }
 
@@ -467,30 +478,41 @@
     const job = (async () => {
       const key = `libretro-index:${repo}`;
       const cached = await getValue(key, null);
-      if (Array.isArray(cached?.paths) && cached.paths.length) return cached.paths;
-      const response = await fetch(`https://api.github.com/repos/libretro-thumbnails/${repo}/git/trees/master?recursive=1`, { headers: { Accept: 'application/vnd.github+json' } });
-      if (!response.ok) throw new Error(`Libretro ${repo}: HTTP ${response.status}`);
-      const data = await response.json();
-      const paths = (data.tree || [])
-        .filter(x => x.type === 'blob' && /^Named_Boxarts\/.+\.(png|jpe?g|webp)$/i.test(x.path || ''))
-        .map(x => x.path);
-      if (paths.length) await putValues([[key, { updatedAt: new Date().toISOString(), paths }]]);
+      const age = cached?.updatedAt ? Date.now() - new Date(cached.updatedAt).getTime() : Infinity;
+      let paths = Array.isArray(cached?.paths) ? cached.paths : [];
+      if (!paths.length || age > TREE_TTL) {
+        const response = await fetch(`https://api.github.com/repos/libretro-thumbnails/${repo}/git/trees/master?recursive=1`, {
+          headers: { Accept: 'application/vnd.github+json' }, cache: 'no-store',
+        });
+        if (!response.ok) {
+          if (!paths.length) throw new Error(`Libretro ${repo}: HTTP ${response.status}`);
+        } else {
+          const data = await response.json();
+          const fresh = (data.tree || [])
+            .filter(item => item.type === 'blob' && /^Named_Boxarts\/.+\.(png|jpe?g|webp)$/i.test(item.path || ''))
+            .map(item => item.path);
+          if (fresh.length) {
+            paths = fresh;
+            await putValues([[key, { updatedAt: new Date().toISOString(), paths }]]);
+          }
+        }
+      }
       return paths;
     })();
     libretroIndexPromises.set(repo, job);
     try { return await job; }
-    catch (e) { libretroIndexPromises.delete(repo); throw e; }
+    catch (error) { libretroIndexPromises.delete(repo); throw error; }
   }
 
   function libretroUrl(repo, path) {
-    const encoded = String(path).split('/').map(encodeURIComponent).join('/');
-    return `https://raw.githubusercontent.com/libretro-thumbnails/${repo}/master/${encoded}`;
+    return `https://raw.githubusercontent.com/libretro-thumbnails/${repo}/master/${String(path).split('/').map(encodeURIComponent).join('/')}`;
   }
 
   async function resolveLibretro(game) {
     const repos = LIBRETRO_REPOS[game.platform] || [];
-    const candidates = [];
+    if (!repos.length) return null;
     const wanted = simplify(game.title);
+    const candidates = [];
     for (const repo of repos) {
       try {
         const paths = await libretroIndex(repo);
@@ -500,28 +522,146 @@
           const score = titleScore(candidate, wanted) + regionPenalty(path);
           if (score <= 28) candidates.push({ repo, path, filename, score });
         }
-      } catch (e) { console.warn('Libretro cover index', repo, e); }
+      } catch (error) { console.warn('Libretro cover index', repo, error); }
     }
     candidates.sort((a, b) => a.score - b.score || a.filename.length - b.filename.length);
     const candidate = candidates[0];
-    if (!candidate) return null;
-    // The path itself came from GitHub's repository tree, so the file is known to exist.
-    return {
+    return candidate ? {
       url: libretroUrl(candidate.repo, candidate.path),
       source: `libretro:${candidate.repo}`,
       matchedTitle: stripCoverTags(candidate.filename),
-    };
+    } : null;
+  }
+
+  async function loadSwitchDb() {
+    if (switchDbPromise) return switchDbPromise;
+    switchDbPromise = (async () => {
+      const cached = await getValue(SWITCH_DB_KEY, null);
+      const age = cached?.updatedAt ? Date.now() - new Date(cached.updatedAt).getTime() : Infinity;
+      let text = cached?.text || '';
+      if (!text || age > SWITCH_DB_TTL) {
+        const urls = [SWITCH_DB_URL, `https://api.allorigins.win/raw?url=${encodeURIComponent(SWITCH_DB_URL)}`];
+        let lastError = null;
+        for (const url of urls) {
+          try {
+            const response = await fetch(url, { cache: 'no-store' });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const next = await response.text();
+            if (!next.includes(' = ')) throw new Error('Unexpected GameTDB response');
+            text = next;
+            await putValues([[SWITCH_DB_KEY, { updatedAt: new Date().toISOString(), text }]]);
+            break;
+          } catch (error) { lastError = error; }
+        }
+        if (!text) throw lastError || new Error('GameTDB недоступен');
+      }
+      const entries = [];
+      const exact = new Map();
+      for (const line of text.split(/\r?\n/)) {
+        const pos = line.indexOf(' = ');
+        if (pos <= 0) continue;
+        const id = line.slice(0, pos).trim();
+        const title = line.slice(pos + 3).trim();
+        const key = normalize(title);
+        if (!id || !key) continue;
+        const item = { id, title, key, simple: simplify(title) };
+        entries.push(item);
+        if (!exact.has(key)) exact.set(key, item);
+      }
+      return { entries, exact };
+    })();
+    try { return await switchDbPromise; }
+    catch (error) { switchDbPromise = null; throw error; }
+  }
+
+  async function findSwitchGame(title) {
+    const db = await loadSwitchDb();
+    const wanted = normalize(title);
+    const simpleWanted = simplify(title);
+    const exact = db.exact.get(wanted);
+    if (exact) return exact;
+    const first = simpleWanted.split(' ')[0];
+    const pool = first ? db.entries.filter(item => item.simple.includes(first)) : db.entries;
+    let best = null;
+    for (const item of pool) {
+      const score = Math.min(titleScore(item.key, wanted), titleScore(item.simple, simpleWanted));
+      if (!best || score < best.score) best = { ...item, score };
+    }
+    return best && best.score <= 28 ? best : null;
+  }
+
+  function switchCoverUrls(id) {
+    const out = [];
+    const proxy = source => `https://images.weserv.nl/?url=${encodeURIComponent(source)}&output=webp&q=90`;
+    for (const type of ['coverHQ', 'coverM', 'cover']) {
+      for (const region of ['US', 'EN', 'AU', 'CA', 'JA']) {
+        for (const ext of ['jpg', 'png']) {
+          const source = `https://art.gametdb.com/switch/${type}/${region}/${id}.${ext}`;
+          out.push(proxy(source), source);
+        }
+      }
+    }
+    return [...new Set(out)];
+  }
+
+  async function firstWorkingUrl(urls, batchSize = 4) {
+    for (let i = 0; i < urls.length; i += batchSize) {
+      const batch = urls.slice(i, i + batchSize);
+      const results = await Promise.all(batch.map(url => imageWorks(url, 2600)));
+      const found = results.findIndex(Boolean);
+      if (found >= 0) return batch[found];
+    }
+    return '';
+  }
+
+  async function resolveSwitch(game) {
+    try {
+      const match = await findSwitchGame(game.title);
+      if (!match) return null;
+      const url = await firstWorkingUrl(switchCoverUrls(match.id));
+      return url ? { url, source: `gametdb-switch:${match.id}`, matchedTitle: match.title } : null;
+    } catch (error) {
+      console.warn('Switch cover resolver unavailable', error);
+      return null;
+    }
+  }
+
+  async function resolveWikipedia(game) {
+    if (typeof fetchWikipediaCover !== 'function') return null;
+    try {
+      const result = await fetchWikipediaCover(game.title, game.releaseYear || '', game.platform || '');
+      return result?.url ? {
+        url: result.url,
+        source: result.source || `wikipedia:${game.platform || 'game'}`,
+        matchedTitle: result.matchedTitle || game.title,
+      } : null;
+    } catch (error) {
+      console.warn('Wikipedia cover fallback failed', game.title, error);
+      return null;
+    }
   }
 
   async function resolveCover(game) {
     if (game.platform === 'VITA') {
       const vita = await resolveVita(game);
       if (vita) return vita;
-    } else if (game.platform === 'PS3' || game.platform === 'PSP') {
+    }
+    if (game.platform === 'PS3' || game.platform === 'PSP') {
       const sony = await resolveAldoSony(game);
       if (sony) return sony;
     }
-    return resolveLibretro(game);
+    if (game.platform === 'SWITCH') {
+      const sw = await resolveSwitch(game);
+      if (sw) return sw;
+    }
+
+    const libretro = await resolveLibretro(game);
+    if (libretro) return libretro;
+
+    // PS5, Xbox One and Xbox Series currently have no maintained Libretro Named_Boxarts
+    // repository. Wikipedia is intentionally last, conservative fallback for those and
+    // for rare titles missing from otherwise supported repositories.
+    return resolveWikipedia(game);
   }
 
   async function mapLimit(items, limit, worker) {
@@ -543,7 +683,7 @@
     try {
       const main = await getValue(MAIN_KEY, null);
       if (!main || !Array.isArray(main.games)) throw new Error('Не удалось прочитать локальную библиотеку');
-      const games = main.games.filter(g => g && !g.deletedAt);
+      const games = main.games.filter(game => game && !game.deletedAt);
       if (!games.length) {
         finish('Обложки проверены', 'В библиотеке пока нет игр');
         return;
@@ -570,14 +710,13 @@
       const foundByPlatform = {};
       progress('Ищу отсутствующие обложки', 0, missing.length, `0 из ${missing.length} · найдено: 0`);
 
-      // Two workers are enough: tree indexes are shared and cached, title matching is local.
       await mapLimit(missing, 2, async game => {
         let resolved = null;
         try { resolved = await resolveCover(game); }
-        catch (e) { console.warn('Cover resolver failed', game.title, e); }
+        catch (error) { console.warn('Cover resolver failed', game.title, error); }
         if (resolved?.url) {
           game.coverUrl = resolved.url;
-          game.coverSource = resolved.source || 'cover-refresh-v4';
+          game.coverSource = resolved.source || 'cover-refresh-v15';
           game.updatedAt = new Date().toISOString();
           found++;
           foundByPlatform[game.platform] = (foundByPlatform[game.platform] || 0) + 1;
@@ -602,31 +741,31 @@
         }
       }
 
-      main.games = main.games.map(original => games.find(g => g.id === original.id) || original);
+      const byId = new Map(games.map(game => [game.id, game]));
+      main.games = main.games.map(original => byId.get(original.id) || original);
       await putValues([
         [MAIN_KEY, main],
         [CATALOG_KEY, { ...catalogState, catalog }],
       ]);
 
-      const unresolved = missing.filter(g => !g.coverUrl);
-      const summary = Object.entries(foundByPlatform).map(([p, n]) => `${p}: +${n}`).join(' · ');
-      const examples = unresolved.slice(0, 3).map(g => g.title).join(', ');
+      const unresolved = missing.filter(game => !game.coverUrl);
+      const summary = Object.entries(foundByPlatform).map(([platform, count]) => `${platform}: +${count}`).join(' · ');
+      const examples = unresolved.slice(0, 3).map(game => game.title).join(', ');
       const detail = `Восстановлено: ${found} · осталось без обложки: ${unresolved.length}` +
         (summary ? ` · ${summary}` : '') +
         (examples ? ` · не найдено: ${examples}${unresolved.length > 3 ? '…' : ''}` : '');
       finish(found ? 'Обложки обновлены' : 'Новых обложек не найдено', detail);
 
       if (found) setTimeout(() => location.reload(), 1700);
-    } catch (e) {
-      console.error(e);
-      fail(e?.message || String(e));
+    } catch (error) {
+      console.error(error);
+      fail(error?.message || String(error));
     } finally {
       running = false;
       if (button) button.disabled = Boolean(wasDisabled);
     }
   }
 
-  // Capture phase is intentional: app.js also binds this button.
   document.addEventListener('click', event => {
     const target = event.target instanceof Element ? event.target.closest('[data-action="covers-refresh"]') : null;
     if (!target) return;
