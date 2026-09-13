@@ -1,0 +1,70 @@
+/* Memory Card v0.17.2 — unified theme runtime
+   One palette now drives both legacy UI variables and v16/v17 components. */
+
+:root[data-mc-theme-runtime="memory"]{--mc-t1:#7657ff;--mc-t2:#d95cff;--mc-glow:rgba(118,87,255,.22)}
+:root[data-mc-theme-runtime="ps2"]{--mc-t1:#386cff;--mc-t2:#6aa7ff;--mc-glow:rgba(56,108,255,.22)}
+:root[data-mc-theme-runtime="gameboy"]{--mc-t1:#7d9b46;--mc-t2:#b8cc63;--mc-glow:rgba(125,155,70,.21)}
+:root[data-mc-theme-runtime="dreamcast"]{--mc-t1:#f36e2d;--mc-t2:#ffab4e;--mc-glow:rgba(243,110,45,.22)}
+:root[data-mc-theme-runtime="xbox"]{--mc-t1:#36a44a;--mc-t2:#8bd34e;--mc-glow:rgba(54,164,74,.22)}
+:root[data-mc-theme-runtime="famicom"]{--mc-t1:#c94448;--mc-t2:#e29f78;--mc-glow:rgba(201,68,72,.21)}
+:root[data-mc-theme-runtime="vita"]{--mc-t1:#16a9df;--mc-t2:#6377ff;--mc-glow:rgba(22,169,223,.22)}
+:root[data-mc-theme-runtime="oled"]{--mc-t1:#d9dbe5;--mc-t2:#676b78;--mc-glow:rgba(255,255,255,.12)}
+:root[data-mc-theme-runtime="sunset"]{--mc-t1:#f05f69;--mc-t2:#ffb54d;--mc-glow:rgba(240,95,105,.22)}
+:root[data-mc-theme-runtime="arcade"]{--mc-t1:#00d8ff;--mc-t2:#fa4bff;--mc-glow:rgba(0,216,255,.24)}
+:root[data-mc-theme-runtime="glacier"]{--mc-t1:#56b7d9;--mc-t2:#9ce4ff;--mc-glow:rgba(86,183,217,.2)}
+:root[data-mc-theme-runtime="mono"]{--mc-t1:#70727d;--mc-t2:#a6a8b4;--mc-glow:rgba(111,113,128,.16)}
+:root[data-mc-theme-runtime="ps1"]{--mc-t1:#777b8a;--mc-t2:#c5c9d3;--mc-glow:rgba(119,123,138,.2)}
+:root[data-mc-theme-runtime="psp"]{--mc-t1:#2777d8;--mc-t2:#59c0ef;--mc-glow:rgba(39,119,216,.22)}
+:root[data-mc-theme-runtime="ps3"]{--mc-t1:#2e62a4;--mc-t2:#8da8d8;--mc-glow:rgba(46,98,164,.22)}
+:root[data-mc-theme-runtime="switch"]{--mc-t1:#e60012;--mc-t2:#00c3e3;--mc-glow:rgba(230,0,18,.2)}
+:root[data-mc-theme-runtime="gamecube"]{--mc-t1:#6246a8;--mc-t2:#9c7ae0;--mc-glow:rgba(98,70,168,.23)}
+:root[data-mc-theme-runtime="wii"]{--mc-t1:#58b8d6;--mc-t2:#b8e8f4;--mc-glow:rgba(88,184,214,.19)}
+:root[data-mc-theme-runtime="n64"]{--mc-t1:#2a9d55;--mc-t2:#e9b429;--mc-glow:rgba(42,157,85,.2)}
+:root[data-mc-theme-runtime="snes"]{--mc-t1:#6e5ca8;--mc-t2:#b9a9dc;--mc-glow:rgba(110,92,168,.22)}
+:root[data-mc-theme-runtime="genesis"]{--mc-t1:#343640;--mc-t2:#e04646;--mc-glow:rgba(224,70,70,.19)}
+:root[data-mc-theme-runtime="x360"]{--mc-t1:#73b833;--mc-t2:#d2e638;--mc-glow:rgba(115,184,51,.22)}
+:root[data-mc-theme-runtime="dsi"]{--mc-t1:#74a9d8;--mc-t2:#cfe6f7;--mc-glow:rgba(116,169,216,.19)}
+:root[data-mc-theme-runtime="3ds"]{--mc-t1:#d92836;--mc-t2:#ef7180;--mc-glow:rgba(217,40,54,.21)}
+
+/* The important part: old and new screens consume the same palette. */
+:root[data-mc-theme-runtime]{
+  --accent:var(--mc-t1);
+  --accent2:var(--mc-t2);
+  --accent3:var(--mc-t2);
+  --v16-accent:var(--mc-t1);
+  --v16-accent-2:var(--mc-t2);
+  --v16-glow:var(--mc-glow);
+  --bg2:color-mix(in srgb,var(--mc-t1) 17%,var(--bg));
+  --panel2:color-mix(in srgb,var(--mc-t1) 7%,var(--panel));
+  --field:color-mix(in srgb,var(--mc-t1) 4%,var(--panel));
+  --hero1:color-mix(in srgb,var(--mc-t1) 27%,var(--panel));
+  --hero2:color-mix(in srgb,var(--mc-t2) 18%,var(--panel));
+}
+
+:root[data-mc-theme-runtime] body{background:radial-gradient(circle at 20% -10%,var(--bg2) 0,var(--bg) 34rem)}
+:root[data-mc-theme-runtime] .brand-mark{background:linear-gradient(145deg,var(--mc-t1),var(--mc-t2));box-shadow:0 10px 26px var(--mc-glow)}
+:root[data-mc-theme-runtime] .brand h1{background:linear-gradient(90deg,var(--mc-t1),var(--mc-t2));-webkit-background-clip:text;background-clip:text;color:transparent}
+:root[data-mc-theme-runtime] .primary{background:linear-gradient(135deg,var(--mc-t1),var(--mc-t2));box-shadow:0 9px 26px var(--mc-glow)}
+:root[data-mc-theme-runtime] .nav button.active,
+:root[data-mc-theme-runtime] .mobile-nav button.active{color:var(--text)}
+:root[data-mc-theme-runtime] .nav button.active{background:color-mix(in srgb,var(--mc-t1) 11%,var(--panel));border-color:color-mix(in srgb,var(--mc-t1) 38%,transparent)}
+:root[data-mc-theme-runtime] .rotation-chip.current{background:var(--mc-t1)}
+:root[data-mc-theme-runtime] .game-card:hover,
+:root[data-mc-theme-runtime] .platform-card:hover,
+:root[data-mc-theme-runtime] .v16-collection-card:hover{border-color:color-mix(in srgb,var(--mc-t1) 38%,var(--line))}
+:root[data-mc-theme-runtime] .v14-stat-accent,
+:root[data-mc-theme-runtime] .v16-ach.unlocked{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--mc-t1) 22%,transparent),0 12px 28px color-mix(in srgb,var(--mc-t1) 8%,transparent)}
+:root[data-mc-theme-runtime] .v16-eyebrow,
+:root[data-mc-theme-runtime] .v16-franchise-link{color:var(--mc-t1)}
+:root[data-mc-theme-runtime] .v16-franchise-progress>i>b{background:linear-gradient(90deg,var(--mc-t1),var(--mc-t2))}
+:root[data-mc-theme-runtime] .v17-rotation-buttons button.active{border-color:var(--mc-t1);background:color-mix(in srgb,var(--mc-t1) 11%,var(--panel));box-shadow:0 8px 22px var(--mc-glow)}
+:root[data-mc-theme-runtime] .v16-swatch.active{outline-color:var(--mc-t1)!important;background:color-mix(in srgb,var(--mc-t1) 9%,var(--panel))!important}
+
+/* Give themed surfaces a consistent response without forcing a full re-render. */
+:root[data-mc-theme-runtime] .panel,
+:root[data-mc-theme-runtime] .game-card,
+:root[data-mc-theme-runtime] .platform-card,
+:root[data-mc-theme-runtime] .rotation-card,
+:root[data-mc-theme-runtime] .v16-home-hero,
+:root[data-mc-theme-runtime] .v16-detail,
+:root[data-mc-theme-runtime] .v16-friend-hero{transition:background-color .18s ease,border-color .18s ease,box-shadow .18s ease}
