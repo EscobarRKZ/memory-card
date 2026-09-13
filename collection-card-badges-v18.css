@@ -1,0 +1,63 @@
+/* Memory Card v0.17.3 — collection membership badges */
+.game-card{position:relative}
+.mc-collection-card-badge{
+  position:absolute;
+  top:10px;
+  right:10px;
+  z-index:9;
+  max-width:calc(100% - 20px);
+  min-height:30px;
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:6px 9px;
+  border-radius:999px;
+  border:1px solid color-mix(in srgb,var(--mc-t1,var(--accent)) 32%,var(--line));
+  background:color-mix(in srgb,var(--panel) 82%,transparent);
+  color:var(--text);
+  box-shadow:0 7px 20px rgba(0,0,0,.16);
+  backdrop-filter:blur(12px) saturate(1.15);
+  -webkit-backdrop-filter:blur(12px) saturate(1.15);
+  font-size:11px;
+  font-weight:850;
+  line-height:1;
+  pointer-events:none;
+}
+.mc-collection-card-icon{font-size:13px;line-height:1}
+.mc-collection-card-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px}
+.mc-collection-card-badge.is-multiple b{
+  display:none;
+  min-width:18px;
+  height:18px;
+  place-items:center;
+  border-radius:999px;
+  background:var(--mc-t1,var(--accent));
+  color:var(--accentText,#fff);
+  font-size:10px;
+}
+:root[data-mc-theme-runtime] .mc-collection-card-badge{
+  border-color:color-mix(in srgb,var(--mc-t1) 38%,var(--line));
+  box-shadow:0 7px 22px color-mix(in srgb,var(--mc-t1) 12%,rgba(0,0,0,.2));
+}
+
+/* Dense library views: keep the signal, remove the long label. */
+.game-grid.v14-view-6 .mc-collection-card-badge,
+.game-grid.v14-view-8 .mc-collection-card-badge{
+  top:7px;right:7px;min-height:25px;padding:4px 6px;gap:4px;
+}
+.game-grid.v14-view-6 .mc-collection-card-name,
+.game-grid.v14-view-8 .mc-collection-card-name{display:none}
+.game-grid.v14-view-6 .mc-collection-card-badge.is-multiple b,
+.game-grid.v14-view-8 .mc-collection-card-badge.is-multiple b{display:grid}
+.game-grid.v14-view-6 .mc-collection-card-icon,
+.game-grid.v14-view-8 .mc-collection-card-icon{font-size:11px}
+
+/* Detailed horizontal card: make membership readable rather than tiny. */
+.game-grid.v14-view-1 .mc-collection-card-badge{top:12px;right:12px;max-width:min(260px,calc(100% - 24px))}
+.game-grid.v14-view-1 .mc-collection-card-name{max-width:210px}
+
+@media(max-width:600px){
+  .mc-collection-card-badge{top:8px;right:8px;max-width:calc(100% - 16px)}
+  .mc-collection-card-name{max-width:115px}
+  .game-grid.v14-view-1 .mc-collection-card-badge{top:8px;right:8px}
+}
