@@ -1,6 +1,3 @@
-/* Memory Card UI enhancements — render-stable v0.22
-   Platform icon buttons + Games sorting without delayed list reshuffles.
-*/
 (() => {
   const SORT_KEY = 'memory-card-games-sort-v1';
   const collator = new Intl.Collator('ru', { sensitivity: 'base', numeric: true });
@@ -170,8 +167,6 @@
   }
 
   function upgradeGamesSorting() {
-    // Keep the control present whenever the Games toolbar exists, even if the current
-    // filters temporarily produce zero cards. Previously it vanished with .game-grid.
     ensureGamesSortControl();
     const grid = document.querySelector('.game-grid');
     if (!grid) return;
@@ -194,8 +189,6 @@
 
   function runEnhance() {
     queued = false;
-    // Avoid observing our own node moves/additions. That used to create extra observer
-    // passes during every app.js re-render and could make the toolbar/list feel jumpy.
     observer?.disconnect();
     try { enhance(); }
     finally { observe(); }
