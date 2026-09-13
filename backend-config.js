@@ -1,6 +1,6 @@
 window.MC_BACKEND_V2={
-  supabaseUrl:'',
-  supabaseAnonKey:'',
+  supabaseUrl:'https://nzcbapjgwqqafmacizqe.supabase.co',
+  supabaseAnonKey:'sb_publishable_eDlHZ7U_c7P2xXTmYKM3Jw_-UXzaqAo',
   turnstileSiteKey:'',
-  enabled:false
+  enabled:true
 };
