@@ -1,9 +1,3 @@
-/* Memory Card observer stability guard
- * Loaded after the legacy UI helpers, but before product-v14/v16/v17.
- * Later enhancement layers mutate #app while observing it. This wrapper
- * coalesces mutation bursts and keeps observers disconnected through the
- * enhancement microtask, preventing self-trigger render loops.
- */
 (() => {
   const NativeMutationObserver = window.MutationObserver;
   if (typeof NativeMutationObserver !== 'function') return;
@@ -58,9 +52,6 @@
       if (!this.pending) return;
       this.pending = false;
       const records = this.records.splice(0);
-
-      // product-v14/v16/v17 schedule their actual DOM enhancement with
-      // queueMicrotask(). Stay disconnected until that queued work has run.
       this.native.disconnect();
       try {
         this.callback(records, this);
