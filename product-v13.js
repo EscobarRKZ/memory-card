@@ -62,11 +62,11 @@
     'Профиль Memory Card':'Memory Card profile','Имя':'Name','Memory Card ID':'Memory Card ID','Копировать':'Copy','Копировать ID':'Copy ID',
     'Имя можно менять. ID постоянный и нужен для друзей.':'You can change your name. Your ID is permanent and is used for friends.',
     'Публичный ID можно отправлять друзьям. Приватный ключ профиля остаётся только на устройстве и не экспортируется.':'You can share your public ID with friends. The private profile key stays on the device and is never exported.',
-    'Мои приставки':'My consoles','Отметь устройства, которые используешь. Остальные исчезнут из основной работы с библиотекой.':'Select the devices you use. The rest will stay out of the main library interface.',
+    'Мои приставки':'My consoles','Отметь устройства, которые используешь. Остальные исчезнут из основной работы с библиотекой.':'Select the devices you use. The rest stay out of the main library interface.',
     'Каталог игр и обложки':'Game catalog & covers','Обновить каталог':'Refresh catalog','Обновить обложки':'Refresh covers','Восстановить локальную копию':'Restore local backup',
     'Google Sheets':'Google Sheets','Автосинхронизация':'Auto sync','Синхронизировать сейчас':'Sync now','Проверить подключение':'Test connection','Сохранить настройки':'Save settings',
     'Экспорт данных':'Export data','Импорт данных':'Import data','Экспорт JSON':'Export JSON','Импорт JSON':'Import JSON',
-    'Друзья':'Friends','Смотри игровые профили друзей и их статистику.':'View your friends’ gaming profiles and stats.','Обновить':'Refresh',
+    'Смотри игровые профили друзей и их статистику.':'View your friends’ gaming profiles and stats.','Обновить':'Refresh',
     'Добавить друга':'Add friend','Поиск работает только по точному Memory Card ID.':'Search works only with an exact Memory Card ID.','Отправить приглашение':'Send request',
     'Входящие приглашения':'Incoming requests','Отклонить':'Decline','Принять':'Accept','Отправленные':'Sent','Ожидают подтверждения':'Awaiting confirmation','Ожидает':'Pending',
     'Мои друзья':'My friends','Пока никого':'No friends yet','Добавь друга по ID. Профиль станет доступен только после принятия приглашения.':'Add a friend by ID. Their profile becomes available only after they accept the request.',
@@ -79,12 +79,11 @@
     'Название':'Title','Платформа':'Platform','Год':'Year','Жанр':'Genre','Франшиза':'Franchise','Оценка':'Rating','Комментарий':'Notes','Перепрохождение':'Replay',
     'Сохранить':'Save','Отмена':'Cancel','Удалить':'Delete','Редактировать':'Edit','Закрыть':'Close','Добавить':'Add','Поиск':'Search','Все':'All',
     'Пройдено':'Completed','Играю':'Playing','Без оценки':'Not rated','Нет игр':'No games','Ничего не найдено':'Nothing found',
-    'Игровой лог':'Play log','Твоя игровая история':'Your gaming history','Всего пройдено':'Total completed','Средняя оценка':'Average rating',
+    'Игровой лог':'Play log','Твоя игровая история':'Your gaming history','Всего пройдено':'Total completed',
     'Настройки сохранены':'Settings saved','Приглашение отправлено':'Friend request sent','Друг добавлен':'Friend added','Приглашение отклонено':'Request declined','Удалено из друзей':'Removed from friends',
     'Обновляю каталог':'Refreshing catalog','Каталог обновлён':'Catalog updated','Каталог не обновлён':'Catalog not updated','Подготовка…':'Preparing…','готово':'done',
-    'Профиль Memory Card':'Memory Card profile','Профиль готов':'Profile ready','Подключаюсь к базе':'Connecting to database','Друзья обновлены':'Friends updated','Обновляю список':'Refreshing list',
-    'Приглашение':'Friend request','Не удалось отправить':'Could not send','Не удалось обновить друзей':'Could not refresh friends','Не удалось подключить профиль':'Could not connect profile',
-    'Выбранные приставки':'Selected consoles','Показаны только приставки из настроек «Мои приставки».':'Only consoles selected in “My consoles” are shown here.'
+    'Профиль готов':'Profile ready','Подключаюсь к базе':'Connecting to database','Друзья обновлены':'Friends updated','Обновляю список':'Refreshing list',
+    'Приглашение':'Friend request','Не удалось отправить':'Could not send','Не удалось обновить друзей':'Could not refresh friends','Не удалось подключить профиль':'Could not connect profile'
   }));
 
   const placeholderEn = new Map(Object.entries({
@@ -120,7 +119,9 @@
   function translateDom(root = document) {
     document.documentElement.lang = state.settings.language === 'en' ? 'en' : 'ru';
     if (state.settings.language !== 'en') return;
-    const walker = document.createTreeWalker(root === document ? document.body : root, NodeFilter.SHOW_TEXT);
+    const start = root === document ? document.body : root;
+    if (!start) return;
+    const walker = document.createTreeWalker(start, NodeFilter.SHOW_TEXT);
     const nodes = [];
     while (walker.nextNode()) nodes.push(walker.currentNode);
     for (const node of nodes) {
@@ -161,35 +162,50 @@
     const container = cards[0].parentElement;
     if (!container) return;
     const selectedIds = [...new Set((state.settings.ownedPlatforms || []).filter(id => PLATFORMS.some(p => p.id === id)))];
-    const selected = selectedIds.map(id => cards.find(card => card.dataset.platform === id)).filter(Boolean);
     const selectedSet = new Set(selectedIds);
+    const byId = new Map(cards.map(card => [card.dataset.platform, card]));
     cards.forEach(card => {
       card.classList.toggle('mc-platform-hidden', !selectedSet.has(card.dataset.platform));
       card.classList.remove('mc-platform-collapsed');
     });
-    selected.forEach(card => container.appendChild(card));
+    const selected = selectedIds.map(id => byId.get(id)).filter(Boolean);
+    const currentOrder = [...container.querySelectorAll('.platform-card[data-platform]')].filter(card => selectedSet.has(card.dataset.platform)).map(card => card.dataset.platform);
+    if (currentOrder.join('|') !== selectedIds.join('|')) selected.forEach(card => container.appendChild(card));
     selected.forEach((card, index) => card.classList.toggle('mc-platform-collapsed', !homeExpanded && index >= HOME_LIMIT));
-    document.querySelector('.home-platform-toggle-row')?.remove();
-    if (selected.length > HOME_LIMIT) {
-      const row = document.createElement('div');
+    let row = document.querySelector('.home-platform-toggle-row');
+    if (selected.length <= HOME_LIMIT) {
+      row?.remove();
+      return;
+    }
+    if (!row) {
+      row = document.createElement('div');
       row.className = 'home-platform-toggle-row';
-      row.innerHTML = `<button class="secondary" type="button" data-action="home-platform-toggle">${homeExpanded ? 'Скрыть' : `Показать все (${selected.length})`}</button>`;
       container.insertAdjacentElement('afterend', row);
     }
+    row.innerHTML = `<button class="secondary" type="button" data-action="home-platform-toggle">${homeExpanded ? 'Скрыть' : `Показать все (${selected.length})`}</button>`;
   }
 
-  function removedNoticeMarkup(items) {
-    return `<section class="panel friend-removed-panel" data-friend-removed-panel><div class="section-head"><div><h3>Вас удалили из друзей</h3><p>Доступ к профилю закрыт.</p></div></div><div class="friend-removed-list">${items.map(item => `<article class="friend-removed-row"><div class="social-avatar small">${esc((item.displayName||'И')[0].toUpperCase())}</div><div class="friend-removed-main"><div class="game-title" data-no-i18n>${esc(item.displayName||'Игрок')}</div><div class="status-line">${esc(item.displayName||'Игрок')} удалил вас из друзей.</div><div class="memory-id">${esc(item.userId||'')}</div></div><div class="friend-actions"><button class="secondary compact" data-action="friend-dismiss-removed" data-friend-id="${esc(item.userId||'')}">Удалить уведомление</button></div></article>`).join('')}</div></section>`;
+  function removedNoticeMarkup(items, signature) {
+    return `<section class="panel friend-removed-panel" data-friend-removed-panel data-signature="${esc(signature)}"><div class="section-head"><div><h3>Вас удалили из друзей</h3><p>Доступ к профилю закрыт.</p></div></div><div class="friend-removed-list">${items.map(item => `<article class="friend-removed-row"><div class="social-avatar small">${esc((item.displayName||'И')[0].toUpperCase())}</div><div class="friend-removed-main"><div class="game-title" data-no-i18n>${esc(item.displayName||'Игрок')}</div><div class="status-line">${esc(item.displayName||'Игрок')} удалил вас из друзей.</div><div class="memory-id">${esc(item.userId||'')}</div></div><div class="friend-actions"><button class="secondary compact" data-action="friend-dismiss-removed" data-friend-id="${esc(item.userId||'')}">Удалить уведомление</button></div></article>`).join('')}</div></section>`;
   }
 
   function applyFriendRemovedNotices() {
-    document.querySelector('[data-friend-removed-panel]')?.remove();
-    if (state.view !== 'friends' || state.friendProfile) return;
+    const current = document.querySelector('[data-friend-removed-panel]');
+    if (state.view !== 'friends' || state.friendProfile) {
+      current?.remove();
+      return;
+    }
     const items = Array.isArray(state.social.removed) ? state.social.removed : [];
-    if (!items.length) return;
+    if (!items.length) {
+      current?.remove();
+      return;
+    }
+    const signature = items.map(x => `${x.userId}:${x.updatedAt || ''}`).join('|');
+    if (current?.dataset.signature === signature) return;
+    current?.remove();
     const addPanel = document.querySelector('.friend-add-panel');
     if (!addPanel) return;
-    addPanel.insertAdjacentHTML('beforebegin', removedNoticeMarkup(items));
+    addPanel.insertAdjacentHTML('beforebegin', removedNoticeMarkup(items, signature));
   }
 
   function enhance() {
@@ -216,27 +232,47 @@
     queueEnhance();
   };
 
+  if (typeof setToast === 'function') {
+    const baseSetToastV13 = setToast;
+    setToast = function(...args) { const result = baseSetToastV13(...args); queueEnhance(); return result; };
+  }
+  if (typeof setTaskProgress === 'function') {
+    const baseTaskV13 = setTaskProgress;
+    setTaskProgress = function(...args) { const result = baseTaskV13(...args); queueEnhance(); return result; };
+  }
+  if (typeof finishTaskProgress === 'function') {
+    const baseFinishTaskV13 = finishTaskProgress;
+    finishTaskProgress = function(...args) { const result = baseFinishTaskV13(...args); queueEnhance(); return result; };
+  }
+  if (typeof failTaskProgress === 'function') {
+    const baseFailTaskV13 = failTaskProgress;
+    failTaskProgress = function(...args) { const result = baseFailTaskV13(...args); queueEnhance(); return result; };
+  }
+
   document.addEventListener('change', event => {
     if (event.target?.id === 'languageMode') {
       state.settings.language = event.target.value === 'en' ? 'en' : 'ru';
       state.settings.settingsUpdatedAt = nowIso();
       persist();
       render();
-      scheduleAutoSync?.();
+      if (typeof scheduleAutoSync === 'function') scheduleAutoSync();
+      return;
     }
     if (event.target?.id === 'reducedMotionMode') {
       state.settings.reducedMotion = !!event.target.checked;
       state.settings.settingsUpdatedAt = nowIso();
       persist();
       applyAppearance();
-      scheduleAutoSync?.();
+      if (typeof scheduleAutoSync === 'function') scheduleAutoSync();
     }
+    setTimeout(queueEnhance, 0);
   });
 
   document.addEventListener('click', async event => {
     const toggle = event.target?.closest?.('[data-action="home-platform-toggle"]');
     if (toggle) {
       event.preventDefault();
+      event.stopPropagation();
       homeExpanded = !homeExpanded;
       applyHomePlatforms();
       translateDom();
@@ -245,6 +281,7 @@
     const dismiss = event.target?.closest?.('[data-action="friend-dismiss-removed"]');
     if (dismiss) {
       event.preventDefault();
+      event.stopPropagation();
       const friendId = String(dismiss.dataset.friendId || '').toUpperCase();
       if (!friendId || !state.settings.sheetEndpoint || !state.settings.userId || !state.settings.authToken) return;
       dismiss.disabled = true;
@@ -257,16 +294,18 @@
         dismiss.disabled = false;
         alert(error?.message || String(error));
       }
+      return;
     }
-  }, true);
+    setTimeout(queueEnhance, 0);
+  }, false);
+
+  document.addEventListener('submit', () => setTimeout(queueEnhance, 0), false);
 
   const originalConfirm = window.confirm.bind(window);
   window.confirm = message => originalConfirm(translateString(message));
   const originalAlert = window.alert.bind(window);
   window.alert = message => originalAlert(translateString(message));
 
-  const observer = new MutationObserver(queueEnhance);
-  observer.observe(document.body, {childList:true, subtree:true});
   window.addEventListener('load', queueEnhance);
   setTimeout(queueEnhance, 0);
 })();
