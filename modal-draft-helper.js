@@ -30,7 +30,7 @@
         end: typeof active.selectionEnd === 'number' ? active.selectionEnd : null,
       };
     }
-    draft = { formId: form.id, values, focus, touchedAt: Date.now() };
+    draft = { formId: form.id, formNode: form, values, focus, touchedAt: Date.now() };
   }
 
   function updateRatingUi(form) {
@@ -46,6 +46,11 @@
 
   function restoreForm(form) {
     if (!draft || !form || draft.formId !== form.id || restoring) return;
+    // Mutations inside the same live form (autocomplete suggestions, helper UI,
+    // validation messages) must never steal focus from a mobile keyboard.
+    // Restore only when render() actually replaced the form element itself.
+    if (draft.formNode === form) return;
+
     restoring = true;
     try {
       for (const el of form.querySelectorAll('input[name], select[name], textarea[name]')) {
@@ -67,6 +72,7 @@
           }
         }
       }
+      draft.formNode = form;
     } finally {
       restoring = false;
     }
@@ -104,7 +110,7 @@
   const root = document.querySelector('#app') || document.body;
   const observer = new MutationObserver(() => {
     const form = trackedForm();
-    if (!form || !draft || draft.formId !== form.id) return;
+    if (!form || !draft || draft.formId !== form.id || draft.formNode === form) return;
     restoreForm(form);
   });
   observer.observe(root, { childList: true, subtree: true });
