@@ -319,3 +319,93 @@
   touch-action: manipulation;
   cursor: pointer;
 }
+
+
+/* v27 — unambiguous cover controls and clean detailed/list cover artwork. */
+.v16-detail-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: stretch;
+}
+
+.v16-detail-actions > button,
+.v16-detail-actions > .v24-detail-actions {
+  min-width: 0;
+}
+
+.v16-detail-actions > [data-v17-cover-refresh] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 10px 15px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--accent) 8%, var(--panel2));
+  color: var(--text);
+  font-weight: 750;
+  cursor: pointer;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+
+.v16-detail-actions > [data-v17-cover-refresh]:disabled { opacity: .7; cursor: wait; }
+
+/* In detailed-list mode, platform / year / rating are already in the right
+   column. Duplicating badges over the cover made narrow screens unreadable. */
+.game-grid.v14-view-1 .game-card > .cover > .cover-platform-badge,
+.game-grid.v14-view-1 .game-card > .cover > .v16-cover-badges {
+  display: none !important;
+}
+
+@media (max-width: 760px) {
+  .v16-detail-copy > .v16-detail-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 9px;
+    width: 100%;
+    margin-top: 5px;
+  }
+
+  .v16-detail-actions > .primary,
+  .v16-detail-actions > [data-v17-cover-refresh] {
+    width: 100%;
+    min-height: 46px;
+  }
+
+  .v16-detail-actions > [data-v17-cover-refresh] {
+    white-space: normal;
+    text-align: center;
+    font-size: 13px;
+  }
+
+  /* Detail art no longer has a button squeezed into its 96–106px column. */
+  .v16-detail-hero > .cover {
+    grid-column: 1;
+    grid-row: 1 / 4;
+    align-self: start;
+  }
+
+  .game-grid.v14-view-1 .game-card > .cover {
+    isolation: isolate;
+  }
+
+  .game-grid.v14-view-1 .game-card > .cover .cover-fallback {
+    padding-bottom: 14px;
+  }
+
+  .mc-cover-picker-backdrop {
+    z-index: 300;
+    padding: 0;
+    align-items: end;
+  }
+
+  .mc-cover-picker {
+    width: 100%;
+    max-width: 100%;
+    max-height: 92dvh;
+    border-radius: 22px 22px 0 0;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
+  }
+}

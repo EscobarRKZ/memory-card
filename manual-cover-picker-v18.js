@@ -238,6 +238,7 @@
           <div class="mc-cover-picker-url"><input type="url" placeholder="https://…" data-cover-manual-url><button type="button" class="secondary" data-cover-manual-apply>Использовать URL</button></div>
         </div>
       </section>`;
+    overlay.dataset.coverPickerGameId = String(game.id);
     document.body.appendChild(overlay);
     return overlay;
   }
@@ -280,14 +281,26 @@
   }
 
   async function openPicker(gameId, trigger) {
-    const game = state.games.find(g => g?.id === gameId && !g.deletedAt);
-    if (!game) return;
+    const game = state.games.find(g => g && String(g.id) === String(gameId) && !g.deletedAt);
+    if (!game || document.querySelector('.mc-cover-picker-backdrop')) return;
     const oldText = trigger?.textContent || '↻ Обновить обложку';
     if (trigger) { trigger.disabled = true; trigger.textContent = 'Ищу варианты…'; }
     const overlay = pickerShell(game);
     let candidates = [];
     try {
-      candidates = await collectCandidates(game);
+      // Some platforms fetch large Libretro indexes. Never leave the user
+      // staring indefinitely at a loading state on a mobile connection.
+      let timer;
+      const timeout = new Promise(resolve => { timer = setTimeout(() => resolve(null), 12000); });
+      let found;
+      try { found = await Promise.race([collectCandidates(game), timeout]); }
+      finally { clearTimeout(timer); }
+      if (!overlay.isConnected) return;
+      if (found === null) {
+        overlay.querySelector('.mc-cover-picker-status').textContent = 'Поиск занимает слишком долго. Вставь прямую ссылку ниже или попробуй позже.';
+        return;
+      }
+      candidates = found;
       overlay._mcCandidates = candidates;
       renderCandidates(overlay, candidates);
     } catch (err) {
@@ -313,7 +326,7 @@
     if (refresh) {
       event.preventDefault();
       event.stopImmediatePropagation();
-      openPicker(refresh.dataset.v17CoverRefresh || state.gameDetailId || '', refresh);
+      openPicker(refresh.dataset.v17CoverRefresh || state.gameDetailId || '', refresh).catch(err => { console.error('Cover picker could not open', err); setToast('Не удалось открыть выбор обложки'); });
       return;
     }
 
@@ -328,7 +341,7 @@
     const choice = target.closest('[data-cover-choice]');
     if (choice) {
       event.preventDefault();
-      const game = state.games.find(g => g?.id === state.gameDetailId && !g.deletedAt);
+      const game = state.games.find(g => String(g?.id) === String(overlay.dataset.coverPickerGameId || state.gameDetailId) && !g.deletedAt);
       const candidate = overlay._mcCandidates?.[Number(choice.dataset.coverChoice)];
       if (game && candidate) applyCover(game, candidate).catch(console.error);
       return;
@@ -340,7 +353,7 @@
       const input = overlay.querySelector('[data-cover-manual-url]');
       const url = String(input?.value || '').trim();
       if (!/^https?:\/\//i.test(url)) { setToast('Нужна прямая http/https ссылка на изображение'); return; }
-      const game = state.games.find(g => g?.id === state.gameDetailId && !g.deletedAt);
+      const game = state.games.find(g => String(g?.id) === String(overlay.dataset.coverPickerGameId || state.gameDetailId) && !g.deletedAt);
       if (game) applyCover(game, { url, source: 'manual-url', label: 'Ручная ссылка' }).catch(console.error);
     }
   }, true);

@@ -180,7 +180,7 @@
   function enhanceGameDetail() {
     const hero = document.querySelector('.v16-detail-hero');
     const cover = hero?.querySelector('.v16-detail-cover, .cover');
-    if (!hero || !cover || cover.closest('.v17-detail-cover-column')) return;
+    if (!hero || !cover || hero.querySelector('[data-v17-cover-refresh]') || cover.closest('.v17-detail-cover-column')) return;
     const wrapper = document.createElement('div');
     wrapper.className = 'v17-detail-cover-column';
     const btn = document.createElement('button');
