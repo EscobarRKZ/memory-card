@@ -304,3 +304,18 @@
   .v16-detail-hero { grid-template-columns: 96px minmax(0, 1fr); }
   .v16-detail-copy > h1 { font-size: 22px; }
 }
+
+
+/* The mobile detail editor must remain the top hit target, including in PWA WebViews. */
+.v16-detail-actions {
+  position: relative;
+  z-index: 8;
+  pointer-events: auto;
+}
+.v16-detail-actions button[data-action="edit"] {
+  position: relative;
+  z-index: 9;
+  pointer-events: auto;
+  touch-action: manipulation;
+  cursor: pointer;
+}
