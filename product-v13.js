@@ -1,6 +1,8 @@
 
 (() => {
-  const HOME_LIMIT = 7;
+  // These are the user's own consoles. Do not hide the 8th (PS5, etc.)
+  // behind a distant 'Show all' button below the mobile bottom navigation.
+  const HOME_LIMIT = Number.POSITIVE_INFINITY;
   let homeExpanded = false;
   let lastView = '';
   let enhanceQueued = false;
