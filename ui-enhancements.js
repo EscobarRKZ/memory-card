@@ -2,10 +2,9 @@
   const SORT_KEY = 'memory-card-games-sort-v1';
   const collator = new Intl.Collator('ru', { sensitivity: 'base', numeric: true });
 
-  const platforms = [
-    ['PSP', 'PSP'], ['VITA', 'Vita'], ['DSI', 'DSi'], ['3DS', '3DS'],
-    ['GBA', 'GBA'], ['PS3', 'PS3'], ['WIIU', 'Wii U'], ['SWITCH', 'Switch'],
-  ];
+  // Tile choices are generated from the form's platform <select>, never
+  // from a fixed list. Profile updates can add PS5 and other consoles.
+
 
   const svg = {
     PSP: '<svg viewBox="0 0 72 44" aria-hidden="true"><rect x="4" y="8" width="64" height="28" rx="9"/><rect class="screen-cut" x="23" y="11" width="26" height="22" rx="2"/><circle class="screen-cut" cx="14" cy="22" r="4"/><circle class="screen-cut" cx="59" cy="19" r="2"/></svg>',
@@ -32,28 +31,66 @@
     const field = select.closest('.field');
     if (!field) return;
 
+    const available = Array.from(select.options).filter(option => option.value && !option.disabled);
+    if (!available.length) return;
+
+    // Use the same selected platforms as the rest of Memory Card.
+    // Always include the platform of the current game, even when it is not owned.
+    const ownedIds = new Set(
+      typeof mcOwnedPlatforms === 'function'
+        ? mcOwnedPlatforms()
+        : (Array.isArray(state?.settings?.ownedPlatforms) ? state.settings.ownedPlatforms : [])
+    );
+    const preferred = available.filter(option =>
+      ownedIds.has(option.value) || option.value === select.value
+    );
+    const primary = !ownedIds.size || !preferred.length ? available : preferred;
+    const extras = available.filter(option => !primary.includes(option));
+
     select.dataset.buttonSelectorReady = '1';
     field.classList.add('platform-choice-field');
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'platform-choice-wrapper';
+    wrapper.setAttribute('role', 'radiogroup');
+    wrapper.setAttribute('aria-label', 'Платформа');
+
     const grid = document.createElement('div');
     grid.className = 'platform-choice-grid';
-    grid.setAttribute('role', 'radiogroup');
-    grid.setAttribute('aria-label', 'Платформа');
+    wrapper.appendChild(grid);
+
+    const extraGrid = document.createElement('div');
+    extraGrid.className = 'platform-choice-grid platform-choice-extra-grid';
+    let toggle = null;
 
     const updateSelected = () => {
-      for (const button of grid.querySelectorAll('.platform-choice-button')) {
+      for (const button of wrapper.querySelectorAll('.platform-choice-button')) {
         const selected = button.dataset.platformChoice === select.value;
         button.classList.toggle('is-selected', selected);
         button.setAttribute('aria-checked', selected ? 'true' : 'false');
       }
     };
 
-    for (const [id, label] of platforms) {
+    function addChoice(option, target) {
+      const id = option.value;
+      const details = typeof platform === 'function' ? platform(id) : null;
+      const label = details?.abbr || option.textContent?.trim() || id;
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'platform-choice-button';
       button.dataset.platformChoice = id;
       button.setAttribute('role', 'radio');
-      button.innerHTML = `<span class="platform-choice-icon">${svg[id]}</span><span class="platform-choice-name">${label}</span>`;
+      button.setAttribute('aria-label', option.textContent?.trim() || label);
+      button.title = option.textContent?.trim() || label;
+
+      const icon = document.createElement('span');
+      icon.className = 'platform-choice-icon';
+      icon.innerHTML = svg[id] || (typeof platformIcon === 'function' ? platformIcon(id) : '');
+      const name = document.createElement('span');
+      name.className = 'platform-choice-name';
+      name.textContent = label;
+      button.append(icon, name);
+
       button.addEventListener('click', event => {
         event.preventDefault();
         if (select.value === id) return;
@@ -61,10 +98,35 @@
         updateSelected();
         select.dispatchEvent(new Event('change', { bubbles: true }));
       });
-      grid.appendChild(button);
+      target.appendChild(button);
     }
 
-    select.insertAdjacentElement('afterend', grid);
+    primary.forEach(option => addChoice(option, grid));
+
+    if (extras.length) {
+      toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'platform-choice-more-toggle';
+      toggle.setAttribute('aria-expanded', 'false');
+      const updateToggle = () => {
+        const expanded = !extraGrid.hidden;
+        toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        toggle.textContent = expanded
+          ? 'Скрыть остальные платформы'
+          : `Другие платформы (${extras.length})`;
+      };
+      extraGrid.hidden = true;
+      extras.forEach(option => addChoice(option, extraGrid));
+      updateToggle();
+      toggle.addEventListener('click', event => {
+        event.preventDefault();
+        extraGrid.hidden = !extraGrid.hidden;
+        updateToggle();
+      });
+      wrapper.append(toggle, extraGrid);
+    }
+
+    select.insertAdjacentElement('afterend', wrapper);
     select.addEventListener('change', updateSelected);
     updateSelected();
   }
