@@ -117,3 +117,67 @@
   .platform-choice-button { min-height: 58px; font-size: 9px; padding-inline: 2px; }
   .platform-choice-icon { width: 28px; height: 19px; }
 }
+
+
+/* v61: dynamic platform picker — owned consoles first, all remaining available. */
+.platform-choice-wrapper { min-width: 0; }
+
+.platform-choice-extra-grid[hidden] { display: none !important; }
+
+.platform-choice-more-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 43px;
+  margin: 10px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--field);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.platform-choice-more-toggle:focus-visible,
+.platform-choice-more-toggle:hover {
+  border-color: var(--accent);
+}
+
+.platform-choice-extra-grid {
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  margin-bottom: 10px;
+}
+
+.platform-choice-button {
+  touch-action: manipulation;
+  cursor: pointer;
+}
+
+.platform-choice-icon .device-icon {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.platform-choice-icon .device-icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+
+.platform-choice-icon .device-mini-label { display: none; }
+
+.platform-choice-name {
+  max-width: 100%;
+  line-height: 1.15;
+}
+
