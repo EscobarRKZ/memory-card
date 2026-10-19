@@ -123,9 +123,9 @@
   function applyOwnedVisibility() {
     const owned = new Set(state.settings.ownedPlatforms || legacyOwned);
     document.querySelectorAll('.platform-card[data-platform]').forEach(el => el.hidden = !owned.has(el.dataset.platform));
-    document.querySelectorAll('select option').forEach(opt => {
-      if (PLATFORMS.some(p => p.id === opt.value)) { opt.hidden = !owned.has(opt.value); opt.disabled = !owned.has(opt.value); }
-    });
+    // Do not hide/disable <option> nodes globally: Android's native picker
+    // can omit newly added consoles (PS5) and editing old games must remain possible.
+    // Home tiles are still controlled by the user's ownedPlatforms selection.
   }
   const baseRender = render;
   render = function() { baseRender(); applyOwnedVisibility(); };
