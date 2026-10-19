@@ -10,6 +10,7 @@
   let profile=null;
   let syncing=false;
   let pushTimer=0;
+  let pushQueuedDuringSync=false;
   let authMode='login';
   let turnstileWidget=null;
   let lastCaptchaToken='';
@@ -78,11 +79,15 @@
       if(failed?.error) throw failed.error;
     }catch(error){
       console.error('Memory Card cloud push failed',error);
-    }finally{syncing=false;}
+    }finally{
+      syncing=false;
+      if(pushQueuedDuringSync){pushQueuedDuringSync=false;schedulePush(150);}
+    }
   }
 
   function schedulePush(delay=900){
-    if(!session||syncing) return;
+    if(!session) return;
+    if(syncing){pushQueuedDuringSync=true;return;}
     clearTimeout(pushTimer);
     pushTimer=setTimeout(pushCloud,delay);
   }
@@ -116,6 +121,7 @@
       console.error('Memory Card cloud sync failed',error);
     }finally{
       syncing=false;
+      pushQueuedDuringSync=false;
       schedulePush(250);
     }
   }

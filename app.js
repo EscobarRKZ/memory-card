@@ -891,8 +891,30 @@ function autocompleteField(g, compact = false) {
   return `<div class="field ${compact ? '' : 'span-2'} autocomplete-field"><label>Название игры</label><div class="autocomplete-wrap"><input name="title" data-game-title required autocomplete="off" value="${esc(g.title || '')}" placeholder="LocoRoco"><div class="autocomplete-list" data-autocomplete-list hidden></div></div></div>`;
 }
 
+// List consoles that are owned first, while keeping every supported system
+// selectable. Android native <select> must not depend on option.hidden.
+function gamePlatformOptions(selectedId = '') {
+  const owned = new Set(typeof mcOwnedPlatforms === 'function'
+    ? mcOwnedPlatforms()
+    : (state.settings?.ownedPlatforms || []));
+  const ordered = [...PLATFORMS].sort((a, b) => Number(owned.has(b.id)) - Number(owned.has(a.id)));
+  return ordered.map(p => `<option value="${esc(p.id)}" ${selectedId === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
+}
+
+// A new game on a previously unselected console should make it visible on
+// the home screen without requiring a separate settings round trip.
+function ensurePlatformOwned(id, timestamp) {
+  if (!PLATFORMS.some(p => p.id === id)) return;
+  const existing = Array.isArray(state.settings.ownedPlatforms)
+    ? state.settings.ownedPlatforms
+    : [];
+  if (existing.includes(id)) return;
+  state.settings.ownedPlatforms = [...new Set([...existing, id])];
+  state.settings.settingsUpdatedAt = timestamp || nowIso();
+}
+
 function renderPlayingModal(g) {
-  return `<div class="modal-backdrop" data-action="close"><form class="modal small-modal" id="playingForm" data-stop><div class="modal-head"><div><h3>Сейчас играю</h3><div class="meta">Начни вводить название — приложение предложит игры для выбранной платформы.</div></div><button type="button" class="icon-btn" data-action="close">×</button></div><div class="form-grid one-col"><div class="field"><label>Платформа</label><select name="platform" data-game-platform>${PLATFORMS.map(p => `<option value="${p.id}" ${g.platform === p.id ? 'selected' : ''}>${p.name}</option>`).join('')}</select></div>${autocompleteField(g, true)}<div class="field"><label>Год выхода</label><input name="releaseYear" data-game-year inputmode="numeric" value="${esc(g.releaseYear || '')}" placeholder="2006"></div><input type="hidden" name="genre" data-game-genre value="${esc(g.genre || '')}"><input type="hidden" name="franchise" data-game-franchise value="${esc(g.franchise || '')}"><input type="hidden" name="coverUrl" data-game-cover value="${esc(g.coverUrl || '')}"><div class="catalog-picked" data-catalog-picked>${g.genre || g.franchise ? `${g.genre ? `Жанр: <b>${esc(g.genre)}</b>` : ''}${g.franchise ? `${g.genre ? ' · ' : ''}Франшиза: <b>${esc(g.franchise)}</b>` : ''}` : 'Жанр и франшиза подставятся при выборе игры из каталога.'}</div></div><div class="modal-actions"><button type="button" class="secondary" data-action="close">Отмена</button><div class="right-actions"><button class="primary" type="submit">Добавить</button></div></div></form></div>`;
+  return `<div class="modal-backdrop" data-action="close"><form class="modal small-modal" id="playingForm" data-stop><div class="modal-head"><div><h3>Сейчас играю</h3><div class="meta">Начни вводить название — приложение предложит игры для выбранной платформы.</div></div><button type="button" class="icon-btn" data-action="close">×</button></div><div class="form-grid one-col"><div class="field"><label>Платформа</label><select name="platform" data-game-platform>${gamePlatformOptions(g.platform)}</select></div>${autocompleteField(g, true)}<div class="field"><label>Год выхода</label><input name="releaseYear" data-game-year inputmode="numeric" value="${esc(g.releaseYear || '')}" placeholder="2006"></div><input type="hidden" name="genre" data-game-genre value="${esc(g.genre || '')}"><input type="hidden" name="franchise" data-game-franchise value="${esc(g.franchise || '')}"><input type="hidden" name="coverUrl" data-game-cover value="${esc(g.coverUrl || '')}"><div class="catalog-picked" data-catalog-picked>${g.genre || g.franchise ? `${g.genre ? `Жанр: <b>${esc(g.genre)}</b>` : ''}${g.franchise ? `${g.genre ? ' · ' : ''}Франшиза: <b>${esc(g.franchise)}</b>` : ''}` : 'Жанр и франшиза подставятся при выборе игры из каталога.'}</div></div><div class="modal-actions"><button type="button" class="secondary" data-action="close">Отмена</button><div class="right-actions"><button class="primary" type="submit">Добавить</button></div></div></form></div>`;
 }
 
 
@@ -907,7 +929,7 @@ function renderFinishRotationModal(m) {
 }
 function renderEditModal(g) {
   const editing = Boolean(g.id);
-  return `<div class="modal-backdrop" data-action="close"><form class="modal" id="gameForm" data-stop><div class="modal-head"><div><h3>${editing ? 'Редактировать игру' : 'Прошёл игру'}</h3><div class="meta">Выбери игру из подсказок — год, жанр, франшиза и обложка подставятся автоматически.</div></div><button type="button" class="icon-btn" data-action="close">×</button></div><div class="form-grid">${autocompleteField(g)}<div class="field"><label>Платформа</label><select name="platform" data-game-platform>${PLATFORMS.map(p => `<option value="${p.id}" ${g.platform === p.id ? 'selected' : ''}>${p.name}</option>`).join('')}</select></div><div class="field"><label>Год выхода</label><input name="releaseYear" data-game-year inputmode="numeric" value="${esc(g.releaseYear || '')}" placeholder="2006"></div><div class="field"><label>Жанр</label><input name="genre" data-game-genre value="${esc(g.genre || '')}" placeholder="Action-adventure"></div><div class="field"><label>Франшиза</label><input name="franchise" data-game-franchise value="${esc(g.franchise || inferFranchise(g.title))}" placeholder="Metroid"></div><input type="hidden" name="coverUrl" data-game-cover value="${esc(g.coverUrl || '')}">${editing ? `<div class="field"><label>Статус</label><select name="status"><option value="completed" ${g.status === 'completed' ? 'selected' : ''}>Пройдено</option><option value="playing" ${g.status === 'playing' ? 'selected' : ''}>Играю</option><option value="dropped" ${g.status === 'dropped' ? 'selected' : ''}>Брошено</option><option value="backlog" ${g.status === 'backlog' ? 'selected' : ''}>Хочу пройти</option></select></div>` : '<input type="hidden" name="status" value="completed">'}<div class="field"><label>№ перепрохождения</label><input name="replay" type="number" min="0" step="1" value="${esc(g.replay || 0)}"></div><div class="field span-2"><label>Моя оценка</label>${starPicker(g.rating)}</div><div class="field span-2"><label>Комментарий</label><textarea name="notes" placeholder="Что запомнилось, впечатления, любимые моменты…">${esc(g.notes || '')}</textarea></div></div><div class="modal-actions"><button type="button" class="secondary" data-action="close">Отмена</button><div class="right-actions"><button class="primary" type="submit">${editing ? 'Сохранить' : 'Добавить'}</button></div></div></form></div>`;
+  return `<div class="modal-backdrop" data-action="close"><form class="modal" id="gameForm" data-stop><div class="modal-head"><div><h3>${editing ? 'Редактировать игру' : 'Прошёл игру'}</h3><div class="meta">Выбери игру из подсказок — год, жанр, франшиза и обложка подставятся автоматически.</div></div><button type="button" class="icon-btn" data-action="close">×</button></div><div class="form-grid">${autocompleteField(g)}<div class="field"><label>Платформа</label><select name="platform" data-game-platform>${gamePlatformOptions(g.platform)}</select></div><div class="field"><label>Год выхода</label><input name="releaseYear" data-game-year inputmode="numeric" value="${esc(g.releaseYear || '')}" placeholder="2006"></div><div class="field"><label>Жанр</label><input name="genre" data-game-genre value="${esc(g.genre || '')}" placeholder="Action-adventure"></div><div class="field"><label>Франшиза</label><input name="franchise" data-game-franchise value="${esc(g.franchise || inferFranchise(g.title))}" placeholder="Metroid"></div><input type="hidden" name="coverUrl" data-game-cover value="${esc(g.coverUrl || '')}">${editing ? `<div class="field"><label>Статус</label><select name="status"><option value="completed" ${g.status === 'completed' ? 'selected' : ''}>Пройдено</option><option value="playing" ${g.status === 'playing' ? 'selected' : ''}>Играю</option><option value="dropped" ${g.status === 'dropped' ? 'selected' : ''}>Брошено</option><option value="backlog" ${g.status === 'backlog' ? 'selected' : ''}>Хочу пройти</option></select></div>` : '<input type="hidden" name="status" value="completed">'}<div class="field"><label>№ перепрохождения</label><input name="replay" type="number" min="0" step="1" value="${esc(g.replay || 0)}"></div><div class="field span-2"><label>Моя оценка</label>${starPicker(g.rating)}</div><div class="field span-2"><label>Комментарий</label><textarea name="notes" placeholder="Что запомнилось, впечатления, любимые моменты…">${esc(g.notes || '')}</textarea></div></div><div class="modal-actions"><button type="button" class="secondary" data-action="close">Отмена</button><div class="right-actions"><button class="primary" type="submit">${editing ? 'Сохранить' : 'Добавить'}</button></div></div></form></div>`;
 }
 
 function renderModal() {
@@ -1407,6 +1429,7 @@ async function savePlaying(e) {
     rating: '', replay: 0, notes: '', addedAt: ts, updatedAt: ts,
   });
   state.games.push(g);
+  ensurePlatformOwned(p, ts);
   setCurrentPlatform(p);
   state.settings.settingsUpdatedAt = ts;
   await persist();
@@ -1436,6 +1459,7 @@ async function saveGame(e) {
     notes: String(fd.get('notes') || ''),
     updatedAt: ts,
   });
+  if (!old || old.platform !== g.platform) ensurePlatformOwned(g.platform, ts);
   if (!g.id) {
     g.id = uid();
     g.addedAt = ts;
