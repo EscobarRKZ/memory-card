@@ -17,7 +17,7 @@
   function gameEntity(entry) {
     const desc = String(entry?.description || '');
     const isGame = /video[ -]?games?|videogames?|computer games?|(?:action|adventure|sports|racing|shooter|sandbox|multiplayer|rhythm|stealth|survival|fantasy|fighting|arcade|platform|puzzle|role.playing|horror|strategy|simulation|indie|roguelike|online|open.world|first.person|third.person)(?:[ -][\\w-]+){0,3}[ -]games?|\\b(?:19|20)\\d{2}[ -]games?\\b|видеоигр|компьютерн.{0,5} игр|аркадн.{0,5} игр/i.test(desc);
-    const series = /video game series|series of video games|video game franchise|fictional character|видеоигр.*сери|серия видеоигр|игровая франшиза|персонаж/i.test(desc);
+    const series = /video game series|series of video games|video game franchise|fictional character|soundtrack|music album|видеоигр.*сери|серия видеоигр|игровая франшиза|персонаж|саундтрек/i.test(desc);
     return isGame && !series && String(entry?.label || '').trim().length > 1;
   }
 
