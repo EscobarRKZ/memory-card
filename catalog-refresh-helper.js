@@ -118,7 +118,7 @@
       }
       if(!successes&&failures.length){finish(failures[0]||'Источники каталога временно недоступны',true);return;}
       await writeCatalog({catalog,catalogMeta:meta});
-      const details=[`${successes} из ${targets.length} платформ обновлено`];if(unsupported.length)details.push(`без источника: ${unsupported.join(', ')}`);if(failures.length)details.push(`ошибка: ${failures.map(x=>x.split(':')[0]).join(', ')}`);finish(details.join(' · '));
+      const details=[`${successes} из ${targets.length} платформ обновлено`];if(unsupported.length)details.push(`без массового источника (доступен поиск при вводе): ${unsupported.join(', ')}`);if(failures.length)details.push(`ошибка: ${failures.map(x=>x.split(':')[0]).join(', ')}`);finish(details.join(' · '));
       try{sessionStorage.setItem('memory-card-catalog-refresh-result',`${successes}/${targets.length}|${mode}`);}catch(_){}
       setTimeout(()=>location.reload(),900);
     }catch(error){console.error('Stable catalog refresh:',error);finish(error?.message||'Неизвестная ошибка',true);}
