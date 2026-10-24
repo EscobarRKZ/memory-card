@@ -19,7 +19,7 @@
 - профили друзей и сравнение профилей;
 - **24 visual styles / accent themes**;
 - platform-aware hero/background и badges на обложках;
-- каталоги игр и автоматический box art;
+- каталоги игр, онлайн-подсказки названий через Wikidata (включая PS5 и PC), кэширование результатов и автоматический box art;
 - ручное обновление обложки одной игры;
 - Русский / English;
 - Google Sheets sync, snapshots и JSON export/import.
@@ -32,7 +32,7 @@
 Nintendo DS / DSi · Nintendo 3DS · Game Boy Advance · PSP · PS Vita
 
 ### Стационарные
-PlayStation / PS2 / PS3 / PS4 / PS5 · Xbox / Xbox 360 / Xbox One / Xbox Series · NES / SNES / N64 / GameCube / Wii / Wii U / Switch · Mega Drive / Genesis · Dreamcast
+PlayStation / PS2 / PS3 / PS4 / PS5 · Xbox / Xbox 360 / Xbox One / Xbox Series · NES / SNES / N64 / GameCube / Wii / Wii U / Switch · Mega Drive / Genesis · Dreamcast · PC (Windows / Linux / SteamOS)
 
 > Nintendo Switch относится к desktop-ротации.
 

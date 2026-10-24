@@ -12,13 +12,13 @@
   };
   const PLATFORM_NAMES = {
     PSP:'PSP', VITA:'PS Vita', DSI:'DS / DSi', '3DS':'3DS', GBA:'GBA',
-    PS1:'PlayStation', PS2:'PlayStation 2', PS3:'PlayStation 3', PS4:'PlayStation 4', PS5:'PlayStation 5',
+    PS1:'PlayStation', PS2:'PlayStation 2', PS3:'PlayStation 3', PS4:'PlayStation 4', PS5:'PlayStation 5', PC:'PC (Windows / Linux / SteamOS)',
     XBOX:'Xbox', X360:'Xbox 360', XONE:'Xbox One', XSERIES:'Xbox Series X|S',
     WII:'Wii', WIIU:'Wii U', GC:'GameCube', DREAMCAST:'Dreamcast', N64:'Nintendo 64',
     SNES:'SNES', NES:'NES', GENESIS:'Mega Drive / Genesis', SWITCH:'Switch',
   };
   const FALLBACK_ORDER = ['PSP','VITA','DSI','3DS','GBA','PS3','WIIU','SWITCH'];
-  const ALL_FALLBACK = ['PSP','VITA','DSI','3DS','GBA','PS1','PS2','PS3','PS4','PS5','XBOX','X360','XONE','XSERIES','WII','WIIU','GC','DREAMCAST','N64','SNES','NES','GENESIS','SWITCH'];
+  const ALL_FALLBACK = ['PSP','VITA','DSI','3DS','GBA','PS1','PS2','PS3','PS4','PS5','XBOX','X360','XONE','XSERIES','WII','WIIU','GC','DREAMCAST','N64','SNES','NES','GENESIS','SWITCH','PC'];
   let running = false;
 
   const normalize = value => String(value || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9а-яё]+/gi,' ').replace(/\s+/g,' ').trim();
@@ -108,7 +108,7 @@
       for(let i=0;i<targets.length;i++){
         const platform=targets[i],name=PLATFORM_NAMES[platform]||platform;
         progress(i,targets.length,`${name} · ${i+1} из ${targets.length}`);
-        if(!hasSource(platform)){unsupported.push(name);progress(i+1,targets.length,`${name} · источник пока не подключён`);continue;}
+        if(!hasSource(platform)){unsupported.push(name);progress(i+1,targets.length,`${name} · подсказки доступны при вводе названия`);continue;}
         try{
           const incoming=platform==='SWITCH'?await fetchSwitch():await fetchSql(platform),mergedPlatform=mergePlatform(catalog,incoming,platform);
           catalog=catalog.filter(x=>x?.platform!==platform).concat(mergedPlatform);
@@ -118,7 +118,7 @@
       }
       if(!successes&&failures.length){finish(failures[0]||'Источники каталога временно недоступны',true);return;}
       await writeCatalog({catalog,catalogMeta:meta});
-      const details=[`${successes} из ${targets.length} платформ обновлено`];if(unsupported.length)details.push(`без источника: ${unsupported.join(', ')}`);if(failures.length)details.push(`ошибка: ${failures.map(x=>x.split(':')[0]).join(', ')}`);finish(details.join(' · '));
+      const details=[`${successes} из ${targets.length} платформ обновлено`];if(unsupported.length)details.push(`без массового источника (доступен поиск при вводе): ${unsupported.join(', ')}`);if(failures.length)details.push(`ошибка: ${failures.map(x=>x.split(':')[0]).join(', ')}`);finish(details.join(' · '));
       try{sessionStorage.setItem('memory-card-catalog-refresh-result',`${successes}/${targets.length}|${mode}`);}catch(_){}
       setTimeout(()=>location.reload(),900);
     }catch(error){console.error('Stable catalog refresh:',error);finish(error?.message||'Неизвестная ошибка',true);}

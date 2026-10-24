@@ -412,6 +412,10 @@ async function refreshAllCatalog() {
   }
 }
 async function ensurePlatformCatalog(platformId) {
+  // Platforms without a bulk source (e.g. PS5 and PC) use the universal
+  // on-demand title search, not an empty Wikidata SPARQL query.
+  const info = platform(platformId);
+  if (!(info.wikidata || []).length && !LEGACY_SQL_CATALOG[platformId]) return;
   const nonSeed = state.catalog.some(e => e.platform === platformId && e.source !== 'seed');
   if (!nonSeed && !state.catalogBusy) refreshCatalog(platformId, true);
 }

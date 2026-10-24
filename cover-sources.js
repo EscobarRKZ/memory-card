@@ -30,7 +30,7 @@
       PS3: 'AldoTools + Libretro',
       SWITCH: 'GameTDB',
     }),
-    wikipediaFallback: Object.freeze(['PS5', 'XONE', 'XSERIES']),
+    wikipediaFallback: Object.freeze(['PS5', 'PC', 'XONE', 'XSERIES']),
   });
 
   window.MemoryCardCoverSources = registry;
