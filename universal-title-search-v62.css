@@ -1,0 +1,32 @@
+/* v62 — async game title lookup hints, usable with the Android keyboard. */
+.mc-live-search-status {
+  padding: 11px 13px;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--panel) 95%, var(--accent) 5%);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.autocomplete-list .mc-live-search-status,
+.v17-catalog-suggestions .mc-live-search-status {
+  border: 0;
+  border-radius: 0;
+}
+
+.v23-title-field > [data-mc-live-status] {
+  margin-top: 7px;
+  width: 100%;
+}
+
+/* PC icon inherits the same platform styling as other devices. */
+.platform-pc { --platform-color: #82b8ff; }
+
+@media (max-width: 600px) {
+  .mc-live-search-status {
+    font-size: 12px;
+    padding: 10px 12px;
+  }
+}
