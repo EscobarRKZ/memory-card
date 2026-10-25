@@ -25,8 +25,13 @@
     frame = 0;
     if (state?.view !== 'games') return;
     const search = document.querySelector('#search');
+    if (!(search instanceof HTMLInputElement)) return;
+    // The library can render an empty state instead of a grid for zero items.
+    document.querySelectorAll('[data-mc-clear-search]').forEach(button => {
+      button.hidden = !search.value;
+    });
     const grid = document.querySelector('.game-grid');
-    if (!(search instanceof HTMLInputElement) || !grid) return;
+    if (!grid) return;
 
     const query = normalize(search.value);
     const cards = grid.querySelectorAll(':scope > .game-card');
@@ -38,7 +43,7 @@
     }
 
     const caption = search.closest('.content')?.querySelector(':scope > .section-head p');
-    const label = `Найдено игр: ${visible}`;
+    const label = state?.settings?.language === 'en' ? `Games found: ${visible}` : `Найдено игр: ${visible}`;
     if (caption && caption.textContent !== label) caption.textContent = label;
 
     let empty = document.querySelector('.title-search-empty');
@@ -46,7 +51,9 @@
       if (!empty) {
         empty = document.createElement('div');
         empty.className = 'empty title-search-empty';
-        empty.textContent = 'Совпадений нет. Попробуй другое название или сбрось поиск.';
+        empty.textContent = state?.settings?.language === 'en'
+          ? 'No matching titles. Try another name or clear the search.'
+          : 'Совпадений нет. Попробуй другое название или сбрось поиск.';
         grid.insertAdjacentElement('afterend', empty);
       }
       setHidden(grid, true);
