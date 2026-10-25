@@ -22,5 +22,20 @@ self.addEventListener('fetch',e=>{
     return;
   }
   if(url.origin!==self.location.origin) return;
+  // A versioned JS/CSS URL is immutable within its app release. Serve the
+  // installed cache immediately instead of blocking on a network request.
+  // HTML and unversioned files stay network-first so updates remain visible.
+  if(/\\.(?:js|css)$/.test(url.pathname) && url.searchParams.has('v')){
+    e.respondWith(caches.open(CACHE).then(async cache=>{
+      const cached=await cache.match(e.request);
+      if(cached)return cached;
+      try{
+        const response=await fetch(e.request);
+        if(response.ok)cache.put(e.request,response.clone()).catch(()=>{});
+        return response;
+      }catch(_){return Response.error();}
+    }));
+    return;
+  }
   e.respondWith(fetch(e.request).then(r=>{const copy=r.clone();caches.open(CACHE).then(c=>c.put(e.request,copy));return r}).catch(()=>caches.match(e.request).then(r=>r||caches.match('./index.html'))));
 });
