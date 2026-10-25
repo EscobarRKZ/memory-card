@@ -38,7 +38,7 @@
     }
 
     const caption = search.closest('.content')?.querySelector(':scope > .section-head p');
-    const label = `${visible} ${visible === 1 ? 'запись' : 'записей'} в текущем фильтре`;
+    const label = `Найдено игр: ${visible}`;
     if (caption && caption.textContent !== label) caption.textContent = label;
 
     let empty = document.querySelector('.title-search-empty');
