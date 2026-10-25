@@ -31,18 +31,19 @@
   <link rel="stylesheet" href="./playing-detail-actions-v24.css" />
   <link rel="stylesheet" href="./mobile-nav-v21.css" />
   <link rel="stylesheet" href="./game-card-fixes-v25.css?v=27" />
+  <link rel="stylesheet" href="./library-ux-v63.css" />
 </head>
 <body>
   <div id="app"></div>
   <script>window.MemoryCardInstallProbe=new Promise(resolve=>{try{const request=indexedDB.open('memory-card-db',1);let fresh=false;request.onupgradeneeded=()=>{fresh=true;const db=request.result;if(!db.objectStoreNames.contains('state'))db.createObjectStore('state')};request.onerror=()=>resolve(true);request.onsuccess=()=>{const db=request.result;try{const tx=db.transaction('state','readonly');const get=tx.objectStore('state').get('main');get.onsuccess=()=>resolve(Boolean(get.result));get.onerror=()=>resolve(true);tx.oncomplete=()=>db.close()}catch(_){db.close();resolve(!fresh)}}}catch(_){resolve(true)}})</script>
-  <script src="./title-search-helper.js"></script>
+  <script src="./title-search-helper.js?v=63"></script>
   <script src="./switch-cover-helper.js"></script>
   <script src="./ps3-cover-helper.js"></script>
   <script src="./ps3-wikipedia-cover-helper.js"></script>
   <script src="./ui-enhancements.js?v=61"></script>
   <script src="./catalog-refresh-helper.js?v=62"></script>
   <script src="./modal-draft-helper.js"></script>
-  <script src="./app.js?v=62"></script>
+  <script src="./app.js?v=63"></script>
   <script src="./cover-sources.js?v=62"></script>
   <script src="./profile-core.js?v=62"></script>
   <script src="./onboarding-v20.js"></script>
@@ -71,5 +72,6 @@
   <script src="./playing-detail-actions-v24.js"></script>
   <script src="./game-card-fixes-v25.js?v=26"></script>
   <script src="./universal-title-search-v62.js"></script>
+  <script src="./library-ux-v63.js"></script>
 </body>
 </html>

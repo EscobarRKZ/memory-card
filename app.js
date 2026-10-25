@@ -705,7 +705,8 @@ function filteredGames() {
   return liveGames().filter(g => {
     if (state.platformFilter && g.platform !== state.platformFilter) return false;
     if (state.statusFilter !== 'all' && g.status !== state.statusFilter) return false;
-    if (state.search && !`${g.title} ${platform(g.platform).name} ${g.releaseYear || ''} ${g.genre || ''} ${g.franchise || ''}`.toLowerCase().includes(state.search.toLowerCase())) return false;
+    // Title filtering is applied in-place to the rendered cards by
+    // title-search-helper; never shrink the source list on each keystroke.
     return true;
   }).sort((a, b) => String(b.addedAt || b.updatedAt || '').localeCompare(String(a.addedAt || a.updatedAt || '')));
 }
@@ -784,7 +785,7 @@ function coverMarkup(g, cls = 'cover') {
   const hue = franchiseHue(g.franchise, g.title);
   const img = safeImage(g.coverUrl);
   const initials = String(g.title || '?').split(/\s+/).slice(0, 3).map(x => x[0]).join('').toUpperCase();
-  return `<div class="${cls} ${img ? 'has-image' : ''}" style="--coverHue:${hue}">${img ? `<img loading="lazy" src="${esc(img)}" alt="Обложка ${esc(g.title)}" onerror="this.parentElement.classList.add('image-failed');this.remove()">` : ''}<div class="cover-fallback"><span class="cover-franchise">${esc(g.franchise || platform(g.platform).abbr)}</span><strong>${esc(initials)}</strong></div><span class="cover-platform-badge">${platform(g.platform).abbr}</span></div>`;
+  return `<div class="${cls} ${img ? 'has-image' : ''}" style="--coverHue:${hue}">${img ? `<img loading="lazy" decoding="async" src="${esc(img)}" alt="Обложка ${esc(g.title)}" onerror="this.parentElement.classList.add('image-failed');this.remove()">` : ''}<div class="cover-fallback"><span class="cover-franchise">${esc(g.franchise || platform(g.platform).abbr)}</span><strong>${esc(initials)}</strong></div><span class="cover-platform-badge">${platform(g.platform).abbr}</span></div>`;
 }
 function franchiseChip(g) { return g.franchise ? `<span class="chip franchise-chip">${esc(g.franchise)}</span>` : ''; }
 
@@ -826,7 +827,7 @@ function renderGames() {
   const games = filteredGames();
   return `<div class="section-head"><div><h2>${state.platformFilter ? platform(state.platformFilter).name : 'Игры'}</h2><p>${games.length} записей в текущем фильтре</p></div>${state.platformFilter ? '<button class="ghost" data-action="clear-platform">Все платформы</button>' : ''}</div>
     <div class="toolbar">
-      <div class="field"><label>Поиск</label><input id="search" placeholder="Название игры…" value="${esc(state.search)}"></div>
+      <div class="field"><label for="search">Поиск</label><input id="search" type="search" autocomplete="off" enterkeyhint="search" placeholder="Название игры…" value="${esc(state.search)}"></div>
       <div class="field"><label>Статус</label><select id="statusFilter"><option value="all">Все</option><option value="completed" ${state.statusFilter === 'completed' ? 'selected' : ''}>Пройдено</option><option value="playing" ${state.statusFilter === 'playing' ? 'selected' : ''}>Играю</option><option value="dropped" ${state.statusFilter === 'dropped' ? 'selected' : ''}>Брошено</option><option value="backlog" ${state.statusFilter === 'backlog' ? 'selected' : ''}>Хочу пройти</option></select></div>
       <div class="field"><label>Платформа</label><select id="platformFilter"><option value="">Все</option>${PLATFORMS.map(p => `<option value="${p.id}" ${state.platformFilter === p.id ? 'selected' : ''}>${p.name}</option>`).join('')}</select></div>
     </div>
@@ -985,7 +986,7 @@ function bind() {
   document.querySelectorAll('[data-rating]').forEach(btn => btn.onclick = () => setRating(Number(btn.dataset.rating)));
 
   const search = document.querySelector('#search');
-  if (search) search.oninput = e => { const pos = e.target.selectionStart; state.search = e.target.value; render(); const next = document.querySelector('#search'); if (next) { next.focus(); next.setSelectionRange(pos, pos); } };
+  if (search) search.oninput = e => { state.search = e.target.value; };
   const sf = document.querySelector('#statusFilter');
   if (sf) sf.onchange = e => { state.statusFilter = e.target.value; render(); };
   const pf = document.querySelector('#platformFilter');
