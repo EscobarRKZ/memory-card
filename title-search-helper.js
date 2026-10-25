@@ -1,46 +1,52 @@
+/* In-place library title search. No whole-app renders during typing. */
 (() => {
-  let queued = false;
-
+  let frame = 0;
+  const titleCache = new WeakMap();
   const normalize = value => String(value || '')
     .toLowerCase()
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9а-яё]+/gi, ' ')
+    .replace(/\s+/g, ' ')
     .trim();
 
-  function setHidden(el, value) {
-    if (el && el.hidden !== value) el.hidden = value;
+  function titleFor(card) {
+    if (titleCache.has(card)) return titleCache.get(card);
+    const title = normalize(card.querySelector('.game-body h3')?.textContent || '');
+    titleCache.set(card, title);
+    return title;
   }
 
-  function applyTitleOnlySearch() {
+  function setHidden(element, hidden) {
+    if (element && element.hidden !== hidden) element.hidden = hidden;
+  }
+
+  function apply() {
+    frame = 0;
+    if (state?.view !== 'games') return;
     const search = document.querySelector('#search');
-    if (!(search instanceof HTMLInputElement)) return;
-
     const grid = document.querySelector('.game-grid');
-    if (!grid) return;
+    if (!(search instanceof HTMLInputElement) || !grid) return;
 
-    const q = normalize(search.value);
-    const cards = [...grid.querySelectorAll(':scope > .game-card')];
+    const query = normalize(search.value);
+    const cards = grid.querySelectorAll(':scope > .game-card');
     let visible = 0;
-
     for (const card of cards) {
-      const title = normalize(card.querySelector('.game-body h3')?.textContent || '');
-      const matches = !q || title.includes(q);
+      const matches = !query || titleFor(card).includes(query);
       setHidden(card, !matches);
       if (matches) visible++;
     }
 
-    const content = search.closest('.content') || document.querySelector('.content');
-    const resultCaption = content?.querySelector(':scope > .section-head p');
-    const caption = `${visible} записей в текущем фильтре`;
-    if (resultCaption && resultCaption.textContent !== caption) resultCaption.textContent = caption;
+    const caption = search.closest('.content')?.querySelector(':scope > .section-head p');
+    const label = `${visible} ${visible === 1 ? 'запись' : 'записей'} в текущем фильтре`;
+    if (caption && caption.textContent !== label) caption.textContent = label;
 
     let empty = document.querySelector('.title-search-empty');
-    if (q && visible === 0) {
+    if (query && visible === 0) {
       if (!empty) {
         empty = document.createElement('div');
         empty.className = 'empty title-search-empty';
-        empty.textContent = 'Игры с таким названием не найдены.';
+        empty.textContent = 'Совпадений нет. Попробуй другое название или сбрось поиск.';
         grid.insertAdjacentElement('afterend', empty);
       }
       setHidden(grid, true);
@@ -48,27 +54,32 @@
       setHidden(grid, false);
       empty?.remove();
     }
-  }
 
-  function scheduleApply() {
-    if (queued) return;
-    queued = true;
-    queueMicrotask(() => {
-      queued = false;
-      applyTitleOnlySearch();
+    document.querySelectorAll('[data-mc-clear-search]').forEach(button => {
+      button.hidden = !search.value;
     });
   }
 
+  function schedule() {
+    if (frame) return;
+    frame = requestAnimationFrame(apply);
+  }
+
+  window.MemoryCardApplyLibrarySearch = schedule;
+
   document.addEventListener('input', event => {
-    if (event.target instanceof HTMLInputElement && event.target.id === 'search') scheduleApply();
+    if (event.target instanceof HTMLInputElement && event.target.id === 'search') {
+      state.search = event.target.value;
+      schedule();
+    }
   });
   document.addEventListener('change', event => {
-    if (event.target instanceof HTMLElement && ['statusFilter', 'platformFilter', 'gamesSort'].includes(event.target.id)) scheduleApply();
+    if (event.target instanceof HTMLElement && ['statusFilter','platformFilter','gamesSort','gamesView'].includes(event.target.id)) schedule();
   });
   document.addEventListener('click', event => {
     const target = event.target instanceof Element ? event.target : null;
-    if (target?.closest('.nav button, .mobile-nav button, [data-action="clear-platform"]')) scheduleApply();
+    if (target?.closest('.nav button, .mobile-nav button, [data-action="clear-platform"]')) schedule();
   });
-  window.addEventListener('load', scheduleApply);
-  window.addEventListener('pageshow', scheduleApply);
+  window.addEventListener('load', schedule);
+  window.addEventListener('pageshow', schedule);
 })();
