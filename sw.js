@@ -25,7 +25,7 @@ self.addEventListener('fetch',e=>{
   // A versioned JS/CSS URL is immutable within its app release. Serve the
   // installed cache immediately instead of blocking on a network request.
   // HTML and unversioned files stay network-first so updates remain visible.
-  if(/\\.(?:js|css)$/.test(url.pathname) && url.searchParams.has('v')){
+  if(/\.(?:js|css)$/.test(url.pathname) && url.searchParams.has('v')){
     e.respondWith(caches.open(CACHE).then(async cache=>{
       const cached=await cache.match(e.request);
       if(cached)return cached;
