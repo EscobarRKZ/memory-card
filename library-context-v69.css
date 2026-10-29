@@ -1,0 +1,82 @@
+/* v69: filters explain themselves; no additional panel, gradient or animation. */
+#app .mc-applied-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  min-width: 0;
+  margin: -5px 0 16px;
+}
+#app .mc-applied-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel2);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+#app .mc-applied-filter-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#app .mc-applied-filter > .mc-icon {
+  flex: 0 0 15px;
+  width: 15px;
+  height: 15px;
+  pointer-events: none;
+}
+#app .mc-reset-filters {
+  min-height: 36px;
+  padding: 7px 4px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  text-decoration: underline;
+  text-decoration-color: var(--line);
+  text-underline-offset: 4px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+#app .mc-filter-count {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 6px;
+  background: var(--panel2);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+#app .mc-filter-count[hidden] { display: none !important; }
+#app .mc-empty-reset { display: block; max-width: 100%; margin: 14px auto 0; }
+#app :is(.mc-applied-filter,.mc-reset-filters):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+@media (hover: hover) and (pointer: fine) {
+  #app .mc-applied-filter:hover { border-color: var(--accent); }
+  #app .mc-reset-filters:hover { text-decoration-color: var(--text); }
+}
+@media (max-width: 900px) {
+  #app :is(.mc-applied-filter,.mc-reset-filters) { min-height: 44px; }
+  #app .mc-applied-filters { gap: 6px; margin-bottom: 14px; }
+}
