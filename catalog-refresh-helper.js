@@ -12,13 +12,13 @@
   };
   const PLATFORM_NAMES = {
     PSP:'PSP', VITA:'PS Vita', DSI:'DS / DSi', '3DS':'3DS', GBA:'GBA',
-    PS1:'PlayStation', PS2:'PlayStation 2', PS3:'PlayStation 3', PS4:'PlayStation 4', PS5:'PlayStation 5', PC:'PC (Windows / Linux / SteamOS)',
+    PS1:'PlayStation', PS2:'PlayStation 2', PS3:'PlayStation 3', PS4:'PlayStation 4', PS5:'PlayStation 5', PC:'PC (Windows / Linux / SteamOS)', VR:'VR / Virtual Reality',
     XBOX:'Xbox', X360:'Xbox 360', XONE:'Xbox One', XSERIES:'Xbox Series X|S',
     WII:'Wii', WIIU:'Wii U', GC:'GameCube', DREAMCAST:'Dreamcast', N64:'Nintendo 64',
     SNES:'SNES', NES:'NES', GENESIS:'Mega Drive / Genesis', SWITCH:'Switch',
   };
   const FALLBACK_ORDER = ['PSP','VITA','DSI','3DS','GBA','PS3','WIIU','SWITCH'];
-  const ALL_FALLBACK = ['PSP','VITA','DSI','3DS','GBA','PS1','PS2','PS3','PS4','PS5','XBOX','X360','XONE','XSERIES','WII','WIIU','GC','DREAMCAST','N64','SNES','NES','GENESIS','SWITCH','PC'];
+  const ALL_FALLBACK = ['PSP','VITA','DSI','3DS','GBA','PS1','PS2','PS3','PS4','PS5','XBOX','X360','XONE','XSERIES','WII','WIIU','GC','DREAMCAST','N64','SNES','NES','GENESIS','SWITCH','PC','VR'];
   let running = false;
 
   const normalize = value => String(value || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9а-яё]+/gi,' ').replace(/\s+/g,' ').trim();

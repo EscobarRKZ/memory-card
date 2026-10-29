@@ -2,7 +2,7 @@
 (() => {
   const originalIds = new Set(PLATFORMS.map(p => p.id));
   const extras = [
-    ['PS1','PlayStation','PS1'],['PS2','PlayStation 2','PS2'],['PS4','PlayStation 4','PS4'],['PS5','PlayStation 5','PS5'],['PC','PC (Windows / Linux / SteamOS)','PC'],
+    ['PS1','PlayStation','PS1'],['PS2','PlayStation 2','PS2'],['PS4','PlayStation 4','PS4'],['PS5','PlayStation 5','PS5'],['PC','PC (Windows / Linux / SteamOS)','PC'],['VR','VR / Virtual Reality','VR'],
     ['XBOX','Xbox Original','Xbox'],['X360','Xbox 360','360'],['XONE','Xbox One','One'],['XSERIES','Xbox Series X|S','Series'],
     ['WII','Nintendo Wii','Wii'],['GC','Nintendo GameCube','GC'],['DREAMCAST','Sega Dreamcast','DC'],['N64','Nintendo 64','N64'],
     ['SNES','Super Nintendo / SNES','SNES'],['NES','Nintendo Entertainment System','NES'],['GENESIS','Sega Mega Drive / Genesis','Sega'],
@@ -79,7 +79,9 @@
   platformIcon = function(id) {
     if (originalIds.has(id)) return baseIcon(id);
     const p = platform(id), tower = ['PS2','PS5','X360','XSERIES','WII'].includes(id), cube = ['GC','DREAMCAST','N64'].includes(id);
-    const body = id === 'PC'
+    const body = id === 'VR'
+      ? '<path d="M11 12h50c5 0 8 4 8 9v9c0 4-3 7-7 7H51l-7-7H28l-7 7H10c-4 0-7-3-7-7v-9c0-5 3-9 8-9Z"/><rect class="screen" x="11" y="18" width="50" height="12" rx="5"/><path d="M4 20H1v9h3M68 20h3v9h-3"/>'
+      : id === 'PC'
       ? '<rect x="4" y="5" width="48" height="29" rx="4"/><rect class="screen" x="9" y="10" width="38" height="19" rx="1"/><path d="M26 34v5h-7v2h22v-2h-7v-5"/><rect x="56" y="8" width="12" height="32" rx="3"/><circle class="detail" cx="62" cy="34" r="2"/>'
       : tower
       ? '<rect x="24" y="3" width="24" height="38" rx="6"/><rect class="screen" x="29" y="9" width="14" height="5" rx="2"/><circle class="detail" cx="36" cy="33" r="2"/>'

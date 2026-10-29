@@ -225,3 +225,6 @@ button:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   .game-card,.platform-card,.mc-filter-toggle::after { transition: none !important; }
 }
+
+/* VR is treated as a desktop platform, with its own accent in device tiles. */
+.platform-vr { --platform-color: #a38bff; }
