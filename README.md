@@ -32,9 +32,9 @@
 Nintendo DS / DSi · Nintendo 3DS · Game Boy Advance · PSP · PS Vita
 
 ### Стационарные
-PlayStation / PS2 / PS3 / PS4 / PS5 · Xbox / Xbox 360 / Xbox One / Xbox Series · NES / SNES / N64 / GameCube / Wii / Wii U / Switch · Mega Drive / Genesis · Dreamcast · PC (Windows / Linux / SteamOS)
+PlayStation / PS2 / PS3 / PS4 / PS5 · Xbox / Xbox 360 / Xbox One / Xbox Series · NES / SNES / N64 / GameCube / Wii / Wii U / Switch · Mega Drive / Genesis · Dreamcast · PC (Windows / Linux / SteamOS) · VR (Virtual Reality)
 
-> Nintendo Switch относится к desktop-ротации.
+> Nintendo Switch, PC и VR относятся к desktop-ротации. VR — отдельная платформа для игр виртуальной реальности (включая PC VR и автономные VR-устройства).
 
 ---
 
