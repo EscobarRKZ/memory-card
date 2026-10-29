@@ -1,0 +1,240 @@
+/* v65: theme-aware finishing touches. No layout replacement or new JS handlers. */
+:root {
+  --mc-polish-border: color-mix(in srgb, var(--line) 78%, var(--panel));
+  --mc-polish-ring: color-mix(in srgb, var(--accent) 24%, transparent);
+  --mc-polish-shadow: 0 4px 16px color-mix(in srgb, var(--bg) 34%, transparent);
+}
+
+/* A quiet surface hierarchy, shared by library, settings, stats and Backlog. */
+#app :is(.panel, .stat-card, .rotation-card, .v16-collection-card, .v16-backlog-card, .v16-ach) {
+  border-color: var(--mc-polish-border);
+  border-radius: 18px;
+}
+#app .game-grid:not(.v16-shelf) .game-card,
+#app .cards .platform-card {
+  border-color: var(--mc-polish-border);
+  box-shadow: var(--mc-polish-shadow);
+}
+#app :is(.section-head h2, .settings-panel-head h3, .v23-panel-head h3, .v23-queue-head h3) {
+  letter-spacing: -.025em;
+  line-height: 1.2;
+}
+#app :is(.section-head p, .status-line, .footer-note) { line-height: 1.5; }
+#app :is(.stat-value, .rating, .rating-text, .v16-detail-rating, .mc-status-pill b, .platform-count, .mc-catalog-summary b) {
+  font-variant-numeric: tabular-nums;
+}
+#app .stat-card { display: flex; flex-direction: column; justify-content: center; gap: 3px; }
+#app .stat-label { line-height: 1.4; }
+#app .v16-detail-grid > .panel > h3 { margin: 0 0 12px; }
+#app .v16-meta-list b { overflow-wrap: anywhere; line-height: 1.4; }
+
+/* Keep tags readable without changing their position or duplicating metadata. */
+#app .chips { align-items: center; gap: 6px; }
+#app .chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  max-width: 100%;
+  padding: 5px 9px;
+  border-color: var(--mc-polish-border);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+#app .chip.success {
+  background: color-mix(in srgb, var(--success) 9%, var(--panel));
+  border-color: color-mix(in srgb, var(--success) 25%, var(--line));
+}
+#app .stars-chip {
+  background: color-mix(in srgb, var(--star) 8%, var(--panel));
+  border-color: color-mix(in srgb, var(--star) 24%, var(--line));
+  font-variant-numeric: tabular-nums;
+}
+html[data-theme="light"] #app .chip.success {
+  color: color-mix(in srgb, var(--success) 70%, var(--text));
+}
+html[data-theme="light"] #app .stars-chip {
+  color: color-mix(in srgb, var(--star) 60%, var(--text));
+}
+#app .franchise-chip {
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+}
+#app .v16-badge-row { align-items: center; gap: 6px; }
+#app .v16-badge-row > span { line-height: 1.3; overflow-wrap: anywhere; }
+
+/* Missing artwork looks intentional; never reveal fallback over a loaded image. */
+#app :is(.game-card > .cover, .v16-detail-cover) .cover-fallback {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 14px 10px 40px;
+  background: radial-gradient(ellipse at 50% 32%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 72%);
+}
+#app :is(.game-card > .cover, .v16-detail-cover) .cover-fallback strong {
+  max-width: 100%;
+  font-size: clamp(26px, 4vw, 42px);
+  font-weight: 850;
+  line-height: 1.1;
+  letter-spacing: -.04em;
+  color: var(--text);
+  text-shadow: none;
+  overflow-wrap: anywhere;
+}
+#app :is(.game-card > .cover, .v16-detail-cover) .cover-franchise {
+  max-width: 100%;
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.4;
+  letter-spacing: .09em;
+  overflow-wrap: anywhere;
+}
+#app .game-grid.v14-view-1 .game-card > .cover .cover-fallback { padding-bottom: 14px; }
+#app .game-grid.v14-view-1 .game-card > .cover .cover-fallback strong { font-size: 28px; }
+
+/* Consistent button feedback without overriding the user's accent gradients. */
+#app :is(.primary, .secondary, .ghost, .danger, .mc-card-edit) {
+  min-height: 40px;
+  border-radius: 12px;
+  line-height: 1.25;
+  touch-action: manipulation;
+  transition: border-color .14s ease, box-shadow .14s ease, background-color .14s ease;
+}
+#app .primary { font-weight: 750; }
+#app .secondary { background-color: var(--panel2); }
+#app :is(.ghost, .secondary, .mc-card-edit) { border-color: var(--mc-polish-border); }
+#app :is(.modal-head, .game-detail-hero) > .icon-btn,
+.mc-cover-picker-head > .icon-btn {
+  display: grid;
+  place-items: center;
+  flex: 0 0 44px;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  padding: 0;
+  line-height: 1;
+}
+#app :is(.primary, .secondary, .ghost, .danger, .mc-card-edit):active:not(:disabled) {
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--text) 18%, transparent);
+}
+#app :is(button, a, input, select, textarea):focus-visible,
+.mc-cover-picker :is(button, input):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* Inputs use a single focus treatment, and ten rating stars stay on one row. */
+#app .field > :is(input, select, textarea),
+#app .autocomplete-wrap > input,
+#app .v23-title-field > input,
+.mc-cover-picker-url > input {
+  border-color: var(--mc-polish-border);
+  border-radius: 12px;
+  transition: border-color .14s ease, box-shadow .14s ease;
+  caret-color: var(--accent);
+}
+#app :is(.field, .autocomplete-wrap, .v23-title-field) :is(input, select, textarea):focus,
+.mc-cover-picker-url > input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--mc-polish-ring);
+}
+#app :is(input, textarea)::placeholder { color: var(--muted); opacity: 1; }
+#app .star-picker {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 2px;
+  align-items: center;
+  width: 100%;
+  max-width: 430px;
+}
+#app .star-picker .star-button {
+  width: 100%;
+  min-width: 0;
+  height: 44px;
+  padding: 0;
+  font-size: clamp(22px, 5.8vw, 30px);
+  text-align: center;
+  touch-action: manipulation;
+}
+#app .star-picker .star-value { grid-column: 1 / -1; width: auto; margin: 2px 0 0; }
+
+/* Empty sections get a small decorative card, not more text or animation. */
+#app .empty {
+  padding: 24px 18px;
+  border: 1px dashed color-mix(in srgb, var(--accent) 28%, var(--line));
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--accent) 3%, var(--panel));
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+#app .empty::before {
+  content: '';
+  display: block;
+  width: 28px;
+  height: 32px;
+  margin: 0 auto 12px;
+  border: 2px solid color-mix(in srgb, var(--muted) 65%, transparent);
+  border-radius: 7px;
+  background: linear-gradient(var(--mc-polish-border), var(--mc-polish-border)) 50% 22% / 14px 2px no-repeat,
+    linear-gradient(var(--mc-polish-border), var(--mc-polish-border)) 50% 45% / 14px 2px no-repeat;
+  pointer-events: none;
+}
+#app .toast {
+  max-width: min(440px, calc(100vw - 24px));
+  border: 1px solid var(--mc-polish-border);
+  border-radius: 14px;
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  #app .game-grid:not(.v16-shelf) .game-card:hover,
+  #app .cards .platform-card:hover {
+    transform: translateY(-2px);
+    border-color: color-mix(in srgb, var(--accent) 42%, var(--line));
+    box-shadow: 0 8px 22px color-mix(in srgb, var(--bg) 45%, transparent);
+  }
+  #app :is(.secondary, .ghost, .mc-card-edit):hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--accent) 48%, var(--line));
+    background-color: color-mix(in srgb, var(--accent) 7%, var(--panel));
+  }
+  #app :is(.modal, .mc-settings-tabs, .autocomplete-list) {
+    scrollbar-width: thin;
+    scrollbar-color: var(--line) transparent;
+  }
+}
+@media (hover: none) {
+  #app .game-grid:not(.v16-shelf) .game-card:hover,
+  #app :is(.platform-card, .v16-backlog-card, .v16-collection-card, .platform-choice-button):hover {
+    transform: none;
+  }
+}
+@media (max-width: 900px) {
+  #app :is(.mc-settings-tab, .platform-choice-more-toggle, .mc-filter-toggle, .mc-status-pill) { min-height: 44px; }
+  #app .game-grid .mc-card-edit { min-height: 44px; }
+  #app .v16-meta-list > div { padding: 12px; }
+}
+@media (max-width: 600px) {
+  #app .chips .chip { min-height: 25px; padding: 5px 8px; font-size: 11px; }
+  #app .section-head { gap: 10px; }
+  #app .section-head p { font-size: 13px; }
+  #app .stat-card { padding: 15px; }
+  #app .v16-detail-grid > .panel { padding: 16px; }
+  #app .v16-meta-list { gap: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #app :is(.game-card, .platform-card, .v16-backlog-card, .v16-collection-card, .star-button):hover { transform: none; }
+  #app *, .mc-cover-picker * { animation: none !important; transition: none !important; }
+}
+html.mc-reduced-motion #app *, html.mc-reduced-motion .mc-cover-picker * {
+  animation: none !important;
+  transition: none !important;
+}
+html.mc-reduced-motion #app :is(.game-card, .platform-card, .v16-backlog-card, .v16-collection-card, .star-button):hover { transform: none; }
