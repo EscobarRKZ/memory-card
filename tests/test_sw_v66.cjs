@@ -2,6 +2,13 @@
 const {readFileSync}=require('node:fs');
 const vm=require('node:vm');const assert=require('node:assert/strict');
 const source=readFileSync(require('node:path').join(__dirname,'../sw.js'),'utf8');
+const version=Number(source.match(/const VERSION=(\d+);/)[1]);
+const previous=`memory-card-v${version-1}-previous`;
+const obsolete=`memory-card-v${version-2}-obsolete`;
+const future=`memory-card-v${version+1}-future-waiting`;
+const assets=JSON.parse(source.match(/const ASSETS=(\[.*\]);/)[1]);
+const cachedAsset=assets.find(url=>/\.(?:js|css)\?v=/.test(url));
+assert.ok(cachedAsset,'precache must include versioned assets');
 const handlers={},storage=new Map(),removed=[],network=[];let skip=0,claims=0;
 const origin='https://memory-card.test';
 const key=req=>typeof req==='string'?new URL(req,origin+'/').href:req.url;
@@ -19,15 +26,15 @@ vm.runInNewContext(source,{self,caches,fetch,URL,Request:ScopedRequest,Response,
 const event=base=>Object.assign({promises:[],waitUntil(p){this.promises.push(p)},respondWith(p){this.response=p}},base);
 (async()=>{
  const install=event({});handlers.install(install);await Promise.all(install.promises);assert.equal(skip,0);
- await caches.open('memory-card-v65-visual-polish');await caches.open('memory-card-v64-vr-desktop-platform');await caches.open('memory-card-v67-future-waiting');await caches.open('another-app');await caches.open('memory-card-covers-v14');
+ await caches.open(previous);await caches.open(obsolete);await caches.open(future);await caches.open('another-app');await caches.open('memory-card-covers-v14');
  const activate=event({});handlers.activate(activate);await Promise.all(activate.promises);
- assert.equal(claims,1);assert.deepEqual(removed,['memory-card-v64-vr-desktop-platform']);
+ assert.equal(claims,1);assert.deepEqual(removed,[obsolete]);
  const message=event({data:{type:'MC_SKIP_WAITING'}});handlers.message(message);await Promise.all(message.promises);assert.equal(skip,1);
  const run=async(url,mode='cors')=>{
   const e=event({request:{url:origin+url,method:'GET',mode,destination:url.endsWith('.png')?'image':'script'}});
   handlers.fetch(e);const result=await e.response;await Promise.all(e.promises);return result;
  };
- let response=await run('/experience-v66.js?v=66');assert.equal(await response.text(),'asset');assert.equal(network.length,0);
+ let response=await run(cachedAsset.slice(1));assert.equal(await response.text(),'asset');assert.equal(network.length,0);
  response=await run('/index.html','navigate');assert.equal(await response.text(),'network');assert.equal(network[0].options.cache,'no-cache');
  fail=true;response=await run('/missing.js');assert.equal(response.type,'error');
  response=await run('/some-route','navigate');assert.equal(await response.text(),'network');
