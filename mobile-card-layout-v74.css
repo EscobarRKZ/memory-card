@@ -1,0 +1,201 @@
+/* v74: responsive library cards and metadata, not a new visual theme.
+   Keep this after the legacy grid/polish rules. No data or event handlers here. */
+#app .game-grid { min-width: 0; max-width: 100%; }
+#app .game-grid .game-card { min-width: 0; }
+#app .game-grid:not(.v14-view-1) .game-card {
+  display: flex;
+  flex-direction: column;
+}
+#app .game-grid .game-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 0;
+}
+#app .game-grid:not(.v14-view-1) .game-card > .cover {
+  display: block;
+  width: 100%;
+  flex: 0 0 auto;
+}
+#app .game-grid .game-card > .cover > .v16-cover-badges,
+#app .game-grid .game-card > .cover > .cover-platform-badge {
+  display: none !important; /* Already present in the title metadata and chips. */
+}
+#app .game-grid .cover .cover-fallback { padding: 12px; }
+#app .game-grid .cover .cover-franchise {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+#app .game-grid .game-card-kicker { line-height: 1.4; }
+#app .game-grid:not(.v14-view-1) .game-card-kicker {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  min-height: 2.8em;
+}
+#app .game-grid:not(.v14-view-1) .game-body h3 {
+  min-height: 3.69em;
+  margin: 0;
+}
+#app .game-grid .game-body > .meta {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+}
+#app .game-grid:not(.v14-view-1) .game-body > .meta { min-height: 2.8em; }
+#app .game-grid .chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 0 0;
+  min-width: 0;
+}
+#app .game-grid .chip {
+  min-width: 0;
+  max-width: 100%;
+  min-height: 26px;
+  padding: 4px 7px;
+  line-height: 1.35;
+  font-size: 11px;
+}
+#app .game-grid :is([data-mc-entry-status], .stars-chip) {
+  white-space: nowrap;
+  flex: 0 1 auto;
+}
+#app .game-grid [data-mc-entry-status] > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#app .game-grid .mc-entry-glyph { width: 13px; height: 13px; flex: 0 0 13px; }
+#app .game-grid .franchise-chip {
+  order: 2;
+  flex-basis: 100%;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+#app .game-grid .game-body > .mc-card-edit {
+  flex: 0 0 auto;
+  min-height: 44px;
+  max-width: 100%;
+  margin-top: 12px;
+  padding: 9px 10px;
+  align-self: stretch;
+}
+/* Reserve remaining space above the action while allowing variable tag counts. */
+#app .game-grid:not(.v14-view-1) .game-body > .chips { margin-bottom: auto; }
+
+/* Collection membership is metadata, not an overlay on a title or cover. */
+#app .game-grid .mc-collection-card-badge {
+  position: static;
+  align-self: flex-start;
+  flex: 0 0 auto;
+  width: auto;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 26px;
+  margin: 8px 0 0;
+  padding: 4px 7px;
+  gap: 5px;
+  border-radius: 9px;
+  background: var(--panel2);
+  color: var(--text);
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+#app .game-grid .mc-collection-card-icon { flex: 0 0 auto; font-size: 12px; }
+#app .game-grid .mc-collection-card-name {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+#app .game-grid .mc-collection-card-badge.is-multiple b { display: none; }
+#app .game-grid.v14-view-1 .game-body h3 {
+  display: block;
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}
+#app .game-grid.v14-view-1 .mc-card-edit { align-self: flex-start; }
+#app .game-grid.v14-view-1 .v14-list-extra { margin-top: 12px; }
+/* v67 status text is a child span; it must not become a second nested pill. */
+#app .v16-badge-row > span > span {
+  display: inline;
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+/* The shelf remains a horizontal strip; only the strip scrolls. */
+#app .game-grid.v16-shelf {
+  width: 100%;
+  align-items: stretch;
+  gap: 10px;
+  overscroll-behavior-x: contain;
+}
+#app .game-grid.v16-shelf .game-card {
+  flex: 0 0 152px;
+  min-width: 152px;
+  transform: none;
+}
+#app .game-grid.v16-shelf .cover { height: auto; aspect-ratio: 2 / 3 !important; }
+#app .game-grid.v16-shelf .game-body { padding: 10px; }
+#app .game-grid.v16-shelf .game-body h3 { font-size: 14px; }
+#app .game-grid.v16-shelf .game-body .meta { font-size: 11px; }
+#app .game-grid.v16-shelf .game-card-kicker { font-size: 10px; }
+#app .game-grid.v16-shelf .mc-card-edit { display: none; }
+
+@media (max-width: 900px) {
+  #app .game-grid.v14-view-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #app .game-grid.v14-view-6 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  #app .game-grid.v14-view-8 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  #app .game-grid:not(.v14-view-1):not(.v16-shelf) { align-items: stretch; }
+  #app .game-grid .game-body { padding: 10px; }
+  #app .game-grid:not(.v14-view-1) .game-body h3 { font-size: 14px; }
+  #app .game-grid .game-card-kicker { font-size: 10px; }
+  #app .game-grid .game-body .meta { font-size: 12px; }
+}
+@media (max-width: 600px) {
+  #app .game-grid.v14-view-4,
+  #app .game-grid.v14-view-6 { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  #app .game-grid.v14-view-8 { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  #app .game-grid.v14-view-6 .cover { aspect-ratio: 3 / 4 !important; }
+  #app .game-grid.v14-view-8 .cover { aspect-ratio: 1 / 1 !important; }
+  #app .game-grid.v14-view-8 .game-body > .meta { display: none; }
+  #app .game-grid.v14-view-1 .game-card {
+    grid-template-columns: clamp(84px, 26vw, 120px) minmax(0, 1fr) !important;
+  }
+  #app .game-grid.v14-view-1 .game-card > .cover {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    aspect-ratio: 2 / 3 !important;
+    align-self: start;
+  }
+  #app .game-grid.v14-view-1 .game-body { padding: 12px; }
+}
+@media (max-width: 479px) {
+  #app .game-grid.v14-view-8 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
