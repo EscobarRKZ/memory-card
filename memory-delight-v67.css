@@ -58,3 +58,45 @@ html.mc-reduced-motion #app .mc-record-saved { animation: none; }
   #app .v16-notes.mc-personal-note { padding: 10px 12px; }
   #app .toast.mc-memory-feedback { padding: 12px 14px; }
 }
+
+/* v70: dismissible, non-blocking notices; no new motion or decorative layers. */
+#app .toast.mc-dismissible-toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 10px 12px 16px;
+  max-width: min(440px, calc(100vw - 24px));
+}
+#app .mc-toast-copy { flex: 1; min-width: 0; line-height: 1.5; overflow-wrap: anywhere; }
+#app .mc-memory-feedback .mc-toast-copy { display: flex; align-items: center; gap: 12px; }
+#app .mc-memory-feedback .mc-toast-copy > span { min-width: 0; }
+#app .mc-toast-close {
+  display: grid;
+  place-items: center;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+#app .mc-toast-close > svg { width: 18px; height: 18px; pointer-events: none; }
+#app .mc-toast-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+#app .mc-toast-close:active { background: var(--panel2); color: var(--text); }
+@media (hover: hover) and (pointer: fine) {
+  #app .mc-toast-close:hover { background: var(--panel2); color: var(--text); }
+}
+@media (max-width: 900px) {
+  #app > .toast.mc-dismissible-toast {
+    left: 12px;
+    right: 12px;
+    width: auto;
+    margin-inline: auto;
+    bottom: calc(90px + env(safe-area-inset-bottom));
+  }
+}
