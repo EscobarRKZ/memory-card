@@ -6,6 +6,11 @@
   let filterPlatform='';
   let searchQuery='';
   let draftTitle='';
+  // v73: a suggestion lives only in this page; it never starts or saves a game.
+  let drawnId='', drawScope='';
+  const tr=(ru,en)=>state.settings?.language==='en'?en:ru;
+  const drawIcon='<svg class="v23-draw-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M7.5 7.5h.01M12 12h.01M16.5 16.5h.01" stroke-width="3"/></svg>';
+  const closeIcon='<svg class="v23-draw-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="m6 6 12 12M6 18 18 6"/></svg>';
 
   const norm=value=>String(value||'').toLowerCase().normalize('NFKD')
     .replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9а-яё]+/gi,' ').replace(/\s+/g,' ').trim();
@@ -31,6 +36,60 @@
   }
   function visibleGames(){
     return allBacklog().filter(g=>(filterPlatform==='ALL'||g.platform===filterPlatform)&&matchesSearch(g));
+  }
+  function drawState(){
+    const scope=JSON.stringify([String(state.settings?.userId||''),filterPlatform,norm(searchQuery)]);
+    if(drawScope!==scope){drawScope=scope;drawnId='';}
+    // Re-check the live pool on every action, including after cloud/data updates.
+    const pool=[...new Map(visibleGames().filter(g=>g.id).map(g=>[String(g.id),g])).values()];
+    const game=pool.find(g=>String(g.id)===drawnId)||null;
+    if(!game)drawnId='';
+    return {pool,game};
+  }
+  function drawLabel(info){
+    return info.game&&info.pool.length>1?tr('Другой вариант','Pick another'):tr('Выбрать за меня','Pick for me');
+  }
+  function drawHint(info){
+    return !info.pool.length?tr('В текущем списке нет игр для выбора','No games to pick in this list')
+      :info.pool.length===1?tr('В текущем списке одна игра','There is one game in this list')
+      :tr('Случайная игра из текущего списка, с учётом поиска и платформы','A random game from the current search and platform filter');
+  }
+  function drawMessage(info){
+    if(!info.game)return '';
+    return `${tr('Выпало:','Picked:')} <strong>${esc(info.game.title)}</strong><small>${esc(platform(info.game.platform).abbr)} · ${info.pool.length===1?tr('Единственная игра в этом списке','The only game in this list'):tr('Случайно из текущего списка','Randomly picked from this list')}</small>`;
+  }
+  function drawButton(info){
+    return `<button type="button" class="secondary v23-draw-button" data-v23-draw title="${esc(drawHint(info))}" aria-controls="v23DrawResult" ${info.pool.length?'':'disabled'}>${drawIcon}<span data-v23-draw-label>${drawLabel(info)}</span></button>`;
+  }
+  function drawResult(info){
+    return `<div id="v23DrawResult" class="v23-draw-result" data-v23-draw-result ${info.game?'':'hidden'}><p data-v23-draw-message role="status" aria-live="polite" aria-atomic="true">${drawMessage(info)}</p><div class="v23-draw-actions"><button type="button" class="secondary" data-v23-draw-open="${esc(info.game?.id||'')}">${tr('Открыть игру','Open game')}</button><button type="button" class="ghost v23-draw-dismiss" data-v23-draw-dismiss aria-label="${tr('Убрать предложение','Dismiss suggestion')}" title="${tr('Убрать предложение','Dismiss suggestion')}">${closeIcon}</button></div></div>`;
+  }
+  function refreshDraw(){
+    const info=drawState();
+    const button=document.querySelector('[data-v23-draw]');
+    if(button){
+      button.disabled=!info.pool.length;
+      button.title=drawHint(info);
+      const label=button.querySelector('[data-v23-draw-label]');
+      if(label&&label.textContent!==drawLabel(info))label.textContent=drawLabel(info);
+    }
+    const result=document.querySelector('[data-v23-draw-result]');
+    if(!result)return;
+    result.hidden=!info.game;
+    const message=result.querySelector('[data-v23-draw-message]');
+    const html=drawMessage(info);
+    if(message&&message.innerHTML!==html)message.innerHTML=html;
+    const open=result.querySelector('[data-v23-draw-open]');
+    if(open)open.dataset.v23DrawOpen=String(info.game?.id||'');
+  }
+  function drawGame(){
+    // Leave the add-form draft intact, but dismiss its now-unrelated popup.
+    document.querySelector('[data-v23-suggestions]')?.remove();
+    const info=drawState();
+    // A second click never repeats the immediately previous choice when possible.
+    const pool=info.pool.length>1?info.pool.filter(g=>String(g.id)!==drawnId):info.pool;
+    if(pool.length)drawnId=String(pool[Math.floor(Math.random()*pool.length)].id);
+    refreshDraw();
   }
   function platformIconSafe(id){try{return typeof platformIcon==='function'?platformIcon(id):'';}catch(_){return '';}}
   function exactCatalogMatch(pid,title){
@@ -70,6 +129,7 @@
   }
   function renderBacklogV23(){
     const ids=ensureSelection();
+    const draw=drawState();
     return `<div class="section-head v23-backlog-title"><div><h2>Backlog</h2><p>Игры на потом. Выбери платформу и просто введи название — остальные данные Memory Card подтянет сам, если найдёт игру в каталоге.</p></div></div>
       <section class="panel v23-backlog-add">
         <div class="v23-panel-head"><div><span class="v23-kicker">Новая игра</span><h3>Добавить в Backlog</h3><p>Платформа останется выбранной и после добавления следующей игры.</p></div></div>
@@ -81,9 +141,10 @@
         </form>
       </section>
       <section class="panel v23-backlog-list">
-        <div class="v23-queue-head"><div><span class="v23-kicker">Очередь</span><h3>Хочу пройти</h3><p data-v23-count>${countText()}</p></div><label class="v23-search"><span>⌕</span><input type="search" value="${esc(searchQuery)}" placeholder="Поиск в Backlog" data-v23-search></label></div>
+        <div class="v23-queue-head"><div><span class="v23-kicker">Очередь</span><h3>Хочу пройти</h3><p data-v23-count>${countText()}</p></div><div class="v23-queue-tools"><label class="v23-search"><span>⌕</span><input type="search" value="${esc(searchQuery)}" placeholder="Поиск в Backlog" data-v23-search></label>${drawButton(draw)}</div></div>
         <div class="v23-filter-label">Показывать</div>
         ${filterBar(ids)}
+        ${drawResult(draw)}
         <div data-v23-results>${resultsMarkup()}</div>
       </section>`;
   }
@@ -99,6 +160,7 @@
     if(count)count.textContent=countText();
     if(results)results.innerHTML=resultsMarkup();
     document.querySelectorAll('[data-v23-filter]').forEach(btn=>btn.classList.toggle('active',btn.dataset.v23Filter===filterPlatform));
+    refreshDraw();
   }
   function refreshPicker(){
     document.querySelectorAll('[data-v23-add-platform]').forEach(btn=>{
@@ -160,6 +222,23 @@
   document.addEventListener('click',event=>{
     const target=event.target instanceof Element?event.target:null;
     if(!target)return;
+    const draw=target.closest('[data-v23-draw]');
+    const open=target.closest('[data-v23-draw-open]');
+    const dismiss=target.closest('[data-v23-draw-dismiss]');
+    if(draw||open||dismiss){
+      event.preventDefault();
+      if(state.view!=='backlog'||state.modal||document.querySelector('dialog[open]'))return;
+      if(draw){if(!draw.disabled)drawGame();return;}
+      if(dismiss){
+        drawnId='';refreshDraw();
+        document.querySelector('[data-v23-draw]')?.focus({preventScroll:true});
+        return;
+      }
+      const selected=drawState().game;
+      if(selected&&String(selected.id)===open.dataset.v23DrawOpen)openGame(selected.id);
+      else refreshDraw();
+      return;
+    }
     const add=target.closest('[data-v23-add-platform]');
     if(add){
       addPlatform=String(add.dataset.v23AddPlatform||'');
