@@ -78,7 +78,7 @@
   const baseIcon = platformIcon;
   platformIcon = function(id) {
     if (originalIds.has(id)) return baseIcon(id);
-    const p = platform(id), tower = ['PS2','PS5','X360','XSERIES','WII'].includes(id), cube = ['GC','DREAMCAST','N64'].includes(id);
+    const tower = ['PS2','PS5','X360','XSERIES','WII'].includes(id), cube = ['GC','DREAMCAST','N64'].includes(id);
     const body = id === 'VR'
       ? '<path d="M11 12h50c5 0 8 4 8 9v9c0 4-3 7-7 7H51l-7-7H28l-7 7H10c-4 0-7-3-7-7v-9c0-5 3-9 8-9Z"/><rect class="screen" x="11" y="18" width="50" height="12" rx="5"/><path d="M4 20H1v9h3M68 20h3v9h-3"/>'
       : id === 'PC'
@@ -88,7 +88,7 @@
       : cube
         ? '<rect x="9" y="8" width="54" height="29" rx="7"/><circle class="screen" cx="36" cy="22" r="9"/><circle class="detail" cx="56" cy="16" r="2"/>'
         : '<rect x="7" y="9" width="58" height="27" rx="5"/><rect class="screen" x="13" y="14" width="34" height="13" rx="2"/><circle class="detail" cx="56" cy="22" r="4"/>';
-    return `<span class="device-icon"><svg viewBox="0 0 72 44" aria-hidden="true">${body}</svg><small class="device-mini-label">${esc(p.abbr)}</small></span>`;
+    return `<span class="device-icon"><svg viewBox="0 0 72 44" aria-hidden="true">${body}</svg></span>`;
   };
 
   const baseRotationCard = renderRotationCard;
