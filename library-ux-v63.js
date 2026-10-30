@@ -136,11 +136,30 @@
     if (!summaryFrame) summaryFrame = requestAnimationFrame(updateSummary);
   }
 
+  // Match the CSS breakpoints; option values remain backward-compatible.
+  // Labels explain actual columns, not desktop-only counts on a phone.
+  function updateGridLabels() {
+    const select = document.querySelector('#gamesView');
+    if (!select) return;
+    const phone = matchMedia('(max-width: 600px)').matches;
+    const narrow = matchMedia('(max-width: 479px)').matches;
+    const tablet = matchMedia('(max-width: 900px)').matches;
+    const medium = matchMedia('(max-width: 1200px)').matches;
+    const columns = phone ? [2, 2, narrow ? 2 : 3] : tablet ? [2, 3, 4] : [4, 6, medium ? 6 : 8];
+    const kinds = [label('карточки', 'cards'), label('компактно', 'compact'), label('мини', 'mini')];
+    ['4', '6', '8'].forEach((value, i) => {
+      const option = select.querySelector(`option[value="${value}"]`);
+      const text = label(`${columns[i]} в ряд — ${kinds[i]}`, `${columns[i]} columns — ${kinds[i]}`);
+      if (option && option.textContent !== text) option.textContent = text;
+    });
+  }
+
   function enhanceLibrary() {
     if (state.view !== 'games') return;
     const toolbar = document.querySelector('.toolbar');
     const search = toolbar?.querySelector('#search');
     if (!toolbar || !search) return;
+    updateGridLabels();
     const searchField = search.closest('.field');
     if (searchField && !searchField.classList.contains('mc-search-field')) {
       searchField.classList.add('mc-search-field');
@@ -314,6 +333,7 @@
   // User input cancels a scheduled return-scroll instead of fighting the gesture.
   ['wheel','touchstart','pointerdown'].forEach(type => document.addEventListener(type, () => { ++restoreEpoch; }, {passive: true, capture: true}));
   document.addEventListener('mc:experience-ready', scheduleEnhance);
+  [479,600,900,1200].forEach(width => matchMedia(`(max-width: ${width}px)`).addEventListener('change', updateGridLabels));
   window.addEventListener('pageshow', scheduleEnhance);
   scheduleEnhance();
 })();

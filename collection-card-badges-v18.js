@@ -23,6 +23,7 @@
     const html = baseGameCard(g);
     const badge = badgeMarkup(g?.id);
     if (!badge) return html;
-    return html.replace(/(<article class="game-card"[^>]*>)/, `$1${badge}`);
+    // Keep metadata in the body flow. An absolute badge hid list titles.
+    return html.replace(/<\/div><\/article>\s*$/, `${badge}</div></article>`);
   };
 })();
