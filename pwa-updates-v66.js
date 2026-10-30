@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   if (!('serviceWorker' in navigator)) return;
-  const BUILD = 74;
+  const BUILD = 75;
   const tr = (ru,en) => window.MemoryCardExperience?.tr(ru,en) || ru;
   let registration=null, reloadNeeded=false, dismissed=false, approved=false;
   let writes=0, frame=0, lastCheck=0, activationTimer=0, hadController=!!navigator.serviceWorker.controller;

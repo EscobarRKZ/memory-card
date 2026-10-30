@@ -157,11 +157,121 @@
     };
   }
 
+  // v75: a comfortable writing area, still the same native form field.
+  const notesSelector = '#gameForm textarea[name="notes"],#finishRotationForm textarea[name="notes"]';
+  const noteSizes = new WeakMap();
+  const expandedNotes = new WeakSet();
+  let notesFrame = 0, noteId = 0;
+
+  function measuredNoteHeight(input, styles) {
+    // Measuring an off-flow copy avoids collapsing the live textarea and
+    // clamping its scroll container while the user is writing near the bottom.
+    const mirror = document.createElement('textarea');
+    mirror.tabIndex = -1;
+    mirror.setAttribute('aria-hidden', 'true');
+    mirror.readOnly = true;
+    mirror.wrap = input.wrap;
+    mirror.style.cssText = 'position:fixed;left:-10000px;top:0;height:0;min-height:0;max-height:none;visibility:hidden;pointer-events:none;overflow:hidden;resize:none;margin:0;';
+    for (const key of ['boxSizing','fontFamily','fontSize','fontWeight','fontStyle','lineHeight','letterSpacing','textIndent','textTransform','tabSize','whiteSpace','wordBreak','overflowWrap','direction','paddingTop','paddingBottom','paddingLeft','paddingRight','borderTopWidth','borderBottomWidth','borderLeftWidth','borderRightWidth','borderStyle']) {
+      mirror.style[key] = styles[key];
+    }
+    mirror.style.width = `${input.getBoundingClientRect().width}px`;
+    mirror.value = input.value;
+    document.body.appendChild(mirror);
+    try { return mirror.scrollHeight + parseFloat(styles.borderTopWidth || 0) + parseFloat(styles.borderBottomWidth || 0); }
+    finally { mirror.value = ''; mirror.remove(); }
+  }
+
+  function updateNotes(input) {
+    if (!input.isConnected || !input.getClientRects().length) return;
+    const expanded = expandedNotes.has(input);
+    const footer = input.nextElementSibling;
+    if (!footer?.classList.contains('mc-note-tools')) return;
+    const length = Array.from(input.value).length;
+    const counter = footer.querySelector('[data-mc-note-count]');
+    const text = length ? tr(`Знаков: ${length.toLocaleString('ru-RU')}`, `Characters: ${length.toLocaleString('en-US')}`)
+      : tr('Можно оставить пустым', 'Optional');
+    if (counter.textContent !== text) counter.textContent = text;
+    const button = footer.querySelector('[data-mc-note-expand]');
+    const label = expanded ? tr('Компактно', 'Compact') : tr('Больше места', 'More space');
+    if (button.textContent !== label) button.textContent = label;
+    button.setAttribute('aria-expanded', String(expanded));
+    button.disabled = input.matches(':disabled');
+    const viewport = window.visualViewport?.height || innerHeight;
+    const min = 112;
+    const cap = Math.max(min, Math.floor(Math.min(expanded ? 560 : 300, viewport * (expanded ? .62 : .36))));
+    const width = input.getBoundingClientRect().width;
+    const styles = getComputedStyle(input);
+    const signature = [input.value, width, cap, expanded, styles.font, styles.lineHeight, styles.letterSpacing].join('\u0000');
+    if (noteSizes.get(input) === signature) return;
+    const natural = measuredNoteHeight(input, styles);
+    const height = expanded ? cap : Math.max(min, Math.min(cap, natural));
+    const overflow = natural > height + 1 ? 'auto' : 'hidden';
+    if (input.style.height !== `${height}px`) input.style.height = `${height}px`;
+    if (input.style.overflowY !== overflow) input.style.overflowY = overflow;
+    noteSizes.set(input, signature);
+  }
+
+  function enhanceNotes(app) {
+    app.querySelectorAll(notesSelector).forEach(input => {
+      input.classList.add('mc-note-input');
+      if (!input.id) input.id = `mc-personal-note-${++noteId}`;
+      const label = input.closest('.field')?.querySelector('label');
+      if (label && !label.htmlFor) label.htmlFor = input.id;
+      let footer = input.nextElementSibling;
+      if (!footer?.classList.contains('mc-note-tools')) {
+        footer = document.createElement('div');
+        footer.className = 'mc-note-tools';
+        const counter = document.createElement('small');
+        counter.dataset.mcNoteCount = '';
+        counter.id = `${input.id}-count`;
+        // Not a live region: do not announce every keystroke.
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'mc-note-expand';
+        button.dataset.mcNoteExpand = '';
+        button.setAttribute('aria-controls', input.id);
+        footer.append(counter, button);
+        input.insertAdjacentElement('afterend', footer);
+        const described = new Set((input.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean));
+        described.add(counter.id);
+        input.setAttribute('aria-describedby', [...described].join(' '));
+      }
+      updateNotes(input);
+    });
+  }
+  function scheduleNotes() {
+    if (notesFrame || !document.querySelector(notesSelector)) return;
+    notesFrame = requestAnimationFrame(() => {
+      notesFrame = 0;
+      document.querySelectorAll(notesSelector).forEach(updateNotes);
+    });
+  }
+  document.addEventListener('input', event => {
+    if (event.target instanceof HTMLTextAreaElement && event.target.matches(notesSelector)) scheduleNotes();
+  });
+  document.addEventListener('click', event => {
+    const button = event.target instanceof Element ? event.target.closest('[data-mc-note-expand]') : null;
+    if (!button || button.disabled) return;
+    const input = button.parentElement?.previousElementSibling;
+    if (!(input instanceof HTMLTextAreaElement) || !input.matches(notesSelector) || input.matches(':disabled')) return;
+    event.preventDefault();
+    expandedNotes.has(input) ? expandedNotes.delete(input) : expandedNotes.add(input);
+    updateNotes(input);
+  }, true);
+  // Fields are restored by the existing draft helper before this queued read.
+  document.addEventListener('reset', event => {
+    if (event.target instanceof HTMLFormElement && event.target.querySelector(notesSelector)) scheduleNotes();
+  });
+  window.addEventListener('resize', scheduleNotes, {passive: true});
+  window.visualViewport?.addEventListener('resize', scheduleNotes, {passive: true});
+
   function enhance() {
     const app = document.querySelector('#app');
     if (!app) return;
     enhanceArt(app);
     enhanceRatings(app);
+    enhanceNotes(app);
     app.querySelectorAll('.topbar [data-action="add"]').forEach(button => {
       const id = state.view === 'games' ? state.platformFilter : '';
       const p = typeof PLATFORMS !== 'undefined' ? PLATFORMS.find(p => p.id === id) : null;
