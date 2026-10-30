@@ -80,3 +80,24 @@
   #app :is(.mc-applied-filter,.mc-reset-filters) { min-height: 44px; }
   #app .mc-applied-filters { gap: 6px; margin-bottom: 14px; }
 }
+
+/* v76: text-sized search marks, not new badges. No change to title metrics. */
+#app .game-grid .game-body h3 mark.mc-search-match {
+  color: inherit;
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  border: 0;
+  border-radius: 2px;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  letter-spacing: inherit;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+@media (forced-colors: active) {
+  #app .game-grid .game-body h3 mark.mc-search-match {
+    background: Highlight;
+    color: HighlightText;
+    forced-color-adjust: none;
+  }
+}

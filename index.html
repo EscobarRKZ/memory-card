@@ -36,13 +36,13 @@
   <link rel="stylesheet" href="./experience-v66.css?v=75" />
   <link rel="stylesheet" href="./memory-delight-v67.css?v=70" />
   <link rel="stylesheet" href="./memory-companion-v68.css?v=68" />
-  <link rel="stylesheet" href="./library-context-v69.css?v=69" />
+  <link rel="stylesheet" href="./library-context-v69.css?v=76" />
   <link rel="stylesheet" href="./mobile-card-layout-v74.css?v=74" />
 </head>
 <body>
   <div id="app"></div>
   <script>window.MemoryCardInstallProbe=new Promise(resolve=>{try{const request=indexedDB.open('memory-card-db',1);let fresh=false;request.onupgradeneeded=()=>{fresh=true;const db=request.result;if(!db.objectStoreNames.contains('state'))db.createObjectStore('state')};request.onerror=()=>resolve(true);request.onsuccess=()=>{const db=request.result;try{const tx=db.transaction('state','readonly');const get=tx.objectStore('state').get('main');get.onsuccess=()=>resolve(Boolean(get.result));get.onerror=()=>resolve(true);tx.oncomplete=()=>db.close()}catch(_){db.close();resolve(!fresh)}}}catch(_){resolve(true)}})</script>
-  <script src="./title-search-helper.js?v=63"></script>
+  <script src="./title-search-helper.js?v=76"></script>
   <script src="./switch-cover-helper.js"></script>
   <script src="./ps3-cover-helper.js"></script>
   <script src="./ps3-wikipedia-cover-helper.js"></script>
@@ -81,7 +81,7 @@
   <script src="./library-ux-v63.js?v=74"></script>
   <script src="./experience-v66.js?v=75"></script>
   <script src="./share-card-v66.js?v=66"></script>
-  <script src="./pwa-updates-v66.js?v=75"></script>
+  <script src="./pwa-updates-v66.js?v=76"></script>
   <script src="./memory-delight-v67.js?v=70"></script>
   <script src="./memory-companion-v68.js?v=68"></script>
 </body>
