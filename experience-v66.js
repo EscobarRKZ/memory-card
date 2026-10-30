@@ -72,10 +72,104 @@
     }
   }
 
+
+  // v71: edit a rating in its own form, including finishRotationForm.
+  // Only the hidden form field changes; saving/cancelling stays with the caller.
+  const ratingSelector = '#gameForm .star-picker,#finishRotationForm .star-picker';
+  function ratingPicker(node) {
+    const picker = node?.closest('.star-picker');
+    return picker?.matches(ratingSelector) ? picker : null;
+  }
+  function ratingValue(picker) {
+    const n = Number(picker.querySelector('input[name="rating"]')?.value);
+    return Number.isInteger(n) && n >= 1 && n <= 10 ? n : 0;
+  }
+  function paintRating(picker, preview = 0) {
+    const current = ratingValue(picker);
+    picker.classList.toggle('mc-rating-preview', preview > 0);
+    picker.setAttribute('aria-label', tr('Моя оценка от 1 до 10','My rating from 1 to 10'));
+    picker.querySelectorAll('button[data-rating]').forEach(button => {
+      const n = Number(button.dataset.rating);
+      button.setAttribute('role', 'radio');
+      button.setAttribute('aria-checked', String(n === current));
+      button.setAttribute('aria-label', tr(`${n} из 10`, `${n} out of 10`));
+      button.tabIndex = n === (current || 1) ? 0 : -1;
+      button.classList.toggle('selected', n <= current);
+      button.classList.toggle('mc-rating-previewed', preview > 0 && n <= preview);
+    });
+    const footer = picker.nextElementSibling;
+    if (!footer?.classList.contains('mc-rating-controls')) return;
+    const label = footer.querySelector('.star-value');
+    const value = preview || current;
+    const text = value ? `${value}/10` : tr('Без оценки','Not rated');
+    if (label && label.textContent !== text) label.textContent = text;
+    const reset = footer.querySelector('[data-mc-rating-clear]');
+    if (reset) {
+      reset.textContent = tr('Снять оценку','Clear rating');
+      // Keep the button focusable after clearing; no loss of keyboard focus.
+      reset.setAttribute('aria-disabled', String(!current));
+    }
+  }
+  function enhanceRatings(app) {
+    app.querySelectorAll(ratingSelector).forEach(picker => {
+      if (!picker.querySelector('input[name="rating"]')) return;
+      let footer = picker.nextElementSibling;
+      if (!footer?.classList.contains('mc-rating-controls')) {
+        footer = document.createElement('div');
+        footer.className = 'mc-rating-controls';
+        const label = picker.querySelector('.star-value') || document.createElement('span');
+        label.classList.add('star-value');
+        const reset = document.createElement('button');
+        reset.type = 'button';
+        reset.className = 'mc-rating-clear';
+        reset.dataset.mcRatingClear = '';
+        footer.append(label, reset);
+        picker.insertAdjacentElement('afterend', footer);
+      }
+      picker.classList.add('mc-rating-enhanced');
+      paintRating(picker);
+    });
+  }
+  function changeRating(picker, value) {
+    const input = picker?.querySelector('input[name="rating"]');
+    if (!input || input.disabled || picker.closest('fieldset[disabled]')) return;
+    const next = value >= 1 && value <= 10 ? String(value) : '';
+    const changed = input.value !== next;
+    input.value = next;
+    paintRating(picker);
+    // Existing draft capture and update guards receive the real input change.
+    if (changed) {
+      input.dispatchEvent(new Event('input', {bubbles:true}));
+      input.dispatchEvent(new Event('change', {bubbles:true}));
+    }
+  }
+  // The '+' on a platform-filtered library should use that platform, not the
+  // unrelated current rotation. Explicit prefill always wins. No stored defaults.
+  if (typeof openAddCompleted === 'function') {
+    const baseAdd = openAddCompleted;
+    openAddCompleted = function(prefill = {}) {
+      const id = state.view === 'games' ? state.platformFilter : '';
+      if (id && PLATFORMS.some(p => p.id === id) && prefill && typeof prefill === 'object'
+          && !Object.prototype.hasOwnProperty.call(prefill, 'platform')) {
+        return baseAdd.call(this, {...prefill, platform:id});
+      }
+      return baseAdd.apply(this, arguments);
+    };
+  }
+
   function enhance() {
     const app = document.querySelector('#app');
     if (!app) return;
     enhanceArt(app);
+    enhanceRatings(app);
+    app.querySelectorAll('.topbar [data-action="add"]').forEach(button => {
+      const id = state.view === 'games' ? state.platformFilter : '';
+      const p = typeof PLATFORMS !== 'undefined' ? PLATFORMS.find(p => p.id === id) : null;
+      const text = p ? tr(`Добавить пройденную игру для ${p.name}`, `Add a completed game for ${p.name}`)
+        : tr('Добавить пройденную игру', 'Add a completed game');
+      button.setAttribute('aria-label', text);
+      button.title = text;
+    });
     const controls = [
       ['[data-action="edit"],[data-mc-card-edit]', 'edit'],
       ['[data-v17-cover-refresh],[data-action="covers-refresh"]', 'refresh'],
@@ -131,6 +225,18 @@
   }, true);
   document.addEventListener('click', event => {
     const target = event.target instanceof Element ? event.target : null;
+    const star = target?.closest('button[data-rating]');
+    const picker = star && ratingPicker(star);
+    const clear = target?.closest('[data-mc-rating-clear]');
+    const clearPicker = clear?.parentElement?.previousElementSibling;
+    if (picker || (clear && clearPicker?.matches(ratingSelector))) {
+      event.preventDefault();
+      // The old handler always queried #gameForm, even in the rotation form.
+      event.stopImmediatePropagation();
+      if (star?.disabled || clear?.disabled) return;
+      changeRating(picker || clearPicker, picker ? Number(star.dataset.rating) : 0);
+      return;
+    }
     const retry = target?.closest('[data-mc-art-retry]');
     if (retry) {
       event.preventDefault();
@@ -157,6 +263,32 @@
       requestAnimationFrame(() => document.querySelector('.v16-notes')?.scrollIntoView({block:'center',behavior: reduced() ? 'auto' : 'smooth'}));
     }
   }, true);
+  document.addEventListener('keydown', event => {
+    const star = event.target instanceof Element ? event.target.closest('button[data-rating]') : null;
+    const picker = star && ratingPicker(star);
+    if (!picker || star.disabled || picker.closest('fieldset[disabled]') || event.isComposing
+        || event.altKey || event.metaKey || event.ctrlKey) return;
+    const keys = ['ArrowRight','ArrowUp','ArrowLeft','ArrowDown','Home','End'];
+    if (!keys.includes(event.key)) return;
+    event.preventDefault();
+    const n = Number(star.dataset.rating);
+    const next = event.key === 'Home' ? 1 : event.key === 'End' ? 10
+      : (n + (['ArrowRight','ArrowUp'].includes(event.key) ? 1 : 9) - 1) % 10 + 1;
+    const button = picker.querySelector(`[data-rating="${next}"]`);
+    if (!button || button.disabled) return;
+    changeRating(picker, next);
+    button.focus({preventScroll:true});
+  });
+  document.addEventListener('pointerover', event => {
+    if (event.pointerType !== 'mouse') return;
+    const star = event.target instanceof Element ? event.target.closest('button[data-rating]') : null;
+    const picker = star && ratingPicker(star);
+    if (picker && !star.disabled && !picker.closest('fieldset[disabled]')) paintRating(picker, Number(star.dataset.rating));
+  });
+  document.addEventListener('pointerout', event => {
+    const picker = event.target instanceof Element ? ratingPicker(event.target) : null;
+    if (picker && (!(event.relatedTarget instanceof Node) || !picker.contains(event.relatedTarget))) paintRating(picker);
+  });
   document.addEventListener('change', event => {
     if (event.target?.id === 'gamesView') schedule();
   });
