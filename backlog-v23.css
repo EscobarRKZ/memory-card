@@ -65,3 +65,30 @@
   .v23-platform-grid{grid-template-columns:1fr}
   .v23-platform-button small{display:block}
 }
+
+/* v73: a quiet random pick, scoped to the existing queue. No animation or overlay. */
+.v23-queue-tools{display:flex;align-items:center;justify-content:flex-end;gap:8px;min-width:0;flex:1;flex-wrap:wrap}
+.v23-queue-tools .v23-search{width:min(300px,100%);min-width:0}
+#app .v23-draw-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;max-width:100%;padding:10px 12px;font-size:12px;white-space:normal}
+.v23-draw-icon{display:block;width:19px;height:19px;flex:0 0 19px;pointer-events:none}
+#app .v23-draw-result{display:flex;align-items:center;gap:16px;justify-content:space-between;padding:16px 0;margin:-2px 0 16px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);min-width:0}
+#app .v23-draw-result[hidden]{display:none!important}
+.v23-draw-result>p{margin:0;min-width:0;flex:1;font-size:14px;line-height:1.5;color:var(--text);overflow-wrap:anywhere}
+.v23-draw-result strong{font-weight:750}
+.v23-draw-result small{display:block;margin-top:4px;color:var(--muted);font-size:12px;line-height:1.45}
+.v23-draw-actions{display:flex;gap:8px;align-items:center;flex:0 0 auto}
+#app .v23-draw-actions button{min-height:44px;font-size:12px;touch-action:manipulation}
+#app .v23-draw-dismiss{display:grid;place-items:center;width:44px;min-width:44px;padding:0}
+#app .v23-draw-button:focus-visible,#app .v23-draw-actions button:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+@media(max-width:900px){
+  .v23-queue-tools{justify-content:flex-start;width:100%}
+  .v23-queue-tools .v23-search{width:auto;flex:1 1 180px}
+}
+@media(max-width:620px){
+  .v23-queue-tools{display:grid;grid-template-columns:minmax(0,1fr)}
+  .v23-queue-tools .v23-search{width:100%}
+  #app .v23-draw-button{justify-self:start}
+  #app .v23-draw-result{align-items:flex-start;flex-direction:column;gap:12px}
+  .v23-draw-actions{width:100%}
+  .v23-draw-actions>[data-v23-draw-open]{flex:1}
+}
