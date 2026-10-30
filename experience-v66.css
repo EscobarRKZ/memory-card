@@ -60,3 +60,56 @@
 }
 @media(prefers-reduced-motion:reduce) { #app .mc-art > img { transition:none!important; } }
 html.mc-reduced-motion #app .mc-art > img { transition:none!important; }
+
+
+/* v71: a quiet rating footer; preview never changes the saved/form value. */
+#app .mc-rating-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0 12px;
+  width: 100%;
+  max-width: 430px;
+  min-width: 0;
+}
+#app .mc-rating-controls .star-value {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+#app .mc-rating-clear {
+  min-height: 44px;
+  padding: 8px 0 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.4;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--line);
+  touch-action: manipulation;
+}
+#app .mc-rating-clear[aria-disabled="true"] {
+  color: var(--muted);
+  text-decoration: none;
+  cursor: default;
+}
+#app .star-picker.mc-rating-preview .star-button {
+  color: color-mix(in srgb, var(--muted) 38%, transparent);
+}
+#app .star-picker.mc-rating-preview .star-button.mc-rating-previewed { color: var(--star); }
+#app .star-picker.mc-rating-enhanced .star-button:hover { transform: none; }
+#app :is(.mc-rating-clear,.mc-rating-enhanced .star-button):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+@media (hover: hover) and (pointer: fine) {
+  #app .mc-rating-clear:hover:not([aria-disabled="true"]) { text-decoration-color: var(--text); }
+}
