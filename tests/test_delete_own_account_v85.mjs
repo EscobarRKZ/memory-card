@@ -49,7 +49,7 @@ function setup(config={}){
         config.requestError?{data:null,error:{message:'unavailable'}}:
         {data:{status:config.requestStatus||'pending'},error:null}}
     }}}
-   }},
+   }}},
    storage:{async listBuckets(){
     calls.storage++;
     if(config.storageError)return {data:null,error:{message:'unavailable'}};
