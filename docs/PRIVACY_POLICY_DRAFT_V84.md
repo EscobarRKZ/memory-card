@@ -23,7 +23,7 @@ User profiles are not advertised as publicly searchable. Friend access depends o
 
 ## Deletion
 
-An authenticated user may create a deletion request in the application or through the standalone account deletion webpage. This request currently queues a manual operation and **does not immediately remove the account**. Completion is subject to the human/secure-server processing workflow. Auth-user deletion cascades to linked game, profile, settings, friendship and collection tables after verification. Browser-stored copies on other devices must be cleared separately by the user.
+An authenticated user may create a deletion request in the application or through the standalone account deletion webpage. **Request submission alone does not delete anything.** The user can then complete permanent deletion through a server-side password-verified flow, which hard-deletes the Supabase Auth account and, via foreign-key cascades, linked game, profile, settings, friendship and collection tables. Requests left pending still require manual handling by an operator. An unidentified guest archive, offline exports and browser-stored copies on other devices cannot be remotely deleted and should be cleared by the user. Final backup retention and cross-provider policies remain to be documented.
 
 ## Still required before publication
 

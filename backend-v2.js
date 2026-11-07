@@ -544,8 +544,11 @@
       details='<p role="alert">Не удалось проверить запрос. Проверь соединение.</p>'+
         '<button type="button" class="ghost compact" data-v84-retry-deletion>Проверить ещё раз</button>';
     }else if(deletionState.requested){
-      details='<p role="status">Заявка на удаление уже зарегистрирована и ожидает обработки. '+
-        'Аккаунт и данные пока не удалены.</p>';
+      details='<p role="status">Заявка на удаление уже зарегистрирована. '+
+        'Аккаунт и данные пока не удалены.</p>'+
+        '<p><a href="./delete-account.html">Окончательно удалить аккаунт</a> '+
+        'можно после повторного ввода пароля и проверки безопасности. '+
+        'Это необратимое действие.</p>';
     }else if(deletionState.requested===false){
       details='<form data-v84-delete-request>'+
         '<label>Для отправки заявки введи <strong>УДАЛИТЬ</strong>'+
@@ -559,7 +562,8 @@
       '<p>Можно запросить удаление учётной записи и связанных облачных данных: '+
       'игр, заметок, настроек и друзей. Запрос не удаляет ничего немедленно.</p>'+
       '<p>Сначала рекомендуем экспортировать библиотеку в JSON. '+
-      '<a href="./delete-account.html">Страница удаления аккаунта</a> работает и без установленного приложения.</p>'+
+      '<a href="./delete-account.html">Страница удаления аккаунта</a> работает и без установленного приложения. '+
+      'На ней можно завершить удаление самостоятельно после подтверждения личности.</p>'+
       details;
     if(deletionState.requested===null&&!deletionState.loading&&!deletionState.error){
       void fetchDeletionStatus(owner,card);
@@ -602,7 +606,7 @@
       if(session?.user?.id!==owner)return;
       deletionState.requested=result.requested;
       deletionState.error='';
-      setToast('Заявка зарегистрирована. Аккаунт пока не удалён.');
+      setToast('Заявка зарегистрирована. Для окончательного удаления открой страницу удаления аккаунта.');
     }catch(error){
       if(session?.user?.id!==owner)return;
       deletionState.error='submission';

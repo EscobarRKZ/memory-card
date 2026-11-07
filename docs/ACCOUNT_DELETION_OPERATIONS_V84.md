@@ -1,6 +1,6 @@
 # Memory Card — account deletion operations (v84)
 
-**Status: request intake implemented; deletion is not yet automated.** This document is a runbook for the operator, not a claim that deletion has been completed.
+**Status (v85): request intake is implemented; an authenticated password-verified self-service hard-delete endpoint is deployed. Manual queue processing is still required for pending requests not completed by the user.** This document is a runbook for the operator, not a claim that deletion has been completed.
 
 ## What is live
 
@@ -9,6 +9,8 @@
 - New v84 UI exposes "Настройки → Аккаунт → Удаление аккаунта" and a standalone public webpage at `/memory-card/delete-account.html`.
 - A request **does not delete accounts or data**. The application says so plainly and prevents duplicate submissions.
 - The public webpage requires Supabase Auth sign-in and the configured Cloudflare Turnstile challenge when signing in. Users who uninstalled the PWA can still use that webpage.
+
+The user-facing permanent deletion flow is documented in [ACCOUNT_SELF_DELETION_V85.md](ACCOUNT_SELF_DELETION_V85.md). It performs irreversible deletion only after the user submits a pending request and explicitly confirms with their password. Do not describe an unprocessed pending request as deleted.
 
 ## Manual handling (must be staffed before public release)
 
@@ -38,5 +40,5 @@ Restricted to an operator with authorized database privileges. Do not copy this 
 
 - Publish an accurate privacy policy on a publicly accessible URL with a real developer contact, retention details and account deletion procedure.
 - Put the verified reachable account-deletion webpage URL into the Google Play Console form. The Github Pages URL is configured in repository documentation but its deployment must be verified independently.
-- Establish accountable queue monitoring and a way to complete requests (manual or a separately audited server-side handler). A functional request form without anyone handling requests is **not** enough for a responsible public release.
+- The separate self-service hard-deletion function is deployed, but **manual queue monitoring is still needed** for users who submit requests without completing password reauthentication. A pending request without a reachable processing mechanism is not enough for public release.
 - Test the request flow with disposable accounts and the actual hosted website. **Do not delete the sole real account as a test.**

@@ -38,7 +38,9 @@ Reviewed: 2026-11-07. This document tracks launch gates, not a declaration that 
 ## Stage 3 — identity and privacy controls
 
 - [x] v84: create an authenticated, RLS-restricted account deletion **request** from Settings and from a standalone browser URL; prevent duplicate requests and show pending status. Requests do NOT delete the account.
-- [ ] Implement and staff actual deletion processing (privileged Auth deletion + cascade verification, backups/retention policy). Without this, the request pathway is incomplete for a responsible public release.
+- [x] v85: deploy a JWT-protected, password-verified, **self-service hard-deletion** Edge Function and external final confirmation UI. Requires an existing own pending request and verifies the target with Auth, not request JSON. Code and mocked security tests complete.
+- [ ] Verify hard deletion end-to-end with **disposable Supabase Auth accounts** (not the personal profile), checking all cascading data and old login/session behavior.
+- [ ] Establish monitoring and reliable manual processing of pending requests **not completed via the self-service flow**; publish accurate backup retention and operating procedure. A queued request with no operator remains incomplete.
 - [ ] Verify that the public deletion URL actually loads on GitHub Pages and works with test accounts outside the PWA.
 - [ ] Publish an accurate privacy policy and support/contact page.
 - [ ] Map all SDKs, analytics, requests, game artwork sources and uploaded/shared data for Google Play Data safety.
