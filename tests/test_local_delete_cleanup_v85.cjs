@@ -46,9 +46,9 @@ const db={
  }
 };
 const index={open(){const req={};queueMicrotask(()=>{req.result=db;req.onsuccess?.()});return req}};
-const win={indexedDB:index},module={exports:{}};
-new Function('window','module',source)(win,module);
-const api=module.exports;
+const win={indexedDB:index},mockModule={exports:{}};
+new Function('window','module',source)(win,mockModule);
+const api=mockModule.exports;
 (async()=>{
   const result=await api.purgeOwner(A);
   assert.equal(result.purged,true);
