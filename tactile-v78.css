@@ -1,0 +1,204 @@
+/* v78: tactile layer. Press feedback, depth, glass navigation, sheet gestures and quiet motion.
+   Loaded last. No layout replacement: every rule is scoped and reduced-motion aware.
+   One-shot animations are triggered by tactile-v78.js with classes, because render() rebuilds #app
+   and a plain CSS animation on a rebuilt node would replay on every toast or sync. */
+:root {
+  --mc-spring: cubic-bezier(.34, 1.56, .64, 1);
+  --mc-ease-out: cubic-bezier(.22, 1, .36, 1);
+  --mc-hi: rgba(255, 255, 255, .055);
+  --mc-elev-1: inset 0 1px 0 var(--mc-hi), 0 1px 2px rgba(2, 6, 16, .34), 0 8px 20px rgba(2, 6, 16, .2);
+  --mc-elev-2: inset 0 1px 0 var(--mc-hi), 0 2px 4px rgba(2, 6, 16, .3), 0 14px 32px rgba(2, 6, 16, .28);
+  --mc-elev-3: inset 0 1px 0 var(--mc-hi), 0 4px 8px rgba(2, 6, 16, .28), 0 24px 56px rgba(2, 6, 16, .36);
+}
+html[data-theme="light"] {
+  --mc-hi: rgba(255, 255, 255, .95);
+  --mc-elev-1: inset 0 1px 0 var(--mc-hi), 0 1px 2px rgba(49, 49, 92, .08), 0 8px 20px rgba(49, 49, 92, .08);
+  --mc-elev-2: inset 0 1px 0 var(--mc-hi), 0 2px 4px rgba(49, 49, 92, .09), 0 14px 32px rgba(49, 49, 92, .13);
+  --mc-elev-3: inset 0 1px 0 var(--mc-hi), 0 4px 8px rgba(49, 49, 92, .1), 0 24px 56px rgba(49, 49, 92, .18);
+}
+
+/* ---------- Depth: one elevation scale instead of near-invisible shadows ---------- */
+#app :is(.panel, .stat-card, .rotation-card, .v16-collection-card, .v16-backlog-card, .v16-ach),
+#app .game-grid:not(.v16-shelf) .game-card,
+#app .cards .platform-card { box-shadow: var(--mc-elev-1); }
+@media (hover: hover) and (pointer: fine) {
+  #app .game-grid:not(.v16-shelf) .game-card:hover,
+  #app .cards .platform-card:hover {
+    box-shadow: var(--mc-elev-2), 0 0 0 1px color-mix(in srgb, var(--accent) 16%, transparent);
+  }
+}
+
+/* ---------- Covers as objects: gloss, rim light, quiet hover sheen ---------- */
+#app :is(.game-card > .cover, .detail-cover, .v16-hero-cover .cover)::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(128deg, rgba(255, 255, 255, .17) 0%, rgba(255, 255, 255, .05) 24%, transparent 46%) 0 0 / 220% 100% no-repeat;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .09), inset 1px 0 0 rgba(255, 255, 255, .13), inset 0 1px 0 rgba(255, 255, 255, .2);
+  transition: background-position .7s var(--mc-ease-out);
+}
+@media (hover: hover) and (pointer: fine) {
+  #app .game-card:hover > .cover::before { background-position: 100% 0; }
+}
+
+/* ---------- Cover loading: shimmer while pending, soft reveal when a network image lands ---------- */
+@keyframes mc-shimmer { from { background-position: 130% 0, 0 0; } to { background-position: -130% 0, 0 0; } }
+@keyframes mc-cover-in { from { opacity: 0; transform: scale(1.06); } to { opacity: 1; transform: none; } }
+#app .mc-art.mc-art-pending > .cover-fallback {
+  background-image: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, .2) 50%, transparent 70%),
+    radial-gradient(circle at 74% 20%, rgba(255, 255, 255, .16), transparent 30%);
+  background-size: 240% 100%, auto;
+  background-repeat: no-repeat;
+  animation: mc-shimmer 1.4s linear infinite;
+}
+#app .mc-art.mc-art-reveal > img { animation: mc-cover-in .45s var(--mc-ease-out) backwards; }
+
+/* ---------- Press feedback: quick squeeze, springy release ---------- */
+#app :is(.game-card, .platform-card, .v16-backlog-card, .v16-collection-card, .platform-choice-button),
+#app :is(.primary, .secondary, .ghost, .danger, .mc-card-edit) {
+  transition: transform .42s var(--mc-spring), border-color .14s ease, box-shadow .2s ease, background-color .14s ease;
+}
+/* :not(#mc-x) only raises specificity so a press beats hover lifts and shelf rules. */
+#app :is(.game-card, .platform-card, .v16-backlog-card, .v16-collection-card, .platform-choice-button).mc-pressed:not(#mc-x) {
+  transform: scale(.972);
+  transition: transform .09s ease-out, border-color .14s ease, box-shadow .2s ease, background-color .14s ease;
+}
+#app :is(.primary, .secondary, .ghost, .danger, .mc-card-edit):is(.mc-pressed, :active):not(:disabled):not(#mc-x) {
+  transform: scale(.972);
+  transition: transform .09s ease-out, border-color .14s ease, box-shadow .14s ease, background-color .14s ease;
+}
+.mc-more-list > button { transition: transform .42s var(--mc-spring), background-color .14s ease; }
+.mc-more-list > button.mc-pressed { transform: scale(.975); transition-duration: .09s, .14s; }
+.mc-more-head > button { transition: transform .42s var(--mc-spring); }
+.mc-more-head > button.mc-pressed { transform: scale(.9); transition-duration: .09s; }
+
+/* ---------- Stars: pop, glow and a drag surface ---------- */
+@keyframes mc-star-pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.45) rotate(-8deg); }
+  100% { transform: scale(1); }
+}
+#app .star-picker,
+#app .star-picker .star-button { touch-action: pan-y; }
+#app .star-picker .star-button.mc-star-pop { animation: mc-star-pop .34s var(--mc-spring); }
+#app .star-picker.mc-rating-enhanced .star-button.selected { text-shadow: 0 0 12px color-mix(in srgb, var(--star) 45%, transparent); }
+#app .star-picker.mc-dragging { cursor: grabbing; user-select: none; -webkit-user-select: none; }
+
+/* ---------- Toast: arrival and the memory-card LED ---------- */
+@keyframes mc-toast-in { from { opacity: 0; transform: translateY(14px) scale(.96); } to { opacity: 1; transform: none; } }
+@keyframes mc-led-blink { 0%, 100% { opacity: 1; } 18% { opacity: .08; } 36% { opacity: 1; } 54% { opacity: .08; } 72% { opacity: 1; } }
+#app .toast.mc-toast-enter { animation: mc-toast-in .34s var(--mc-spring) backwards; }
+#app .toast.mc-led-blink .mc-memory-led {
+  animation: mc-led-blink .95s ease-in-out 1;
+  filter: drop-shadow(0 0 3px currentColor);
+}
+
+/* ---------- Modals: soft entrance (class set once by JS) ---------- */
+@keyframes mc-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes mc-modal-pop { from { opacity: 0; transform: translateY(14px) scale(.975); } to { opacity: 1; transform: none; } }
+@keyframes mc-sheet-rise { from { opacity: .55; transform: translateY(36px); } to { opacity: 1; transform: none; } }
+/* "backwards" fill only: a finished animation must not pin transform over the swipe gesture. */
+#app .modal-backdrop.mc-modal-enter { animation: mc-fade-in .18s ease-out backwards; }
+#app .modal-backdrop.mc-modal-enter > .modal { animation: mc-modal-pop .28s var(--mc-ease-out) backwards; }
+.mc-share-dialog[open] { animation: mc-modal-pop .28s var(--mc-ease-out) backwards; }
+dialog.mc-more-sheet[open] .mc-more-panel { animation: mc-sheet-rise .4s var(--mc-ease-out) backwards; }
+dialog.mc-more-sheet[open]::backdrop,
+.mc-share-dialog[open]::backdrop { animation: mc-fade-in .2s ease-out backwards; }
+@media (max-width: 600px) {
+  #app .modal-backdrop.mc-modal-enter > .modal,
+  .mc-share-dialog[open] { animation-name: mc-sheet-rise; animation-duration: .4s; }
+}
+
+/* ---------- Sheet gestures: grab handle, rubber band, fading backdrop ---------- */
+dialog.mc-more-sheet::backdrop { background: rgba(0, 0, 0, calc(.52 * var(--mc-drag-fade, 1))); }
+.mc-share-dialog::backdrop { background: color-mix(in srgb, var(--overlay) calc(100% * var(--mc-drag-fade, 1)), transparent); }
+.mc-more-handle { position: relative; width: 40px; height: 5px; }
+.mc-more-handle::after { content: ''; position: absolute; inset: -14px -44px; }
+.mc-more-handle, .mc-more-head { touch-action: none; }
+.mc-sheet-dragging { will-change: transform; }
+@media (max-width: 600px) {
+  #app .modal-backdrop { background: color-mix(in srgb, var(--overlay) calc(92% * var(--mc-drag-fade, 1)), transparent); }
+  #app .modal-head, #app .game-detail-hero, .mc-share-head { touch-action: none; }
+  #app .modal-head::before,
+  #app .game-detail-hero::before {
+    content: '';
+    position: absolute;
+    top: 6px;
+    left: 50%;
+    width: 36px;
+    height: 4px;
+    margin-left: -18px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--text) 24%, transparent);
+    pointer-events: none;
+  }
+}
+
+/* ---------- Hero parallax (var set by JS, 0 when motion is reduced) ---------- */
+#app :is(.v16-home-hero, .v16-detail)::before {
+  transform: translate3d(0, calc(var(--mc-py, 0) * 1px), 0) scale(1.12);
+  will-change: transform;
+}
+
+/* ---------- Settings: haptics switch ---------- */
+.mc-haptics-toggle small { display: block; margin-top: 2px; }
+
+/* ---------- Mobile navigation: glass bar and a sliding pill ---------- */
+@media (max-width: 900px) {
+  #app .mobile-nav {
+    background: color-mix(in srgb, var(--bg) 80%, transparent);
+    -webkit-backdrop-filter: blur(22px) saturate(1.5);
+    backdrop-filter: blur(22px) saturate(1.5);
+    view-transition-name: mc-bottom-nav;
+  }
+  html[data-theme="light"] #app .mobile-nav { background: color-mix(in srgb, var(--bg) 90%, transparent); }
+  #app .mobile-nav .mc-nav-pill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    border-radius: 14px;
+    pointer-events: none;
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
+    transition: transform .42s var(--mc-spring);
+    will-change: transform;
+  }
+  /* The pill is the active background now; the item itself stays transparent. */
+  #app .mobile-nav .mc-mobile-nav-item.active { background: transparent !important; }
+  #app .mobile-nav .mc-mobile-nav-item.active .mc-mobile-nav-icon { background: transparent; }
+  #app .mobile-nav .mc-mobile-nav-item .mc-mobile-nav-icon { transition: transform .42s var(--mc-spring), background .16s ease; }
+  #app .mobile-nav .mc-mobile-nav-item.mc-pressed .mc-mobile-nav-icon { transform: scale(.84); transition-duration: .09s, .16s; }
+  #app .mobile-nav .mc-mobile-nav-item.mc-nav-pop .mc-mobile-nav-icon { animation: mc-nav-pop .42s var(--mc-spring); }
+}
+@keyframes mc-nav-pop {
+  0% { transform: translateY(2px) scale(.8); }
+  55% { transform: translateY(-4px) scale(1.14); }
+  100% { transform: translateY(-1px) scale(1); }
+}
+
+/* ---------- Section changes: quick cross-fade where View Transitions exist ---------- */
+@keyframes mc-vt-out { to { opacity: 0; transform: translateY(-6px); } }
+@keyframes mc-vt-in { from { opacity: 0; transform: translateY(10px); } }
+::view-transition-old(root) { animation: mc-vt-out .12s ease-in both; }
+::view-transition-new(root) { animation: mc-vt-in .24s var(--mc-ease-out) both; }
+::view-transition-group(mc-bottom-nav) { animation-duration: .2s; }
+
+/* ---------- Reduced motion: the rules above that live outside #app need their own switch ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .mc-more-list > button, .mc-more-head > button, .mc-more-handle { transition: none; }
+  dialog.mc-more-sheet[open] .mc-more-panel, .mc-share-dialog[open],
+  dialog.mc-more-sheet[open]::backdrop, .mc-share-dialog[open]::backdrop { animation: none; }
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
+}
+html.mc-reduced-motion .mc-more-list > button,
+html.mc-reduced-motion .mc-more-head > button,
+html.mc-reduced-motion .mc-more-handle { transition: none; }
+html.mc-reduced-motion dialog.mc-more-sheet[open] .mc-more-panel,
+html.mc-reduced-motion .mc-share-dialog[open],
+html.mc-reduced-motion dialog.mc-more-sheet[open]::backdrop,
+html.mc-reduced-motion .mc-share-dialog[open]::backdrop { animation: none; }
+html.mc-reduced-motion #app :is(.v16-home-hero, .v16-detail)::before { transform: scale(1.04); will-change: auto; }
+html.mc-reduced-motion #app .mobile-nav .mc-nav-pill { transition: none; }
