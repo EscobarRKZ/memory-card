@@ -89,37 +89,59 @@
   async function sendChanges(client,userId,writes,toRow){
     if(!userId||typeof toRow!=='function')throw new Error('Invalid cloud sync context');
     if(!Array.isArray(writes))throw new Error('Invalid write plan');
-    const applied=[];
+    const rows=[],ids=new Set();
     for(const change of writes){
       const id=string(change.id);
-      if(!id||!change.game||id!==string(change.game.id))throw new Error('Invalid game change');
+      if(!id||!change.game||id!==string(change.game.id)||ids.has(id)){
+        throw new Error('Invalid or duplicate game change');
+      }
+      ids.add(id);
       const row={...toRow(change.game),user_id:userId,id};
-      // Using the request time ensures the revision changes even if the
-      // original local timestamp is older than the remote revision.
-      const previous=Date.parse(String(change.revision||''));
+      const previous=Date.parse(string(change.revision));
       const moment=Number.isFinite(previous)?Math.max(Date.now(),previous+1):Date.now();
       row.updated_at=new Date(moment).toISOString();
-      let result;
-      if(change.kind==='insert'){
-        result=await client.from('games').insert(row).select('id,updated_at');
-      }else if(change.kind==='update'&&change.revision){
-        result=await client.from('games').update(row)
-          .eq('user_id',userId).eq('id',id)
-          .eq('updated_at',change.revision).select('id,updated_at');
-      }else throw new Error('Invalid write operation');
+      rows.push({change,row});
+    }
+    const applied=[];
+    const added=rows.filter(x=>x.change.kind==='insert');
+    const updates=rows.filter(x=>x.change.kind!=='insert');
+    // Bounded, atomic INSERT batches. A duplicate PK aborts that entire batch.
+    for(let offset=0;offset<added.length;offset+=100){
+      const batch=added.slice(offset,offset+100);
+      const result=await client.from('games').insert(batch.map(x=>x.row)).select('id,updated_at');
       if(result?.error){
-        const code=String(result.error.code||'');
-        if(code==='23505'||code==='PGRST116')throw conflictError(id,'Game was created by another device');
+        if(String(result.error.code)==='23505')throw conflictError(batch[0].change.id,'Another device already created a game in this batch');
         throw result.error;
       }
-      const rows=result?.data;
-      if(!Array.isArray(rows)||rows.length!==1||string(rows[0].id)!==id||!rows[0].updated_at){
-        throw conflictError(id,'Cloud game changed since last read');
+      const returned=result?.data;
+      if(!Array.isArray(returned)||returned.length!==batch.length){
+        throw conflictError(batch[0].change.id,'Incomplete cloud insert response');
       }
-      applied.push({id,revision:string(rows[0].updated_at),signature:signature(change.game)});
+      const returnedById=new Map(returned.map(x=>[string(x.id),x]));
+      for(const {change} of batch){
+        const item=returnedById.get(change.id);
+        if(!item?.updated_at)throw conflictError(change.id,'Cloud insert was not confirmed');
+        applied.push({id:change.id,revision:string(item.updated_at),signature:signature(change.game)});
+      }
+    }
+    // Conditional UPDATE is one database statement with an exact revision
+    // predicate, not a read-then-unconditional-write race.
+    for(const {change,row} of updates){
+      if(change.kind!=='update'||!change.revision)throw new Error('Invalid update operation');
+      const result=await client.from('games').update(row)
+        .eq('user_id',userId).eq('id',change.id)
+        .eq('updated_at',change.revision).select('id,updated_at');
+      if(result?.error)throw result.error;
+      if(!Array.isArray(result?.data)||result.data.length!==1||
+          string(result.data[0].id)!==change.id||!result.data[0].updated_at){
+        throw conflictError(change.id,'Cloud game changed since last read');
+      }
+      applied.push({id:change.id,revision:string(result.data[0].updated_at),
+        signature:signature(change.game)});
     }
     return applied;
   }
+
   const api=Object.freeze({KEY,ARCHIVE_KEY,signature,plan,sendChanges,conflictError});
   root.MemoryCardConflictV81=api;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
