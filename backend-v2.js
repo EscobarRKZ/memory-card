@@ -15,8 +15,10 @@
   let syncKind='',syncMessage='',authWarning='';
   let lastCloudErrorToast=0;
   let activeAuthUserId=null;
+  let localEpoch=0,conflictItems=[],resolvingConflict=false;
+  const conflictsApi=window.MemoryCardConflictV81;
   const transfer=window.MemoryCardCloudTransferV80;
-  if(!transfer?.downloadGames||!transfer?.uploadGames){
+  if(!transfer?.downloadGames||!conflictsApi?.plan||!conflictsApi?.sendChanges){
     console.error('Memory Card cloud transfer module is missing');
     window.MemoryCardBackendV2={configured:false};
     return;
@@ -48,7 +50,7 @@
   }
   function omitLocalSettings(source={}){
     const out={...source};
-    for(const key of ['sheetEndpoint','syncSecret','authToken','userId','cloudOwnerUid','profileUpdatedAt','lastSync','autoSync','accentTheme']) delete out[key];
+    for(const key of ['sheetEndpoint','syncSecret','authToken','userId','cloudOwnerUid','cloudSyncBaselineV81','cloudConflictArchiveV81','profileUpdatedAt','lastSync','autoSync','accentTheme']) delete out[key];
     return out;
   }
   function gameToRow(g){
@@ -201,6 +203,7 @@
 
   persist=async function(){
     disableLegacySync();
+    localEpoch++;
     await localPersist();
     schedulePush();
   };
