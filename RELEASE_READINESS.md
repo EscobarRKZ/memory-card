@@ -37,8 +37,12 @@ Reviewed: 2026-11-07. This document tracks launch gates, not a declaration that 
 
 ## Stage 3 — identity and privacy controls
 
-- [ ] Add secure in-app account deletion and an external deletion-request webpage, with authentication, user confirmation, full data lifecycle and retention documentation.
-- [ ] Publish an accurate privacy policy and support/contact page.
+- [x] v84: create an authenticated, RLS-protected **non-destructive** account-deletion request queue and public `delete-account.html` web path. The app links to the page from Account Settings, and users can see pending status.
+- [ ] Actually **process and complete** deletion requests; implement server-side hard deletion with verified identity and local cleanup, or a reliable monitored manual process. The irreversible Edge Function prototype remains disabled and not deployed.
+- [ ] Test request submission with a disposable Supabase account and verify public web hosting; mocks and permission queries are not sufficient for Google Play.
+- [ ] Publish a private support contact and documented response/backup retention policy.
+- [x] v84: publish a plainly labeled pre-release privacy/data information page, with an inventory of connected services.
+- [ ] Finalize Google Play privacy policy, verified Data safety statements, retention periods and private support contact.
 - [ ] Map all SDKs, analytics, requests, game artwork sources and uploaded/shared data for Google Play Data safety.
 - [ ] Rate-limit friend requests and audit all social RPCs and row-level policies with multiple test accounts.
 - [ ] Add user blocking/reporting and review moderation obligations; alternatively omit social features from the first release.
