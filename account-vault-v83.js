@@ -214,44 +214,7 @@
     });
   }
 
-  // Only called AFTER the authenticated server confirms permanent deletion.
-  // Remove the current user's local snapshot/backups in one transaction;
-  // never touch another account or unidentified legacy guest data.
-  async function purgeOwner(owner){
-    return serial(async()=>{
-      const uid=String(owner||'');
-      if(!uid||String(state.settings?.cloudOwnerUid||'')!==uid){
-        throw new Error('Refusing to erase another account workspace');
-      }
-      const blank=fresh();
-      const db=await dbOpen();
-      try{
-        await new Promise((resolve,reject)=>{
-          try{
-            const tx=db.transaction(STORE_NAME,'readwrite');
-            const store=tx.objectStore(STORE_NAME);
-            const request=store.get(MAIN);
-            request.onsuccess=()=>{
-              const active=String(request.result?.settings?.cloudOwnerUid||'');
-              if(active!==uid){tx.abort();return;}
-              store.delete(keyFor(uid));
-              store.delete('sync-backups-v1:'+uid);
-              store.put(blank,MAIN);
-            };
-            request.onerror=()=>tx.abort();
-            tx.oncomplete=resolve;
-            tx.onerror=()=>reject(tx.error||new Error('Deletion cleanup failed'));
-            tx.onabort=()=>reject(tx.error||new Error('Account changed during local cleanup'));
-          }catch(error){reject(error);}
-        });
-      }finally{try{db.close?.()}catch(_){}}
-      restore(blank,'');
-      activatedOwner='';
-      return {purged:true,owner:uid,guestArchivePreserved:true};
-    });
-  }
-
-  const api=Object.freeze({activate,deactivate,guestInfo,importGuest,purgeOwner,keyFor,
+  const api=Object.freeze({activate,deactivate,guestInfo,importGuest,keyFor,
     guestKey:GUEST,isSnapshot:validSnapshot,isSwitching:()=>switching});
   root.MemoryCardAccountVaultV83=api;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
