@@ -109,3 +109,54 @@
 @media (max-width: 480px) {
   .mc-guest-import button { width: 100%; }
 }
+
+
+/* v84: account deletion request is distinguishable from a completed deletion. */
+.mc-account-deletion {
+  margin-top: 15px;
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel2);
+  color: var(--text);
+}
+.mc-account-deletion h4 { font-size: 15px; margin: 0 0 9px; }
+.mc-account-deletion p {
+  margin: 6px 0 10px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.mc-account-deletion a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.mc-account-deletion form {
+  display: grid;
+  gap: 10px;
+  max-width: 440px;
+  margin-top: 12px;
+}
+.mc-account-deletion label { display: grid; gap: 7px; font-size: 12px; }
+.mc-account-deletion input {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+}
+.mc-account-deletion button { min-height: 44px; width: fit-content; max-width: 100%; white-space: normal; }
+.mc-account-deletion :is(input,button,a):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+@media(max-width:480px) {
+ .mc-account-deletion button { width: 100%; }
+}

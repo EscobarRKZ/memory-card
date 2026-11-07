@@ -37,7 +37,9 @@ Reviewed: 2026-11-07. This document tracks launch gates, not a declaration that 
 
 ## Stage 3 — identity and privacy controls
 
-- [ ] Add secure in-app account deletion and an external deletion-request webpage, with authentication, user confirmation, full data lifecycle and retention documentation.
+- [x] v84: create an authenticated, RLS-restricted account deletion **request** from Settings and from a standalone browser URL; prevent duplicate requests and show pending status. Requests do NOT delete the account.
+- [ ] Implement and staff actual deletion processing (privileged Auth deletion + cascade verification, backups/retention policy). Without this, the request pathway is incomplete for a responsible public release.
+- [ ] Verify that the public deletion URL actually loads on GitHub Pages and works with test accounts outside the PWA.
 - [ ] Publish an accurate privacy policy and support/contact page.
 - [ ] Map all SDKs, analytics, requests, game artwork sources and uploaded/shared data for Google Play Data safety.
 - [ ] Rate-limit friend requests and audit all social RPCs and row-level policies with multiple test accounts.
