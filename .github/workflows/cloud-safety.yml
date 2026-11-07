@@ -1,0 +1,41 @@
+name: Memory Card cloud safety
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend-v2.js"
+      - "cloud-conflicts-v81.js"
+      - "cloud-transfer-v80.js"
+      - "tests/test_cloud_*.cjs"
+      - ".github/workflows/cloud-safety.yml"
+  pull_request:
+    paths:
+      - "backend-v2.js"
+      - "cloud-conflicts-v81.js"
+      - "cloud-transfer-v80.js"
+      - "tests/test_cloud_*.cjs"
+      - ".github/workflows/cloud-safety.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  cloud-safety:
+    name: Cloud sync regression tests (no network)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check production JavaScript syntax
+        run: |
+          node --check backend-v2.js
+          node --check cloud-transfer-v80.js
+          node --check cloud-conflicts-v81.js
+      - name: Run offline sync regression tests
+        run: |
+          node tests/test_cloud_transfer_v80.cjs
+          node tests/test_cloud_conflicts_v81.cjs
+          node tests/test_cloud_backend_v81.cjs
