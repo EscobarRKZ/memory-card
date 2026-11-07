@@ -1,0 +1,62 @@
+/* v78: small quick actions that stay out of the way of games and forms. */
+.mc-quick-top[hidden] { display: none !important; }
+.mc-quick-top {
+  position: fixed;
+  right: max(14px, env(safe-area-inset-right));
+  bottom: calc(96px + env(safe-area-inset-bottom));
+  z-index: 45;
+  min-height: 44px;
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 7px 22px rgba(0,0,0,.16);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 750;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.mc-quick-top svg { width: 18px; height: 18px; flex: 0 0 18px; }
+.mc-quick-top:focus-visible, .v16-detail-actions .mc-copy-title:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.v16-detail-actions .mc-copy-title {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--panel2);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 750;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.v16-detail-actions .mc-copy-title svg { width: 18px; height: 18px; flex: 0 0 18px; }
+.v16-detail-actions .mc-copy-title:disabled { opacity: .65; cursor: wait; }
+@media (hover: hover) and (pointer: fine) {
+  .mc-quick-top:hover, .v16-detail-actions .mc-copy-title:hover {
+    border-color: var(--accent);
+  }
+}
+@media (min-width: 901px) {
+  .mc-quick-top { right: 24px; bottom: 24px; }
+}
+@media (max-width: 760px) {
+  .v16-detail-actions .mc-copy-title { width: 100%; min-height: 46px; }
+}
+@media (max-width: 370px) {
+  .mc-quick-top { right: 10px; padding-inline: 11px; }
+}
