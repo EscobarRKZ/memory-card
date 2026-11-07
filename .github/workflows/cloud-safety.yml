@@ -8,6 +8,10 @@ on:
       - "app.js"
       - "account-vault-v83.js"
       - "tests/test_account_*.cjs"
+      - "account-deletion-v84.js"
+      - "account-deletion-page-v84.js"
+      - "delete-account.html"
+      - "supabase/migrations/20261107131531_account_deletion_requests_v84.sql"
       - "cloud-conflicts-v81.js"
       - "cloud-transfer-v80.js"
       - "tests/test_cloud_*.cjs"
@@ -20,6 +24,10 @@ on:
       - "app.js"
       - "account-vault-v83.js"
       - "tests/test_account_*.cjs"
+      - "account-deletion-v84.js"
+      - "account-deletion-page-v84.js"
+      - "delete-account.html"
+      - "supabase/migrations/20261107131531_account_deletion_requests_v84.sql"
       - "cloud-conflicts-v81.js"
       - "cloud-transfer-v80.js"
       - "tests/test_cloud_*.cjs"
@@ -44,6 +52,8 @@ jobs:
           node --check backend-v2.js
           node --check app.js
           node --check account-vault-v83.js
+          node --check account-deletion-v84.js
+          node --check account-deletion-page-v84.js
           node --check cloud-transfer-v80.js
           node --check cloud-conflicts-v81.js
       - name: Run offline sync regression tests
@@ -54,3 +64,4 @@ jobs:
           node tests/test_server_rpc_v82.cjs
           node tests/test_account_vault_v83.cjs
           node tests/test_account_backend_v83.cjs
+          node tests/test_account_deletion_v84.cjs
