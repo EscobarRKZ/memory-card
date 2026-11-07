@@ -320,6 +320,15 @@
         setSyncNotice('conflict','Облачная версия изменилась во время записи. Нажми «Синхронизировать» для повторной сверки.');
       }else{
         setSyncNotice('error','Синхронизация не завершена. Локальные записи сохранены; попробуй ещё раз.');
+        // If the new account's local vault could not open, never expose the
+        // previous owner's in-memory library under a different login.
+        if(vault && String(state.settings?.cloudOwnerUid||'')!==uid){
+          authWarning='Не удалось открыть локальное хранилище аккаунта. Вход отменён без изменения сохранённых записей.';
+          try{await client.auth.signOut();}catch(_){}
+          session=null;
+          profile=null;
+          showAuth();
+        }
       }
       return false;
     }finally{
@@ -463,19 +472,65 @@
       if(title.includes('Google Sheets')) panel.hidden=true;
     });
   }
+  async function injectGuestImport(card){
+    if(!vault?.guestInfo||!card?.isConnected)return;
+    try{
+      const info=await vault.guestInfo();
+      if(!card.isConnected||state.view!=='settings'||!session)return;
+      let area=card.querySelector('[data-v83-guest-import-area]');
+      if(!info.games){area?.remove();return;}
+      if(!area){
+        area=document.createElement('div');
+        area.dataset.v83GuestImportArea='1';
+        area.className='mc-guest-import';
+        card.appendChild(area);
+      }
+      area.innerHTML='<p>Найдена гостевая библиотека: '+info.games+
+        ' игр. Она сохранена отдельно и не перенесена автоматически.</p>'+
+        '<button class="secondary compact" type="button" data-v83-import-guest>'+
+        'Перенести недостающие игры</button>';
+    }catch(error){
+      console.warn('Guest library lookup failed',error);
+    }
+  }
+
+  async function importGuest(){
+    if(!vault?.importGuest||!session||syncing)return;
+    try{
+      const info=await vault.guestInfo();
+      if(!info.games){setToast('Гостевая библиотека не найдена.');return;}
+      if(!window.confirm('Добавить '+info.games+
+        ' гостевых игр в этот аккаунт? Совпадающие ID останутся без изменений. '+
+        'Гостевой архив будет сохранён отдельно.'))return;
+      const result=await vault.importGuest();
+      if(result.imported){
+        localEpoch++;
+        await persist();
+        applyTheme();
+        baseRender();
+        queueMicrotask(injectAccount);
+      }
+      setToast('Перенесено игр: '+result.imported+'. Пропущено совпадений: '+result.skipped+'.');
+    }catch(error){
+      console.error('Guest import failed',error);
+      setToast('Не удалось безопасно перенести гостевую библиотеку.');
+    }
+  }
+
   function injectAccount(){
     hideLegacySyncUi();
     if(state.view!=='settings'||!session) return;
     const root=document.querySelector('.settings-grid')||document.querySelector('.content');
     if(!root)return;
     const existing=root.querySelector('[data-v2-account]');
-    if(existing){renderConflictPanel(existing);return;}
+    if(existing){renderConflictPanel(existing);void injectGuestImport(existing);return;}
     const card=document.createElement('section');
     card.className='panel';
     card.dataset.v2Account='1';
     card.innerHTML=`<div class="settings-panel-head"><div><h3>Аккаунт</h3><p class="status-line">${escHtml(session.user.email||'')} · ${escHtml(profile?.memory_id||state.settings.userId||'')}</p></div><div class="mc-account-chip"><button class="secondary compact" type="button" data-v2-sync>Синхронизировать</button><button class="ghost compact" type="button" data-v2-logout>Выйти</button></div></div><p data-v2-sync-state data-sync-kind="${escHtml(syncKind)}" class="mc-cloud-sync-state" role="status">${escHtml(syncMessage)}</p>`;
     root.prepend(card);
     renderConflictPanel(card);
+    void injectGuestImport(card);
   }
 
   render=function(){baseRender();queueMicrotask(injectAccount);};
@@ -487,6 +542,11 @@
     if(event.target instanceof Element&&event.target.closest('[data-auth-reset]')){resetPassword();return;}
     if(event.target instanceof Element&&event.target.closest('[data-v2-logout]')){logout();return;}
     if(event.target instanceof Element&&event.target.closest('[data-v2-sync]')){reconcile();return;}
+    if(event.target instanceof Element&&event.target.closest('[data-v83-import-guest]')){
+      event.preventDefault();
+      void importGuest();
+      return;
+    }
     const resolve=event.target instanceof Element?event.target.closest('[data-v81-resolve]'):null;
     if(resolve){event.preventDefault();resolveConflict(resolve.dataset.v81Id,resolve.dataset.v81Resolve);return;}
   },true);
