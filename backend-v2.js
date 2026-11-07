@@ -530,7 +530,7 @@
     const card=document.createElement('section');
     card.className='panel';
     card.dataset.v2Account='1';
-    card.innerHTML=`<div class="settings-panel-head"><div><h3>Аккаунт</h3><p class="status-line">${escHtml(session.user.email||'')} · ${escHtml(profile?.memory_id||state.settings.userId||'')}</p></div><div class="mc-account-chip"><button class="secondary compact" type="button" data-v2-sync>Синхронизировать</button><button class="ghost compact" type="button" data-v2-logout>Выйти</button></div></div><p data-v2-sync-state data-sync-kind="${escHtml(syncKind)}" class="mc-cloud-sync-state" role="status">${escHtml(syncMessage)}</p>`;
+    card.innerHTML=`<div class="settings-panel-head"><div><h3>Аккаунт</h3><p class="status-line">${escHtml(session.user.email||'')} · ${escHtml(profile?.memory_id||state.settings.userId||'')}</p></div><div class="mc-account-chip"><button class="secondary compact" type="button" data-v2-sync>Синхронизировать</button><button class="ghost compact" type="button" data-v2-logout>Выйти</button></div></div><p data-v2-sync-state data-sync-kind="${escHtml(syncKind)}" class="mc-cloud-sync-state" role="status">${escHtml(syncMessage)}</p><div class="mc-account-data-controls"><button class="secondary compact" type="button" data-v84-export-json>Скачать мои данные (JSON)</button><a class="secondary compact" href="./delete-account.html">Запросить удаление аккаунта</a><a href="./privacy.html">Конфиденциальность</a></div>`;
     root.prepend(card);
     renderConflictPanel(card);
     void injectGuestImport(card);
@@ -545,6 +545,12 @@
     if(event.target instanceof Element&&event.target.closest('[data-auth-reset]')){resetPassword();return;}
     if(event.target instanceof Element&&event.target.closest('[data-v2-logout]')){logout();return;}
     if(event.target instanceof Element&&event.target.closest('[data-v2-sync]')){reconcile();return;}
+    if(event.target instanceof Element&&event.target.closest('[data-v84-export-json]')){
+      event.preventDefault();
+      if(typeof exportData==='function')exportData();
+      else setToast('Экспорт пока недоступен.');
+      return;
+    }
     if(event.target instanceof Element&&event.target.closest('[data-v83-import-guest]')){
       event.preventDefault();
       void importGuest();
