@@ -109,3 +109,43 @@
 @media (max-width: 480px) {
   .mc-guest-import button { width: 100%; }
 }
+
+
+/* v84: account data controls, aligned with existing Settings actions. */
+.mc-account-data-controls {
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:8px 12px;
+  margin-top:12px;
+  padding-top:12px;
+  border-top:1px solid var(--line);
+}
+.mc-account-data-controls button,
+.mc-account-data-controls > a.secondary {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  text-decoration:none;
+  min-height:44px;
+  border-radius:12px;
+  cursor:pointer;
+  text-align:center;
+}
+.mc-account-data-controls > a:not(.secondary) {
+  display:inline-flex;
+  align-items:center;
+  min-height:44px;
+  padding:8px;
+  color:var(--text);
+  text-underline-offset:3px;
+}
+.mc-account-data-controls > a:focus-visible,
+.mc-account-data-controls > button:focus-visible {
+  outline:2px solid var(--accent);
+  outline-offset:3px;
+}
+@media (max-width:520px) {
+  .mc-account-data-controls > button,
+  .mc-account-data-controls > a.secondary {flex:1 1 100%;}
+}
