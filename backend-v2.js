@@ -13,6 +13,7 @@
   let pushQueuedDuringSync=false;
   let cloudReady=false;
   let syncKind='',syncMessage='',authWarning='';
+  let lastCloudErrorToast=0;
   let activeAuthUserId=null;
   const transfer=window.MemoryCardCloudTransferV80;
   if(!transfer?.downloadGames||!transfer?.uploadGames){
@@ -32,6 +33,10 @@
       el.textContent=message;
       el.dataset.syncKind=kind;
     });
+    if(kind==='error' && typeof setToast==='function' && Date.now()-lastCloudErrorToast>60000){
+      lastCloudErrorToast=Date.now();
+      setToast('Облачная синхронизация не завершена. Локальная библиотека сохранена.');
+    }
   }
 
   function escHtml(value=''){return String(value).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
@@ -176,6 +181,7 @@
       console.error('Memory Card cloud sync failed',error);
       cloudReady=false;
       if(error?.code==='LOCAL_ACCOUNT_MISMATCH'){
+        setSyncNotice('error','Синхронизация заблокирована: данные другого аккаунта на устройстве.');
         authWarning='На этом устройстве сохранена библиотека другого аккаунта. Чтобы не смешивать данные, вход отменён. Для смены аккаунта пока используй отдельный профиль браузера.';
         clearTimeout(pushTimer);
         try{await client.auth.signOut();}catch(_){}
@@ -328,6 +334,12 @@
     event.preventDefault();
     form.dataset.authForm==='signup'?signUp(form):signIn(form);
   },true);
+
+  window.addEventListener('online',()=>{
+    if(!session||syncing)return;
+    if(!cloudReady)reconcile();
+    else if(syncKind==='error'||pushQueuedDuringSync)schedulePush(250);
+  });
 
   client.auth.onAuthStateChange((event,next)=>{
     const newId=next?.user?.id||null;
