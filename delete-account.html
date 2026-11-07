@@ -8,7 +8,7 @@
   <title>Удаление аккаунта — Memory Card</title>
   <meta name="description" content="Как отправить запрос на удаление аккаунта Memory Card и связанных с ним данных." />
   <link rel="icon" href="./logo-192.png" />
-  <link rel="stylesheet" href="./account-deletion-page-v84.css?v=84" />
+  <link rel="stylesheet" href="./account-deletion-page-v84.css?v=85" />
 </head>
 <body>
   <main class="wrap">
@@ -40,14 +40,28 @@
             </label>
             <button type="submit" class="danger">Отправить запрос на удаление</button>
           </form>
+          <section id="final-section" class="final-section" hidden aria-labelledby="final-title">
+            <h3 id="final-title">Удалить аккаунт без ожидания обработки</h3>
+            <p>После заявки можно окончательно удалить аккаунт самостоятельно. Все связанные облачные игры, заметки, оценки, коллекции и связи с друзьями будут удалены без возможности восстановления. Перед этим экспортируй библиотеку в Memory Card.</p>
+            <form id="delete-final" hidden>
+              <label>Для окончательного удаления введи <strong>УДАЛИТЬ НАВСЕГДА</strong>
+                <input name="confirmation" type="text" autocomplete="off" required spellcheck="false" />
+              </label>
+              <label>Ещё раз введи пароль от этого аккаунта
+                <input name="password" type="password" autocomplete="current-password" required minlength="8" />
+              </label>
+              <div id="final-turnstile" aria-label="Проверка безопасности"></div>
+              <button type="submit" class="danger">Окончательно удалить мой аккаунт</button>
+            </form>
+          </section>
           <button id="sign-out" type="button" class="secondary">Выйти</button>
         </div>
         <p id="notice" class="notice" role="alert" aria-live="polite"></p>
       </section>
       <section>
         <h2>Что происходит дальше</h2>
-        <p>Заявка получает статус «Ожидает обработки». Это не автоматическое удаление. Удаление данных будет выполнено отдельно после проверки запроса. Пока статус не изменился, аккаунт продолжает работать.</p>
-        <p>Не отправляй пароль или секретные ключи через сторонние формы. Этот сайт использует вход через Supabase Auth.</p>
+        <p>После отправки заявки её можно завершить здесь через повторное подтверждение паролем. Если не завершать самостоятельно, заявка останется в очереди на обработку. Пока аккаунт не удалён, он продолжает работать.</p>
+        <p>При подтверждённом удалении связанные облачные данные удаляются. Копии, сохранённые на других устройствах или экспортированные вручную, нужно удалить отдельно. Пароль используется только для повторной проверки личности, не сохраняется в браузере и не записывается в журнал приложения.</p>
       </section>
     </article>
     <footer><a href="./">Вернуться в Memory Card</a></footer>
@@ -55,7 +69,8 @@
   <script src="./backend-config.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
-  <script src="./account-deletion-v84.js?v=84"></script>
-  <script src="./account-deletion-page-v84.js?v=84"></script>
+  <script src="./account-deletion-v84.js?v=85"></script>
+  <script src="./local-delete-cleanup-v85.js?v=85"></script>
+  <script src="./account-deletion-page-v84.js?v=85"></script>
 </body>
 </html>
