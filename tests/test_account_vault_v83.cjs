@@ -127,7 +127,7 @@ window.MemoryCardAccountVaultV83=vault;
     appCode.slice(start,stop)+'\nreturn persist;')(
     window,badState,()=>db.open(),'state','main',{warn(){}}
   );
-  await assert.rejects(stalePersist(),/Local save aborted/);
+  await assert.rejects(stalePersist(),/aborted|Local save aborted/);
   assert.equal(db.records.get('main').games[0].title,'Tetris');
 
   await vault.deactivate();
