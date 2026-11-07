@@ -10,6 +10,11 @@ on:
       - "tests/test_account_*.cjs"
       - "account-deletion-v84.js"
       - "account-deletion-page-v84.js"
+      - "local-delete-cleanup-v85.js"
+      - "supabase/functions/delete-own-account/**"
+      - "tests/test_delete_own_account_v85.mjs"
+      - "tests/test_local_delete_cleanup_v85.cjs"
+      - "tests/test_account_delete_client_v85.cjs"
       - "delete-account.html"
       - "supabase/migrations/20261107131531_account_deletion_requests_v84.sql"
       - "cloud-conflicts-v81.js"
@@ -26,6 +31,11 @@ on:
       - "tests/test_account_*.cjs"
       - "account-deletion-v84.js"
       - "account-deletion-page-v84.js"
+      - "local-delete-cleanup-v85.js"
+      - "supabase/functions/delete-own-account/**"
+      - "tests/test_delete_own_account_v85.mjs"
+      - "tests/test_local_delete_cleanup_v85.cjs"
+      - "tests/test_account_delete_client_v85.cjs"
       - "delete-account.html"
       - "supabase/migrations/20261107131531_account_deletion_requests_v84.sql"
       - "cloud-conflicts-v81.js"
@@ -54,6 +64,8 @@ jobs:
           node --check account-vault-v83.js
           node --check account-deletion-v84.js
           node --check account-deletion-page-v84.js
+          node --check local-delete-cleanup-v85.js
+          node --check supabase/functions/delete-own-account/logic.mjs
           node --check cloud-transfer-v80.js
           node --check cloud-conflicts-v81.js
       - name: Run offline sync regression tests
@@ -65,3 +77,6 @@ jobs:
           node tests/test_account_vault_v83.cjs
           node tests/test_account_backend_v83.cjs
           node tests/test_account_deletion_v84.cjs
+          node tests/test_delete_own_account_v85.mjs
+          node tests/test_account_delete_client_v85.cjs
+          node tests/test_local_delete_cleanup_v85.cjs
