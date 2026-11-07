@@ -8,6 +8,8 @@ on:
       - "cloud-conflicts-v81.js"
       - "cloud-transfer-v80.js"
       - "tests/test_cloud_*.cjs"
+      - "tests/test_server_rpc_v82.cjs"
+      - "supabase/migrations/20261107105332_add_version_checked_game_writes_v82.sql"
       - ".github/workflows/cloud-safety.yml"
   pull_request:
     paths:
@@ -15,6 +17,8 @@ on:
       - "cloud-conflicts-v81.js"
       - "cloud-transfer-v80.js"
       - "tests/test_cloud_*.cjs"
+      - "tests/test_server_rpc_v82.cjs"
+      - "supabase/migrations/20261107105332_add_version_checked_game_writes_v82.sql"
       - ".github/workflows/cloud-safety.yml"
 
 permissions:
@@ -39,3 +43,4 @@ jobs:
           node tests/test_cloud_transfer_v80.cjs
           node tests/test_cloud_conflicts_v81.cjs
           node tests/test_cloud_backend_v81.cjs
+          node tests/test_server_rpc_v82.cjs
