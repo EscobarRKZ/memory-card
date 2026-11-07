@@ -177,44 +177,15 @@
     await reconcile();
   }
 
-  async function pushCloud(){
+  function pushCloud(){
     clearTimeout(pushTimer);
-    if(!session||syncing||!cloudReady) return;
-    syncing=true;
-    setSyncNotice('busy','Отправляю изменения в облако…');
-    try{
-      disableLegacySync();
-      if(state.settings?.cloudOwnerUid && state.settings.cloudOwnerUid!==session.user.id){
-        throw new Error('LOCAL_ACCOUNT_MISMATCH');
-      }
-      const payload=omitLocalSettings(state.settings||{});
-      const settingsUpdatedAt=state.settings?.settingsUpdatedAt||new Date().toISOString();
-      const profileName=String(state.settings?.profileName||profile?.display_name||'Игрок').trim().slice(0,40)||'Игрок';
-      const rows=(state.games||[]).map(gameToRow);
-      // Upload idempotent batches. Never report success if even one batch failed.
-      await transfer.uploadGames(client,rows);
-      const results=await Promise.all([
-        client.from('profiles').update({display_name:profileName,updated_at:new Date().toISOString()}).eq('user_id',session.user.id),
-        client.from('user_settings').upsert({user_id:session.user.id,payload,updated_at:settingsUpdatedAt},{onConflict:'user_id'})
-      ]);
-      const failed=results.find(x=>x.error);
-      if(failed?.error) throw failed.error;
-      setSyncNotice('ok','Синхронизировано: '+rows.length+' игровых записей');
-    }catch(error){
-      console.error('Memory Card cloud push failed',error);
-      setSyncNotice('error','Не удалось отправить изменения. Они сохранены на устройстве; повтори синхронизацию.');
-    }finally{
-      syncing=false;
-      if(pushQueuedDuringSync){
-        pushQueuedDuringSync=false;
-        schedulePush(150);
-      }
-    }
+    return reconcile();
   }
 
   function schedulePush(delay=900){
-    if(!session) return;
-    if(syncing||!cloudReady){pushQueuedDuringSync=true;return;}
+    if(!session)return;
+    if(syncing){pushQueuedDuringSync=true;return;}
+    if(!cloudReady)return;
     clearTimeout(pushTimer);
     pushTimer=setTimeout(pushCloud,delay);
   }
