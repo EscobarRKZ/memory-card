@@ -27,6 +27,29 @@
     auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}
   });
   let activeUser=null,working=false;
+  let captchaWidget=null,captchaToken='';
+  function initCaptcha(attempt=0){
+    if(!cfg.turnstileSiteKey)return;
+    if(!window.turnstile){
+      if(attempt<30)setTimeout(()=>initCaptcha(attempt+1),200);
+      return;
+    }
+    const host=page.querySelector('[data-request-turnstile]');
+    if(!host||captchaWidget!==null)return;
+    captchaWidget=window.turnstile.render(host,{
+      sitekey:cfg.turnstileSiteKey,theme:'dark',
+      callback:token=>{captchaToken=token;},
+      'expired-callback':()=>{captchaToken='';},
+      'error-callback':()=>{captchaToken='';}
+    });
+  }
+  function resetCaptcha(){
+    captchaToken='';
+    if(captchaWidget!==null&&window.turnstile){
+      try{window.turnstile.reset(captchaWidget);}catch(_){}
+    }
+  }
+  initCaptcha();
   const setStatus=(message,kind='')=>{
     status.textContent=message;
     status.dataset.kind=kind;
@@ -82,6 +105,10 @@
   signInForm.addEventListener('submit',async event=>{
     event.preventDefault();
     if(working)return;
+    if(cfg.turnstileSiteKey&&!captchaToken){
+      setStatus('Подтверди проверку безопасности.','error');
+      return;
+    }
     working=true;
     const btn=signInForm.querySelector('button[type="submit"]');
     btn.disabled=true;
@@ -90,12 +117,14 @@
     const password=signInForm.elements.password.value;
     signInForm.elements.password.value='';
     try{
-      const {error}=await client.auth.signInWithPassword({email,password});
+      const {error}=await client.auth.signInWithPassword({
+        email,password,options:{captchaToken:captchaToken||undefined}
+      });
       if(error)throw error;
       await refresh();
     }catch(_){
       setStatus('Не удалось войти. Проверь email и пароль.','error');
-    }finally{btn.disabled=false;working=false;}
+    }finally{resetCaptcha();btn.disabled=false;working=false;}
   });
   requestForm.addEventListener('submit',async event=>{
     event.preventDefault();
