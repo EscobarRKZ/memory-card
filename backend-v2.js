@@ -19,6 +19,8 @@
   const conflictsApi=window.MemoryCardConflictV81;
   const transfer=window.MemoryCardCloudTransferV80;
   const vault=window.MemoryCardAccountVaultV83;
+  const deletionRequests=window.MemoryCardDeletionRequestV84;
+  let deletionState={owner:'',loading:false,requested:null,error:''};
   if(!transfer?.downloadGames||!conflictsApi?.plan||!conflictsApi?.sendChanges){
     console.error('Memory Card cloud transfer module is missing');
     window.MemoryCardBackendV2={configured:false};
@@ -520,13 +522,109 @@
     }
   }
 
+  function renderDeletionArea(card){
+    if(!card?.isConnected||!session||state.view!=='settings')return;
+    let area=card.querySelector('[data-v84-delete-area]');
+    if(!area){
+      area=document.createElement('div');
+      area.dataset.v84DeleteArea='1';
+      area.className='mc-account-deletion';
+      card.appendChild(area);
+    }
+    const owner=String(session.user?.id||'');
+    if(deletionState.owner!==owner){
+      deletionState={owner,loading:false,requested:null,error:''};
+    }
+    let details='';
+    if(!deletionRequests){
+      details='<p role="alert">Запрос сейчас недоступен. Попробуй позже.</p>';
+    }else if(deletionState.loading){
+      details='<p role="status">Проверяю заявки на удаление…</p>';
+    }else if(deletionState.error){
+      details='<p role="alert">Не удалось проверить запрос. Проверь соединение.</p>'+
+        '<button type="button" class="ghost compact" data-v84-retry-deletion>Проверить ещё раз</button>';
+    }else if(deletionState.requested){
+      details='<p role="status">Заявка на удаление уже зарегистрирована и ожидает обработки. '+
+        'Аккаунт и данные пока не удалены.</p>';
+    }else if(deletionState.requested===false){
+      details='<form data-v84-delete-request>'+
+        '<label>Для отправки заявки введи <strong>УДАЛИТЬ</strong>'+
+        '<input type="text" name="confirmation" required autocomplete="off" spellcheck="false" /></label>'+
+        '<button class="danger compact" type="submit">Запросить удаление аккаунта</button>'+
+        '</form>';
+    }else{
+      details='<p>Чтобы отправить запрос, сначала проверь состояние заявок.</p>';
+    }
+    area.innerHTML='<h4>Удаление аккаунта</h4>'+
+      '<p>Можно запросить удаление учётной записи и связанных облачных данных: '+
+      'игр, заметок, настроек и друзей. Запрос не удаляет ничего немедленно.</p>'+
+      '<p>Сначала рекомендуем экспортировать библиотеку в JSON. '+
+      '<a href="./delete-account.html">Страница удаления аккаунта</a> работает и без установленного приложения.</p>'+
+      details;
+    if(deletionState.requested===null&&!deletionState.loading&&!deletionState.error){
+      void fetchDeletionStatus(owner,card);
+    }
+  }
+
+  async function fetchDeletionStatus(owner,card){
+    if(!deletionRequests||deletionState.owner!==owner||deletionState.loading)return;
+    deletionState.loading=true;
+    try{
+      const result=await deletionRequests.status(client);
+      if(session?.user?.id!==owner)return;
+      deletionState.requested=result.requested;
+      deletionState.error='';
+    }catch(error){
+      if(session?.user?.id!==owner)return;
+      console.warn('Account deletion status unavailable',error?.code||error?.message||'error');
+      deletionState.error='unavailable';
+    }finally{
+      if(session?.user?.id===owner){
+        deletionState.loading=false;
+        if(card?.isConnected)renderDeletionArea(card);
+      }
+    }
+  }
+
+  async function submitDeletionRequest(form){
+    if(!deletionRequests||!session||deletionState.loading)return;
+    const typed=String(new FormData(form).get('confirmation')||'').trim();
+    if(typed!=='УДАЛИТЬ'){
+      setToast('Введи УДАЛИТЬ заглавными буквами для подтверждения.');
+      return;
+    }
+    const owner=session.user.id;
+    deletionState.loading=true;
+    const button=form.querySelector('button[type="submit"]');
+    if(button)button.disabled=true;
+    try{
+      const result=await deletionRequests.request(client);
+      if(session?.user?.id!==owner)return;
+      deletionState.requested=result.requested;
+      deletionState.error='';
+      setToast('Заявка зарегистрирована. Аккаунт пока не удалён.');
+    }catch(error){
+      if(session?.user?.id!==owner)return;
+      deletionState.error='submission';
+      console.warn('Account deletion request failed',error?.code||error?.message||'error');
+      setToast('Заявку не удалось отправить. Проверь соединение.');
+    }finally{
+      if(session?.user?.id===owner){
+        deletionState.loading=false;
+        const card=document.querySelector('[data-v2-account]');
+        if(card)renderDeletionArea(card);
+      }
+      if(button?.isConnected)button.disabled=false;
+    }
+  }
+
   function injectAccount(){
     hideLegacySyncUi();
     if(state.view!=='settings'||!session) return;
     const root=document.querySelector('.settings-grid')||document.querySelector('.content');
     if(!root)return;
     const existing=root.querySelector('[data-v2-account]');
-    if(existing){renderConflictPanel(existing);void injectGuestImport(existing);return;}
+    if(existing){renderConflictPanel(existing);void injectGuestImport(existing);renderDeletionArea(existing);return;}
     const card=document.createElement('section');
     card.className='panel';
     card.dataset.v2Account='1';
@@ -534,6 +632,7 @@
     root.prepend(card);
     renderConflictPanel(card);
     void injectGuestImport(card);
+    renderDeletionArea(card);
   }
 
   render=function(){baseRender();queueMicrotask(injectAccount);};
@@ -545,6 +644,12 @@
     if(event.target instanceof Element&&event.target.closest('[data-auth-reset]')){resetPassword();return;}
     if(event.target instanceof Element&&event.target.closest('[data-v2-logout]')){logout();return;}
     if(event.target instanceof Element&&event.target.closest('[data-v2-sync]')){reconcile();return;}
+    if(event.target instanceof Element&&event.target.closest('[data-v84-retry-deletion]')){
+      deletionState.requested=null;deletionState.error='';
+      const card=document.querySelector('[data-v2-account]');
+      if(card)renderDeletionArea(card);
+      return;
+    }
     if(event.target instanceof Element&&event.target.closest('[data-v83-import-guest]')){
       event.preventDefault();
       void importGuest();
@@ -556,6 +661,11 @@
   document.addEventListener('submit',event=>{
     const form=event.target instanceof HTMLFormElement?event.target:null;
     if(!form) return;
+    if(form.hasAttribute('data-v84-delete-request')){
+      event.preventDefault();
+      void submitDeletionRequest(form);
+      return;
+    }
     if(form.hasAttribute('data-auth-recovery')){
       event.preventDefault();
       updatePassword(form);
@@ -576,6 +686,7 @@
     const newId=next?.user?.id||null;
     if(newId!==activeAuthUserId){
       activeAuthUserId=newId;
+      deletionState={owner:newId||'',loading:false,requested:null,error:''};
       cloudReady=false;
       conflictItems=[];
       clearTimeout(pushTimer);
