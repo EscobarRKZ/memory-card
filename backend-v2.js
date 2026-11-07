@@ -121,8 +121,8 @@
         const title=escHtml(String(c.local?.title||c.remote?.title||c.id));
         return '<div class="mc-cloud-conflict"><strong>'+title+'</strong>'+
           '<details><summary>Сравнить варианты</summary>'+
-          '<div><b>Этот телефон</b><small>'+info(c.local)+'</small><p>'+note(c.local)+'</p></div>'+
-          '<div><b>Облако</b><small>'+info(c.remote)+'</small><p>'+note(c.remote)+'</p></div></details>'+
+          '<div><b>Этот телефон</b><small>'+escHtml(String(c.local?.title||'—'))+' · '+info(c.local)+'</small><p>'+note(c.local)+'</p></div>'+
+          '<div><b>Облако</b><small>'+escHtml(String(c.remote?.title||'—'))+' · '+info(c.remote)+'</small><p>'+note(c.remote)+'</p></div></details>'+
           '<div class="mc-cloud-conflict-actions">'+
           '<button class="secondary compact" type="button" data-v81-id="'+escHtml(c.id)+'" data-v81-resolve="local">Оставить мою</button>'+
           '<button class="ghost compact" type="button" data-v81-id="'+escHtml(c.id)+'" data-v81-resolve="cloud"'+(!c.remote?' disabled':'')+'>Взять из облака</button>'+
