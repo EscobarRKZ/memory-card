@@ -15,8 +15,10 @@
   let syncKind='',syncMessage='',authWarning='';
   let lastCloudErrorToast=0;
   let activeAuthUserId=null;
+  let localEpoch=0,conflictItems=[],resolvingConflict=false;
+  const conflictsApi=window.MemoryCardConflictV81;
   const transfer=window.MemoryCardCloudTransferV80;
-  if(!transfer?.downloadGames||!transfer?.uploadGames){
+  if(!transfer?.downloadGames||!conflictsApi?.plan||!conflictsApi?.sendChanges){
     console.error('Memory Card cloud transfer module is missing');
     window.MemoryCardBackendV2={configured:false};
     return;
@@ -33,9 +35,11 @@
       el.textContent=message;
       el.dataset.syncKind=kind;
     });
-    if(kind==='error' && typeof setToast==='function' && Date.now()-lastCloudErrorToast>60000){
+    if((kind==='error'||kind==='conflict') && typeof setToast==='function' && Date.now()-lastCloudErrorToast>60000){
       lastCloudErrorToast=Date.now();
-      setToast('Облачная синхронизация не завершена. Локальная библиотека сохранена.');
+      setToast(kind==='conflict'
+        ? 'Обнаружены разные версии игры. Открой Настройки → Аккаунт.'
+        : 'Облачная синхронизация не завершена. Локальная библиотека сохранена.');
     }
   }
 
@@ -48,7 +52,7 @@
   }
   function omitLocalSettings(source={}){
     const out={...source};
-    for(const key of ['sheetEndpoint','syncSecret','authToken','userId','cloudOwnerUid','profileUpdatedAt','lastSync','autoSync','accentTheme']) delete out[key];
+    for(const key of ['sheetEndpoint','syncSecret','authToken','userId','cloudOwnerUid','cloudSyncBaselineV81','cloudConflictArchiveV81','profileUpdatedAt','lastSync','autoSync','accentTheme']) delete out[key];
     return out;
   }
   function gameToRow(g){
@@ -82,125 +86,242 @@
     return {profile:p.data,settings:s.data,games};
   }
 
-  async function pushCloud(){
-    clearTimeout(pushTimer);
-    if(!session||syncing||!cloudReady) return;
-    syncing=true;
-    setSyncNotice('busy','Отправляю изменения в облако…');
-    try{
-      disableLegacySync();
-      if(state.settings?.cloudOwnerUid && state.settings.cloudOwnerUid!==session.user.id){
-        throw new Error('LOCAL_ACCOUNT_MISMATCH');
-      }
-      const payload=omitLocalSettings(state.settings||{});
-      const settingsUpdatedAt=state.settings?.settingsUpdatedAt||new Date().toISOString();
-      const profileName=String(state.settings?.profileName||profile?.display_name||'Игрок').trim().slice(0,40)||'Игрок';
-      const rows=(state.games||[]).map(gameToRow);
-      // Upload idempotent batches. Never report success if even one batch failed.
-      await transfer.uploadGames(client,rows);
-      const results=await Promise.all([
-        client.from('profiles').update({display_name:profileName,updated_at:new Date().toISOString()}).eq('user_id',session.user.id),
-        client.from('user_settings').upsert({user_id:session.user.id,payload,updated_at:settingsUpdatedAt},{onConflict:'user_id'})
-      ]);
-      const failed=results.find(x=>x.error);
-      if(failed?.error) throw failed.error;
-      setSyncNotice('ok','Синхронизировано: '+rows.length+' игровых записей');
-    }catch(error){
-      console.error('Memory Card cloud push failed',error);
-      setSyncNotice('error','Не удалось отправить изменения. Они сохранены на устройстве; повтори синхронизацию.');
-    }finally{
-      syncing=false;
-      if(pushQueuedDuringSync){
-        pushQueuedDuringSync=false;
-        schedulePush(150);
-      }
+  function localBaseline(uid){
+    const data=state.settings?.[conflictsApi.KEY];
+    if(data?.owner===uid && data.records && typeof data.records==='object')return data;
+    return {owner:uid,records:{}};
+  }
+
+  function localAccountMismatch(cloud,uid){
+    const owner=String(state.settings?.cloudOwnerUid||'');
+    const localId=String(state.settings?.userId||'').trim().toUpperCase();
+    const remoteId=String(cloud.profile?.memory_id||'').trim().toUpperCase();
+    return (owner && owner!==uid) ||
+      (!owner && /^MC-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(localId) &&
+        remoteId && remoteId!==localId && (state.games||[]).length>0);
+  }
+
+  function renderConflictPanel(card){
+    if(!card)return;
+    let area=card.querySelector('[data-v81-conflicts]');
+    if(!area){
+      area=document.createElement('div');
+      area.dataset.v81Conflicts='1';
+      area.className='mc-cloud-conflicts';
+      card.appendChild(area);
     }
+    if(!conflictItems.length){area.replaceChildren();area.hidden=true;return;}
+    area.hidden=false;
+    const info=g=>escHtml(String(g?.platform||'—'))+' · '+
+      escHtml(String(g?.status||'—'))+' · '+
+      escHtml(g?.rating?String(g.rating)+'/10':'без оценки');
+    const note=g=>escHtml(String(g?.notes||'').slice(0,360)||'—');
+    area.innerHTML='<h4>Конфликты игр: '+conflictItems.length+'</h4>'+
+      '<p>Эти записи различаются на устройствах. Автоматическая отправка остановлена. '+
+      'При выборе обе версии сохраняются в локальном архиве, который входит в экспорт JSON.</p>'+
+      conflictItems.slice(0,30).map(c=>{
+        const title=escHtml(String(c.local?.title||c.remote?.title||c.id));
+        return '<div class="mc-cloud-conflict"><strong>'+title+'</strong>'+
+          '<details><summary>Сравнить варианты</summary>'+
+          '<div><b>Этот телефон</b><small>'+escHtml(String(c.local?.title||'—'))+' · '+info(c.local)+'</small><p>'+note(c.local)+'</p></div>'+
+          '<div><b>Облако</b><small>'+escHtml(String(c.remote?.title||'—'))+' · '+info(c.remote)+'</small><p>'+note(c.remote)+'</p></div></details>'+
+          '<div class="mc-cloud-conflict-actions">'+
+          '<button class="secondary compact" type="button" data-v81-id="'+escHtml(c.id)+'" data-v81-resolve="local">Оставить мою</button>'+
+          '<button class="ghost compact" type="button" data-v81-id="'+escHtml(c.id)+'" data-v81-resolve="cloud"'+(!c.remote?' disabled':'')+'>Взять из облака</button>'+
+          '</div></div>';
+      }).join('')+
+      (conflictItems.length>30?'<p>Показаны первые 30 конфликтов.</p>':'');
+  }
+
+  async function resolveConflict(id,choice){
+    if(syncing||resolvingConflict||!session)return;
+    const item=conflictItems.find(c=>c.id===id);
+    if(!item||!['local','cloud'].includes(choice))return;
+    const current=state.games.find(g=>String(g.id)===id);
+    if(current && item.local && conflictsApi.signature(current)!==conflictsApi.signature(item.local)){
+      setSyncNotice('conflict','Игра менялась после появления конфликта. Сначала повтори синхронизацию.');
+      return;
+    }
+    if(choice==='cloud'&&!item.remote)return;
+    if(!window.confirm(choice==='cloud'
+      ? 'Взять облачный вариант? Обе версии сохранятся в локальном архиве.'
+      : 'Оставить локальный вариант? Обе версии сохранятся в локальном архиве. При изменении облака операция будет остановлена.'))return;
+    resolvingConflict=true;
+    const oldSettings=state.settings,oldGames=state.games;
+    try{
+      const uid=session.user.id,base=localBaseline(uid);
+      const records={...base.records};
+      if(item.remote)records[id]={signature:conflictsApi.signature(item.remote),revision:String(item.remote.updatedAt)};
+      else delete records[id];
+      const previous=Array.isArray(state.settings?.[conflictsApi.ARCHIVE_KEY])
+        ?state.settings[conflictsApi.ARCHIVE_KEY]:[];
+      const archive=[...previous,{
+        at:new Date().toISOString(),id,choice,
+        local:item.local?JSON.parse(JSON.stringify(item.local)):null,
+        remote:item.remote?JSON.parse(JSON.stringify(item.remote)):null
+      }];
+      const games=[...state.games];
+      if(choice==='cloud'){
+        const index=games.findIndex(g=>String(g.id)===id);
+        if(index<0)throw new Error('Local game to replace not found');
+        games[index]=item.remote;
+      }
+      state.settings={...state.settings,
+        [conflictsApi.KEY]:{owner:uid,records},
+        [conflictsApi.ARCHIVE_KEY]:archive};
+      state.games=games;
+      await localPersist();
+      conflictItems=conflictItems.filter(c=>c.id!==id);
+      cloudReady=false;
+      setSyncNotice('busy','Повторно сверяю выбранный вариант с облаком…');
+    }catch(error){
+      state.settings=oldSettings;state.games=oldGames;
+      console.error('Conflict resolution failed',error);
+      setSyncNotice('error','Не удалось сохранить выбранный вариант. Записи оставлены без изменений.');
+      return;
+    }finally{resolvingConflict=false;}
+    queueMicrotask(injectAccount);
+    await reconcile();
+  }
+
+  function pushCloud(){
+    clearTimeout(pushTimer);
+    return reconcile();
   }
 
   function schedulePush(delay=900){
-    if(!session) return;
-    if(syncing||!cloudReady){pushQueuedDuringSync=true;return;}
+    if(!session)return;
+    if(syncing){pushQueuedDuringSync=true;return;}
+    if(!cloudReady)return;
     clearTimeout(pushTimer);
     pushTimer=setTimeout(pushCloud,delay);
   }
 
   async function reconcile(){
-    if(!session||syncing) return;
+    if(!session)return false;
+    if(syncing){pushQueuedDuringSync=true;return false;}
     syncing=true;
-    let completed=false;
-    setSyncNotice('busy','Проверяю облачную библиотеку…');
+    const uid=session.user.id;
+    const epoch=localEpoch;
+    let rerun=false,success=false;
+    setSyncNotice('busy','Сверяю изменения между устройствами…');
     try{
       disableLegacySync();
       const cloud=await loadCloud();
-      // Never mix one account's local library into another user's cloud account.
-      const boundOwner=String(state.settings?.cloudOwnerUid||'');
-      const localMemoryId=String(state.settings?.userId||'').trim().toUpperCase();
-      const remoteMemoryId=String(cloud.profile?.memory_id||'').trim().toUpperCase();
-      const otherProfile=boundOwner && boundOwner!==session.user.id;
-      const legacyOtherProfile=!boundOwner && /^MC-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(localMemoryId) &&
-        remoteMemoryId && localMemoryId!==remoteMemoryId && (state.games||[]).length>0;
-      if(otherProfile||legacyOtherProfile){
+      if(!session||session.user.id!==uid)throw new Error('Cloud session changed during synchronization');
+      if(localAccountMismatch(cloud,uid)){
         const error=new Error('LOCAL_ACCOUNT_MISMATCH');
         error.code='LOCAL_ACCOUNT_MISMATCH';
         throw error;
       }
+      if(epoch!==localEpoch){rerun=true;return false;}
       profile=cloud.profile;
-      const localSettings={...(state.settings||{})};
-      const remoteSettings=cloud.settings?.payload&&typeof cloud.settings.payload==='object'?cloud.settings.payload:{};
-      const localAccent=localSettings.accentTheme;
-      const localStamp=String(localSettings.settingsUpdatedAt||'');
+      const remote=(cloud.games||[]).map(rowToGame).map(migrateGame);
+      const plan=conflictsApi.plan(state.games||[],remote,localBaseline(uid));
+
+      if(plan.conflicts.length){
+        conflictItems=plan.conflicts;
+        cloudReady=false;
+        setSyncNotice('conflict','Есть конфликтующие изменения ('+conflictItems.length+
+          '). Выбери вариант в Настройки → Аккаунт.');
+        queueMicrotask(injectAccount);
+        return false;
+      }
+
+      conflictItems=[];
+      const oldSettings=state.settings,oldGames=state.games;
+      const remoteSettings=cloud.settings?.payload&&typeof cloud.settings.payload==='object'
+        ?cloud.settings.payload:{};
+      const localStamp=String(oldSettings?.settingsUpdatedAt||'');
       const remoteStamp=String(cloud.settings?.updated_at||remoteSettings.settingsUpdatedAt||'');
-      const chosen=remoteStamp>localStamp?{...localSettings,...remoteSettings}:{...remoteSettings,...localSettings};
-      chosen.profileName=profile.display_name||chosen.profileName||'Игрок';
-      chosen.userId=profile.memory_id;
-      chosen.cloudOwnerUid=session.user.id;
+      const chosen=remoteStamp>localStamp
+        ?{...oldSettings,...remoteSettings}:{...remoteSettings,...oldSettings};
+      chosen.profileName=cloud.profile.display_name||chosen.profileName||'Игрок';
+      chosen.userId=cloud.profile.memory_id;
+      chosen.cloudOwnerUid=uid;
       chosen.autoSync=false;
-      if(localAccent) chosen.accentTheme=localAccent;
+      if(oldSettings?.accentTheme)chosen.accentTheme=oldSettings.accentTheme;
+      chosen[conflictsApi.KEY]={owner:uid,records:plan.baseline.records};
+      chosen[conflictsApi.ARCHIVE_KEY]=oldSettings?.[conflictsApi.ARCHIVE_KEY]||[];
       chosen.settingsUpdatedAt=newer(localStamp,remoteStamp)||new Date().toISOString();
-      // No state mutation until every cloud page has been loaded and verified.
-      const updatedSettings=migrateSettings(chosen);
-      const updatedGames=mergeGames(state.games||[],cloud.games.map(rowToGame)).map(migrateGame);
-      const previousSettings=state.settings,previousGames=state.games;
-      state.settings=updatedSettings;
-      state.settings.autoSync=false;
-      state.games=updatedGames;
-      try{
-        await localPersist();
-      }catch(error){
-        state.settings=previousSettings;
-        state.games=previousGames;
+
+      state.settings=migrateSettings(chosen);
+      state.games=plan.merged.map(migrateGame);
+      try{await localPersist();}
+      catch(error){
+        state.settings=oldSettings;
+        state.games=oldGames;
         throw error;
       }
       cloudReady=true;
-      completed=true;
+
+      // The user may have saved while localPersistence was running.
+      // The next pass must reconsider their newer edit.
+      if(epoch!==localEpoch){rerun=true;return false;}
+
+      // Every changed game uses the exact revision seen in the cloud pull.
+      // A concurrent update produces zero affected rows and stops the sync.
+      const applied=await conflictsApi.sendChanges(client,uid,plan.writes,gameToRow);
+      if(applied.length){
+        const records={...localBaseline(uid).records};
+        for(const item of applied)records[item.id]={
+          signature:item.signature,revision:item.revision
+        };
+        state.settings[conflictsApi.KEY]={owner:uid,records};
+        await localPersist();
+      }
+      const payload=omitLocalSettings(state.settings||{});
+      const settingsUpdatedAt=state.settings?.settingsUpdatedAt||new Date().toISOString();
+      const name=String(state.settings?.profileName||profile?.display_name||'Игрок')
+        .trim().slice(0,40)||'Игрок';
+      const results=await Promise.all([
+        client.from('profiles').update({
+          display_name:name,updated_at:new Date().toISOString()
+        }).eq('user_id',uid),
+        client.from('user_settings').upsert({
+          user_id:uid,payload,updated_at:settingsUpdatedAt
+        },{onConflict:'user_id'})
+      ]);
+      const failed=results.find(x=>x.error);
+      if(failed?.error)throw failed.error;
+
       authWarning='';
-      setSyncNotice('busy','Облачная библиотека сверена. Сохраняю изменения…');
-      baseRender();
+      success=true;
+      setSyncNotice('ok','Синхронизировано: '+state.games.length+
+        ' игр. Отправлено изменений: '+applied.length);
+      if(!state.modal&&!document.querySelector('.modal-backdrop'))baseRender();
       queueMicrotask(injectAccount);
+      return true;
     }catch(error){
       console.error('Memory Card cloud sync failed',error);
       cloudReady=false;
       if(error?.code==='LOCAL_ACCOUNT_MISMATCH'){
-        setSyncNotice('error','Синхронизация заблокирована: данные другого аккаунта на устройстве.');
-        authWarning='На этом устройстве сохранена библиотека другого аккаунта. Чтобы не смешивать данные, вход отменён. Для смены аккаунта пока используй отдельный профиль браузера.';
+        conflictItems=[];
+        setSyncNotice('error','Синхронизация заблокирована: данные другого аккаунта.');
+        authWarning='На устройстве есть библиотека другого аккаунта. Чтобы не смешать записи, вход отменён. Используй отдельный профиль браузера.';
         clearTimeout(pushTimer);
         try{await client.auth.signOut();}catch(_){}
-        session=null;profile=null;
-        showAuth();
+        session=null;profile=null;showAuth();
+      }else if(error?.code==='SYNC_CONFLICT'){
+        setSyncNotice('conflict','Облачная версия изменилась во время записи. Нажми «Синхронизировать» для повторной сверки.');
       }else{
-        setSyncNotice('error','Не удалось получить полную облачную библиотеку. Локальные записи не изменены; попробуй ещё раз.');
+        setSyncNotice('error','Синхронизация не завершена. Локальные записи сохранены; попробуй ещё раз.');
       }
+      return false;
     }finally{
       syncing=false;
-      if(completed){
-        pushQueuedDuringSync=false;
-        schedulePush(250);
+      const queued=pushQueuedDuringSync||rerun;
+      pushQueuedDuringSync=false;
+      if(queued&&session&&!conflictItems.length&&(success||rerun)){
+        setTimeout(()=>reconcile(),250);
       }
+      queueMicrotask(injectAccount);
     }
   }
 
   persist=async function(){
     disableLegacySync();
+    localEpoch++;
     await localPersist();
     schedulePush();
   };
@@ -292,7 +413,7 @@
     await reconcile();
     setToast('Пароль изменён');
   }
-  async function logout(){clearTimeout(pushTimer);cloudReady=false;pushQueuedDuringSync=false;authWarning='';await client.auth.signOut();session=null;profile=null;showAuth();}
+  async function logout(){clearTimeout(pushTimer);cloudReady=false;conflictItems=[];pushQueuedDuringSync=false;authWarning='';await client.auth.signOut();session=null;profile=null;showAuth();}
 
   function hideLegacySyncUi(){
     document.querySelectorAll('.panel').forEach(panel=>{
@@ -304,12 +425,15 @@
     hideLegacySyncUi();
     if(state.view!=='settings'||!session) return;
     const root=document.querySelector('.settings-grid')||document.querySelector('.content');
-    if(!root||root.querySelector('[data-v2-account]')) return;
+    if(!root)return;
+    const existing=root.querySelector('[data-v2-account]');
+    if(existing){renderConflictPanel(existing);return;}
     const card=document.createElement('section');
     card.className='panel';
     card.dataset.v2Account='1';
     card.innerHTML=`<div class="settings-panel-head"><div><h3>Аккаунт</h3><p class="status-line">${escHtml(session.user.email||'')} · ${escHtml(profile?.memory_id||state.settings.userId||'')}</p></div><div class="mc-account-chip"><button class="secondary compact" type="button" data-v2-sync>Синхронизировать</button><button class="ghost compact" type="button" data-v2-logout>Выйти</button></div></div><p data-v2-sync-state data-sync-kind="${escHtml(syncKind)}" class="mc-cloud-sync-state" role="status">${escHtml(syncMessage)}</p>`;
     root.prepend(card);
+    renderConflictPanel(card);
   }
 
   render=function(){baseRender();queueMicrotask(injectAccount);};
@@ -321,6 +445,8 @@
     if(event.target instanceof Element&&event.target.closest('[data-auth-reset]')){resetPassword();return;}
     if(event.target instanceof Element&&event.target.closest('[data-v2-logout]')){logout();return;}
     if(event.target instanceof Element&&event.target.closest('[data-v2-sync]')){reconcile();return;}
+    const resolve=event.target instanceof Element?event.target.closest('[data-v81-resolve]'):null;
+    if(resolve){event.preventDefault();resolveConflict(resolve.dataset.v81Id,resolve.dataset.v81Resolve);return;}
   },true);
   document.addEventListener('submit',event=>{
     const form=event.target instanceof HTMLFormElement?event.target:null;
@@ -346,6 +472,7 @@
     if(newId!==activeAuthUserId){
       activeAuthUserId=newId;
       cloudReady=false;
+      conflictItems=[];
       clearTimeout(pushTimer);
     }
     session=next;
@@ -371,6 +498,6 @@
     else showAuth();
   }
 
-  window.MemoryCardBackendV2={configured:true,client,sync:reconcile,push:pushCloud,logout,isBusy:()=>syncing,getSyncState:()=>({kind:syncKind,message:syncMessage}),getSession:()=>session,getProfile:()=>profile,sendFriendRequest:async memoryId=>client.rpc('send_friend_request',{target_memory_id:memoryId}),acceptFriendRequest:async id=>client.rpc('accept_friend_request',{friendship_id:id}),getFriendProfile:async memoryId=>client.rpc('get_friend_profile',{target_memory_id:memoryId})};
+  window.MemoryCardBackendV2={configured:true,client,sync:reconcile,push:pushCloud,logout,isBusy:()=>syncing,getSyncState:()=>({kind:syncKind,message:syncMessage,conflicts:conflictItems.length}),getSession:()=>session,getProfile:()=>profile,sendFriendRequest:async memoryId=>client.rpc('send_friend_request',{target_memory_id:memoryId}),acceptFriendRequest:async id=>client.rpc('accept_friend_request',{friendship_id:id}),getFriendProfile:async memoryId=>client.rpc('get_friend_profile',{target_memory_id:memoryId})};
   init();
 })();

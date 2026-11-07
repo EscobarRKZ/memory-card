@@ -33,3 +33,48 @@
   font-size: 13px;
   line-height: 1.5;
 }
+
+
+/* v81: conflicts are explicit choices, not silent last-write-wins. */
+.mc-cloud-sync-state[data-sync-kind="conflict"] {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--warning, var(--accent)) 68%, var(--line));
+}
+.mc-cloud-conflicts {
+  margin-top: 16px;
+  padding-top: 15px;
+  border-top: 1px solid var(--line);
+}
+.mc-cloud-conflicts[hidden] { display: none !important; }
+.mc-cloud-conflicts h4 { margin: 0 0 8px; font-size: 16px; }
+.mc-cloud-conflicts > p { font-size: 12px; color: var(--muted); line-height: 1.55; margin: 0 0 12px; }
+.mc-cloud-conflict {
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  padding: 12px;
+  margin-bottom: 10px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.mc-cloud-conflict > strong { display: block; font-size: 13px; margin-bottom: 9px; }
+.mc-cloud-conflict summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text);
+  padding: 5px 0;
+}
+.mc-cloud-conflict details > div {
+  margin: 7px 0;
+  padding: 9px 11px;
+  border-radius: 10px;
+  background: var(--panel2);
+}
+.mc-cloud-conflict details b, .mc-cloud-conflict details small { display: block; }
+.mc-cloud-conflict details small { margin-top: 3px; color: var(--muted); }
+.mc-cloud-conflict details p { margin: 7px 0 0; font-size: 12px; line-height: 1.5; white-space: pre-wrap; }
+.mc-cloud-conflict-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 11px; }
+.mc-cloud-conflict-actions button { min-height: 44px; touch-action: manipulation; }
+.mc-cloud-conflict-actions button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (max-width: 530px) {
+  .mc-cloud-conflict-actions button { flex: 1 1 calc(50% - 6px); min-width: 0; white-space: normal; }
+}

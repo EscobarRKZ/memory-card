@@ -17,13 +17,20 @@ Reviewed: 2026-11-07. This document tracks launch gates, not a declaration that 
 
 **Observed on the active Supabase project on 2026-11-07:** one account has 110 game rows. The `friendships_update_participant` policy is absent and `authenticated` lacks `UPDATE` privilege; six authenticated social RPCs use `SECURITY DEFINER`, by design, and require explicit authorization/abuse testing. Supabase security advisors also flagged leaked-password protection being disabled; enable and verify it in Auth dashboard before public signup. This code change does not modify production database policies.
 
-## Stage 2 — conflict-safe multi-device sync
+## Stage 2 — conflict-safe multi-device sync (v81: partial)
 
-- [ ] Replace unconditional last-write upsert with a server-validated conflict rule so an offline device cannot overwrite a newer cloud revision.
-- [ ] Avoid reuploading unchanged records and add retry/backoff for transient failures.
+- [x] Replace unconditional **frontend** game upserts with three-way comparisons and per-game SQL UPDATE predicates that check the exact previously read `updated_at` value. Duplicate new IDs are prevented by the existing composite primary key.
+- [x] Avoid reuploading unchanged games; batch newly created games in chunks of 100.
+- [x] Keep a **device-local** last-acknowledged snapshot for each game; preserve and explicitly present conflicting local/cloud versions rather than automatically choosing one using client clocks.
+- [x] Offer user-confirmed conflict resolution in Settings. Both variants are archived locally and included in profile JSON exports; archived variants are never uploaded automatically.
+- [x] Run simulated two-device tests for offline edits, conflicting writes, explicit resolution, concurrent races, partial reads and large initial imports.
+- [ ] Add **server-enforced revision control** (e.g., versioned RPC + restricted direct writes). Old PWA versions still have permission to issue unconditional upserts; client-side conditional updates do not eliminate that risk.
+- [ ] Implement exponential retry/backoff for transient failures; current behavior retries on reconnect and explicit user sync.
 - [ ] Implement full per-account local storage separation and safe account switching (the v80 guard intentionally blocks mixing accounts).
-- [ ] Simulate multiple devices editing, deleting, restoring and reinstalling with the same and different accounts.
+- [ ] Run authenticated end-to-end tests against a disposable Supabase environment and real Android devices, including deleting/restoring games and two simultaneous writers.
 - [ ] Make backups easy to find, export, restore and verify.
+
+**Important:** The v81 client patch makes conflicts visible and blocks its own stale writes but is **not yet sufficient to guarantee race-free sync across old clients**. Do not open public signups until the server-side migration and real-device testing are complete.
 
 ## Stage 3 — identity and privacy controls
 
