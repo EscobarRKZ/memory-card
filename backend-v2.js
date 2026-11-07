@@ -335,7 +335,10 @@
       syncing=false;
       const queued=pushQueuedDuringSync||rerun;
       pushQueuedDuringSync=false;
-      if(queued&&session&&!conflictItems.length&&(success||rerun)){
+      // An auth change while the old user's sync was running must retry
+      // for the new account rather than leaving cloud sync stalled.
+      const accountChanged=!!session && session.user.id!==uid;
+      if(queued&&session&&!conflictItems.length&&(success||rerun||accountChanged)){
         setTimeout(()=>reconcile(),250);
       }
       queueMicrotask(injectAccount);
@@ -615,6 +618,6 @@
     }
   }
 
-  window.MemoryCardBackendV2={configured:true,client,sync:reconcile,push:pushCloud,logout,isBusy:()=>syncing,getSyncState:()=>({kind:syncKind,message:syncMessage,conflicts:conflictItems.length}),getSession:()=>session,getProfile:()=>profile,sendFriendRequest:async memoryId=>client.rpc('send_friend_request',{target_memory_id:memoryId}),acceptFriendRequest:async id=>client.rpc('accept_friend_request',{friendship_id:id}),getFriendProfile:async memoryId=>client.rpc('get_friend_profile',{target_memory_id:memoryId})};
+  window.MemoryCardBackendV2={configured:true,client,sync:reconcile,push:pushCloud,logout,isBusy:()=>syncing||!!vault?.isSwitching?.(),getSyncState:()=>({kind:syncKind,message:syncMessage,conflicts:conflictItems.length}),getSession:()=>session,getProfile:()=>profile,sendFriendRequest:async memoryId=>client.rpc('send_friend_request',{target_memory_id:memoryId}),acceptFriendRequest:async id=>client.rpc('accept_friend_request',{friendship_id:id}),getFriendProfile:async memoryId=>client.rpc('get_friend_profile',{target_memory_id:memoryId})};
   init();
 })();
