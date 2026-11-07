@@ -102,18 +102,24 @@ const client={
     }
    }}};
   }
-  if(table==='profiles')return {
-   select(){return {eq(k,id){return {async single(){
-    return {data:{memory_id:id===A?'MC-AAAA-1111':'MC-BBBB-2222',display_name:id===A?'A':'B'},error:null};
-   }}};},
-   update(){return {async eq(){return {error:null};}}}
-  };
-  if(table==='user_settings')return {
-   select(){return {eq(){return {async maybeSingle(){
-    return {data:{payload:{settingsUpdatedAt:'2026-01-01'},updated_at:'2026-01-01'},error:null};
-   }}};},
-   async upsert(){return {error:null};}
-  };
+  if(table==='profiles'){
+    return {
+      select:()=>({eq:(_key,id)=>({single:async()=>({
+        data:{memory_id:id===A?'MC-AAAA-1111':'MC-BBBB-2222',
+          display_name:id===A?'A':'B'},error:null
+      })})}),
+      update:()=>({eq:async()=>({error:null})})
+    };
+  }
+  if(table==='user_settings'){
+    return {
+      select:()=>({eq:()=>({maybeSingle:async()=>({
+        data:{payload:{settingsUpdatedAt:'2026-01-01'},
+          updated_at:'2026-01-01'},error:null
+      })})}),
+      upsert:async()=>({error:null})
+    };
+  }
   throw Error('Unexpected table '+table);
  },
  async rpc(){throw Error('Unchanged records must not be uploaded');}
