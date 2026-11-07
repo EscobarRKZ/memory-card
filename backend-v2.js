@@ -406,7 +406,7 @@
     await reconcile();
     setToast('Пароль изменён');
   }
-  async function logout(){clearTimeout(pushTimer);cloudReady=false;pushQueuedDuringSync=false;authWarning='';await client.auth.signOut();session=null;profile=null;showAuth();}
+  async function logout(){clearTimeout(pushTimer);cloudReady=false;conflictItems=[];pushQueuedDuringSync=false;authWarning='';await client.auth.signOut();session=null;profile=null;showAuth();}
 
   function hideLegacySyncUi(){
     document.querySelectorAll('.panel').forEach(panel=>{
@@ -418,12 +418,15 @@
     hideLegacySyncUi();
     if(state.view!=='settings'||!session) return;
     const root=document.querySelector('.settings-grid')||document.querySelector('.content');
-    if(!root||root.querySelector('[data-v2-account]')) return;
+    if(!root)return;
+    const existing=root.querySelector('[data-v2-account]');
+    if(existing){renderConflictPanel(existing);return;}
     const card=document.createElement('section');
     card.className='panel';
     card.dataset.v2Account='1';
     card.innerHTML=`<div class="settings-panel-head"><div><h3>Аккаунт</h3><p class="status-line">${escHtml(session.user.email||'')} · ${escHtml(profile?.memory_id||state.settings.userId||'')}</p></div><div class="mc-account-chip"><button class="secondary compact" type="button" data-v2-sync>Синхронизировать</button><button class="ghost compact" type="button" data-v2-logout>Выйти</button></div></div><p data-v2-sync-state data-sync-kind="${escHtml(syncKind)}" class="mc-cloud-sync-state" role="status">${escHtml(syncMessage)}</p>`;
     root.prepend(card);
+    renderConflictPanel(card);
   }
 
   render=function(){baseRender();queueMicrotask(injectAccount);};
@@ -435,6 +438,8 @@
     if(event.target instanceof Element&&event.target.closest('[data-auth-reset]')){resetPassword();return;}
     if(event.target instanceof Element&&event.target.closest('[data-v2-logout]')){logout();return;}
     if(event.target instanceof Element&&event.target.closest('[data-v2-sync]')){reconcile();return;}
+    const resolve=event.target instanceof Element?event.target.closest('[data-v81-resolve]'):null;
+    if(resolve){event.preventDefault();resolveConflict(resolve.dataset.v81Id,resolve.dataset.v81Resolve);return;}
   },true);
   document.addEventListener('submit',event=>{
     const form=event.target instanceof HTMLFormElement?event.target:null;
@@ -460,6 +465,7 @@
     if(newId!==activeAuthUserId){
       activeAuthUserId=newId;
       cloudReady=false;
+      conflictItems=[];
       clearTimeout(pushTimer);
     }
     session=next;
@@ -485,6 +491,6 @@
     else showAuth();
   }
 
-  window.MemoryCardBackendV2={configured:true,client,sync:reconcile,push:pushCloud,logout,isBusy:()=>syncing,getSyncState:()=>({kind:syncKind,message:syncMessage}),getSession:()=>session,getProfile:()=>profile,sendFriendRequest:async memoryId=>client.rpc('send_friend_request',{target_memory_id:memoryId}),acceptFriendRequest:async id=>client.rpc('accept_friend_request',{friendship_id:id}),getFriendProfile:async memoryId=>client.rpc('get_friend_profile',{target_memory_id:memoryId})};
+  window.MemoryCardBackendV2={configured:true,client,sync:reconcile,push:pushCloud,logout,isBusy:()=>syncing,getSyncState:()=>({kind:syncKind,message:syncMessage,conflicts:conflictItems.length}),getSession:()=>session,getProfile:()=>profile,sendFriendRequest:async memoryId=>client.rpc('send_friend_request',{target_memory_id:memoryId}),acceptFriendRequest:async id=>client.rpc('accept_friend_request',{friendship_id:id}),getFriendProfile:async memoryId=>client.rpc('get_friend_profile',{target_memory_id:memoryId})};
   init();
 })();
