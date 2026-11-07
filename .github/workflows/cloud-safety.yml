@@ -16,6 +16,14 @@ on:
       - "tests/test_local_delete_cleanup_v85.cjs"
       - "tests/test_account_delete_client_v85.cjs"
       - "delete-account.html"
+      - "index.html"
+      - "staging-v2.html"
+      - "sw.js"
+      - "pwa-updates-v66.js"
+      - "manifest.webmanifest"
+      - "tests/test_sw_v66.cjs"
+      - "tests/test_release_integrity_v86.cjs"
+      - "supabase/migrations/20261107173126_revoke_unsafe_default_table_grants_v86.sql"
       - "supabase/migrations/20261107131531_account_deletion_requests_v84.sql"
       - "cloud-conflicts-v81.js"
       - "cloud-transfer-v80.js"
@@ -37,6 +45,14 @@ on:
       - "tests/test_local_delete_cleanup_v85.cjs"
       - "tests/test_account_delete_client_v85.cjs"
       - "delete-account.html"
+      - "index.html"
+      - "staging-v2.html"
+      - "sw.js"
+      - "pwa-updates-v66.js"
+      - "manifest.webmanifest"
+      - "tests/test_sw_v66.cjs"
+      - "tests/test_release_integrity_v86.cjs"
+      - "supabase/migrations/20261107173126_revoke_unsafe_default_table_grants_v86.sql"
       - "supabase/migrations/20261107131531_account_deletion_requests_v84.sql"
       - "cloud-conflicts-v81.js"
       - "cloud-transfer-v80.js"
@@ -80,3 +96,5 @@ jobs:
           node tests/test_delete_own_account_v85.mjs
           node tests/test_account_delete_client_v85.cjs
           node tests/test_local_delete_cleanup_v85.cjs
+          node tests/test_sw_v66.cjs
+          node tests/test_release_integrity_v86.cjs

@@ -2,6 +2,12 @@
 
 Reviewed: 2026-11-07. This document tracks launch gates, not a declaration that the app is ready to publish.
 
+## Stage 0 — least-privilege database grants (v86)
+
+- [x] Revoke table-wide `TRUNCATE`, `TRIGGER` and `REFERENCES` from `anon` and `authenticated` across current `public` tables in production; verify all removed and that all 110 games and both Auth accounts remain intact.
+- [x] Commit the exact deployed migration (`20261107173126`) and preserve existing client write rights during the phased v82 rollout.
+- [ ] Audit grants whenever new public tables are created; default privileges may expose new tables unless explicitly restricted.
+
 ## Stage 1 — cloud safety (v80)
 
 - [x] Read active Supabase policies and current database security advisories.
@@ -49,6 +55,10 @@ Reviewed: 2026-11-07. This document tracks launch gates, not a declaration that 
 - [ ] Review account recovery, public user-name display and profile visibility.
 
 ## Stage 4 — Android package and platform experience
+
+- [x] v86: pin browser Supabase SDK to exact version `2.95.0`, add static release-integrity checks and service worker regression test to CI.
+- [ ] Verify the pinned CDN resource and real GitHub Pages loading on supported phones; add subresource-integrity or self-hosting after verifying browser bundle provenance.
+- [ ] Target Android **16 (API 36)** for a new phone app under the Google Play requirements effective August 31, 2026; confirm at actual Play Console submission. See [PLAY_RELEASE_GATE_V86.md](docs/PLAY_RELEASE_GATE_V86.md).
 
 - [ ] Package as a signed Android App Bundle (TWA or equivalent) with verified domain association.
 - [ ] Verify current Google Play target SDK/API requirements before upload.
