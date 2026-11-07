@@ -50,6 +50,7 @@
       <label>Пароль Memory Card
         <input type="password" name="password" autocomplete="current-password" required>
       </label>
+      <div data-request-turnstile class="mc-request-turnstile" aria-label="Проверка безопасности"></div>
       <div class="actions">
         <button type="submit">Войти</button>
         <a class="action secondary" href="./">Открыть Memory Card</a>
@@ -85,6 +86,7 @@
 </main>
 <script src="./backend-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
 <script src="./account-deletion-request-v84.js?v=84"></script>
 </body>
 </html>
