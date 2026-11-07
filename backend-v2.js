@@ -359,6 +359,6 @@
     else showAuth();
   }
 
-  window.MemoryCardBackendV2={configured:true,client,sync:reconcile,push:pushCloud,logout,getSession:()=>session,getProfile:()=>profile,sendFriendRequest:async memoryId=>client.rpc('send_friend_request',{target_memory_id:memoryId}),acceptFriendRequest:async id=>client.rpc('accept_friend_request',{friendship_id:id}),getFriendProfile:async memoryId=>client.rpc('get_friend_profile',{target_memory_id:memoryId})};
+  window.MemoryCardBackendV2={configured:true,client,sync:reconcile,push:pushCloud,logout,isBusy:()=>syncing,getSyncState:()=>({kind:syncKind,message:syncMessage}),getSession:()=>session,getProfile:()=>profile,sendFriendRequest:async memoryId=>client.rpc('send_friend_request',{target_memory_id:memoryId}),acceptFriendRequest:async id=>client.rpc('accept_friend_request',{friendship_id:id}),getFriendProfile:async memoryId=>client.rpc('get_friend_profile',{target_memory_id:memoryId})};
   init();
 })();
