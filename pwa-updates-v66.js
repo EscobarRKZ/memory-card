@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   if (!('serviceWorker' in navigator)) return;
-  const BUILD = 79;
+  const BUILD = 80;
   const tr = (ru,en) => window.MemoryCardExperience?.tr(ru,en) || ru;
   let registration=null, reloadNeeded=false, dismissed=false, approved=false;
   let writes=0, frame=0, lastCheck=0, activationTimer=0, hadController=!!navigator.serviceWorker.controller;
@@ -18,7 +18,7 @@
     return element.value!==element.defaultValue;
   }
   function blocked() {
-    if(writes)return true;
+    if(writes||window.MemoryCardBackendV2?.isBusy?.())return true;
     if(document.querySelector('#gameForm,#playingForm,#finishRotationForm,.mc-cover-picker-backdrop,dialog[open]'))return true;
     if([...document.querySelectorAll('[data-v23-title],[data-v17-backlog-title]')].some(el=>el.value.trim()))return true;
     if(typeof state!=='undefined'&&state.view==='settings'){
