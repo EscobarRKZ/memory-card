@@ -1,0 +1,221 @@
+/* Memory Card v83: per-account local IndexedDB vault.
+ * An account switch is an atomic switch of the active "main" record, not
+ * a merge. Guest/legacy records are archived rather than auto-attached.
+ * Never uploads, deletes user games, or changes Supabase credentials. */
+(function(root){
+  'use strict';
+  const PREFIX='mc-account-v83:';
+  const GUEST='mc-guest-v83';
+  const MAIN='main';
+  const STORE_NAME='state';
+  let gate=Promise.resolve();
+  let switching=false;
+  let activatedOwner='';
+
+  function keyFor(owner){
+    if(typeof owner!=='string'||!owner.trim()||owner.length>120)throw new Error('Invalid account ID');
+    return PREFIX+owner;
+  }
+  function clone(item){
+    return typeof structuredClone==='function' ? structuredClone(item) : JSON.parse(JSON.stringify(item));
+  }
+  function validSnapshot(data){
+    return !!data && typeof data==='object' && !Array.isArray(data) &&
+      Array.isArray(data.games) && data.settings && typeof data.settings==='object' &&
+      !Array.isArray(data.settings);
+  }
+  function fresh(owner=''){
+    return {
+      games:[],
+      settings:migrateSettings({
+        ...DEFAULT_SETTINGS,profileName:'Игрок',userId:'',
+        cloudOwnerUid:owner,cloudSyncBaselineV81:undefined,
+        cloudConflictArchiveV81:undefined,autoSync:false
+      })
+    };
+  }
+  function take(){
+    return clone({games:state.games,settings:state.settings});
+  }
+  function restore(item,owner){
+    if(!validSnapshot(item))throw new Error('Invalid saved account library');
+    state.games=item.games.map(migrateGame);
+    state.settings=migrateSettings({...item.settings,cloudOwnerUid:owner});
+    if(!owner) {
+      state.settings.userId='';
+      state.settings.cloudSyncBaselineV81=undefined;
+      state.settings.cloudConflictArchiveV81=undefined;
+    }
+    state.settings.autoSync=false;
+    state.modal=null;
+    state.view='home';
+    state.platformFilter='';
+    state.search='';
+    state.statusFilter='all';
+    state.collectionId='';
+    state.gameDetailId='';
+    state.franchiseName='';
+    state.friendProfile=null;
+    state.social={loading:false,loaded:false,friends:[],incoming:[],outgoing:[],profile:null,error:''};
+  }
+
+  async function read(key){
+    const db=await dbOpen();
+    return new Promise((resolve,reject)=>{
+      let tx;
+      try{
+        tx=db.transaction(STORE_NAME,'readonly');
+        const req=tx.objectStore(STORE_NAME).get(key);
+        req.onsuccess=()=>resolve(req.result??null);
+        req.onerror=()=>reject(req.error||new Error('Failed to read local account'));
+        tx.onabort=()=>reject(tx.error||new Error('Account read interrupted'));
+      }catch(error){reject(error);}
+    }).finally(()=>{try{db.close?.();}catch(_){}});
+  }
+
+  async function writeAtomic(entries){
+    const db=await dbOpen();
+    return new Promise((resolve,reject)=>{
+      try{
+        const tx=db.transaction(STORE_NAME,'readwrite');
+        const store=tx.objectStore(STORE_NAME);
+        for(const [key,value] of entries)store.put(value,key);
+        tx.oncomplete=resolve;
+        tx.onerror=()=>reject(tx.error||new Error('Account data save failed'));
+        tx.onabort=()=>reject(tx.error||new Error('Account data save interrupted'));
+      }catch(error){reject(error);}
+    }).finally(()=>{try{db.close?.();}catch(_){}});
+  }
+
+  function serial(fn){
+    const result=gate.then(async()=>{
+      switching=true;
+      try{return await fn();}finally{switching=false;}
+    });
+    gate=result.catch(()=>{});
+    return result;
+  }
+
+  async function oldBackup(owner,entries){
+    if(!owner)return;
+    const ownKey='sync-backups-v1:'+owner;
+    const saved=await read(ownKey);
+    if(saved!==null)return;
+    const legacy=await read('sync-backups-v1');
+    if(Array.isArray(legacy)&&legacy.length)entries.push([ownKey,clone(legacy)]);
+  }
+
+  async function activate(owner){
+    return serial(async()=>{
+      const uid=String(owner||'');
+      const targetKey=keyFor(uid);
+      const oldOwner=String(state.settings?.cloudOwnerUid||'');
+      const current=take();
+      if(oldOwner===uid){
+        if(activatedOwner===uid)return {changed:false,owner:uid};
+        const entries=[[targetKey,current]];
+        await oldBackup(uid,entries);
+        await writeAtomic(entries);
+        activatedOwner=uid;
+        return {changed:false,owner:uid};
+      }
+      const existing=await read(targetKey);
+      if(existing!==null && !validSnapshot(existing))throw new Error('Account storage is corrupted; refusing to replace it');
+      if(existing && existing.settings?.cloudOwnerUid &&
+         String(existing.settings.cloudOwnerUid)!==uid){
+        throw new Error('Saved library belongs to a different account');
+      }
+      const target=existing?clone(existing):fresh(uid);
+      target.settings.cloudOwnerUid=uid;
+
+      // The previous active workspace is stored even when signed out or
+      // when the last login belongs to another user. An unbound workspace
+      // goes to a guest archive, never silently into another cloud account.
+      const entries=[[targetKey,target],[MAIN,target]];
+      if(oldOwner){
+        entries.unshift([keyFor(oldOwner),current]);
+      }else if(current.games.length){
+        // Never overwrite a previously archived guest library with an
+        // empty workspace after a sign-out. Preserve older guest IDs too.
+        const existingGuest=await read(GUEST);
+        if(existingGuest!==null && !validSnapshot(existingGuest)){
+          throw new Error('Guest archive is corrupted');
+        }
+        if(existingGuest?.games?.length){
+          const ids=new Set(existingGuest.games.map(g=>String(g.id)));
+          const additions=current.games.filter(g=>!ids.has(String(g.id)));
+          entries.unshift([GUEST,{
+            games:[...existingGuest.games,...additions],
+            settings:existingGuest.settings
+          }]);
+        }else{
+          entries.unshift([GUEST,current]);
+        }
+      }
+      await oldBackup(oldOwner,entries);
+      await writeAtomic(entries);
+      restore(target,uid);
+      activatedOwner=uid;
+      return {changed:true,from:oldOwner||'guest',owner:uid,hadSavedCopy:!!existing};
+    });
+  }
+
+  async function deactivate(){
+    return serial(async()=>{
+      const oldOwner=String(state.settings?.cloudOwnerUid||'');
+      // Already signed out, no private library visible.
+      if(!oldOwner)return {changed:false};
+      const current=take(),blank=fresh();
+      const entries=[[keyFor(oldOwner),current],[MAIN,blank]];
+      await oldBackup(oldOwner,entries);
+      await writeAtomic(entries);
+      restore(blank,'');
+      activatedOwner='';
+      return {changed:true,owner:oldOwner};
+    });
+  }
+
+  async function guestInfo(){
+    // Read-only UI hints must not block ordinary saves during their IDB read.
+    await gate;
+    const data=await read(GUEST);
+    if(!validSnapshot(data))return {games:0,remaining:0,exists:false};
+    const current=new Set((state.games||[]).map(g=>String(g.id)));
+    const remaining=data.games.filter(g=>!current.has(String(g?.id||''))).length;
+    return {games:data.games.length,remaining,exists:true};
+  }
+
+  async function importGuest(){
+    return serial(async()=>{
+      const owner=String(state.settings?.cloudOwnerUid||'');
+      if(!owner)throw new Error('Sign in before importing guest games');
+      const guest=await read(GUEST);
+      if(guest===null)return {imported:0,skipped:0};
+      if(!validSnapshot(guest))throw new Error('Guest archive is corrupted');
+      const ids=new Set((state.games||[]).map(g=>String(g.id)));
+      const added=guest.games.filter(g=>{
+        const id=String(g?.id||'');
+        if(!id||ids.has(id))return false;
+        ids.add(id);
+        return true;
+      }).map(migrateGame);
+      const current=take();
+      const updated={
+        ...current,
+        games:[...current.games,...added],
+        settings:{...current.settings,settingsUpdatedAt:new Date().toISOString()}
+      };
+      // Preserve the guest archive and the active account in the same
+      // transaction. Do not import any guest settings or credentials.
+      await writeAtomic([[keyFor(owner),updated],[MAIN,updated]]);
+      state.games=updated.games;
+      state.settings=migrateSettings(updated.settings);
+      return {imported:added.length,skipped:guest.games.length-added.length};
+    });
+  }
+
+  const api=Object.freeze({activate,deactivate,guestInfo,importGuest,keyFor,
+    guestKey:GUEST,isSnapshot:validSnapshot,isSwitching:()=>switching});
+  root.MemoryCardAccountVaultV83=api;
+  if(typeof module!=='undefined'&&module.exports)module.exports=api;
+})(typeof window!=='undefined'?window:{});

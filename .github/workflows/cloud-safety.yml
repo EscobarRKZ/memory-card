@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths:
       - "backend-v2.js"
+      - "app.js"
+      - "account-vault-v83.js"
+      - "tests/test_account_*.cjs"
       - "cloud-conflicts-v81.js"
       - "cloud-transfer-v80.js"
       - "tests/test_cloud_*.cjs"
@@ -14,6 +17,9 @@ on:
   pull_request:
     paths:
       - "backend-v2.js"
+      - "app.js"
+      - "account-vault-v83.js"
+      - "tests/test_account_*.cjs"
       - "cloud-conflicts-v81.js"
       - "cloud-transfer-v80.js"
       - "tests/test_cloud_*.cjs"
@@ -36,6 +42,8 @@ jobs:
       - name: Check production JavaScript syntax
         run: |
           node --check backend-v2.js
+          node --check app.js
+          node --check account-vault-v83.js
           node --check cloud-transfer-v80.js
           node --check cloud-conflicts-v81.js
       - name: Run offline sync regression tests
@@ -44,3 +52,5 @@ jobs:
           node tests/test_cloud_conflicts_v81.cjs
           node tests/test_cloud_backend_v81.cjs
           node tests/test_server_rpc_v82.cjs
+          node tests/test_account_vault_v83.cjs
+          node tests/test_account_backend_v83.cjs

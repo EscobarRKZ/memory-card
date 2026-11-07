@@ -119,8 +119,13 @@ function clonePlain(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function currentBackupStoreKey() {
+  const owner=String(state.settings?.cloudOwnerUid||'');
+  return owner ? BACKUP_KEY+':'+owner : BACKUP_KEY;
+}
 async function createLocalSnapshot(reason = 'manual') {
-  const backups = await storeGet(BACKUP_KEY, []);
+  const backupKey=currentBackupStoreKey();
+  const backups = await storeGet(backupKey, []);
   const snapshot = {
     id: uid(),
     createdAt: nowIso(),
@@ -129,13 +134,13 @@ async function createLocalSnapshot(reason = 'manual') {
     settings: clonePlain(state.settings),
   };
   const next = [snapshot, ...(Array.isArray(backups) ? backups : [])].slice(0, MAX_LOCAL_BACKUPS);
-  await storePut(BACKUP_KEY, next);
+  await storePut(backupKey, next);
   state.settings.lastLocalBackupAt = snapshot.createdAt;
   return snapshot;
 }
 
 async function restoreLatestSnapshot() {
-  const backups = await storeGet(BACKUP_KEY, []);
+  const backups = await storeGet(currentBackupStoreKey(), []);
   const target = Array.isArray(backups) ? backups[0] : null;
   if (!target) {
     alert('Локальных резервных копий пока нет. Они создаются автоматически перед каждой синхронизацией.');
@@ -531,15 +536,40 @@ async function loadState() {
 
 async function persist() {
   try {
+    if(window.MemoryCardAccountVaultV83?.isSwitching?.()){
+      throw new Error('Account switch is in progress');
+    }
     const db = await dbOpen();
+    const owner=String(state.settings?.cloudOwnerUid||'');
+    // Both the active workspace and its named account copy commit together.
+    // There is never a successful save to main without the account backup.
     await new Promise((resolve, reject) => {
       const tx = db.transaction(STORE, 'readwrite');
-      tx.objectStore(STORE).put({ games: state.games, settings: state.settings }, KEY);
+      const store = tx.objectStore(STORE);
+      const snapshot = { games: state.games, settings: state.settings };
+      // A second browser tab may have switched accounts. A stale tab must
+      // never overwrite the active workspace of that different account.
+      const current = store.get(KEY);
+      current.onsuccess = () => {
+        const activeOwner=String(current.result?.settings?.cloudOwnerUid||'');
+        if(activeOwner!==owner){
+          tx.abort();
+          return;
+        }
+        store.put(snapshot, KEY);
+        if(owner) store.put(snapshot, 'mc-account-v83:'+owner);
+      };
+      current.onerror = () => tx.abort();
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error || new Error('Local save aborted: account changed in another tab'));
     });
+    db.close?.();
   } catch (e) {
     console.warn('DB save failed', e);
+    // Never let the UI claim a protected account write succeeded after an
+    // IndexedDB transaction failed (storage quota, private mode, etc.).
+    if(state.settings?.cloudOwnerUid)throw e;
   }
 }
 
@@ -1781,4 +1811,4 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) sche
 window.addEventListener('online', () => scheduleAutoSync(350));
 
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(console.warn));
-loadState();
+window.MemoryCardInitialLoad = loadState();

@@ -18,6 +18,7 @@
   let localEpoch=0,conflictItems=[],resolvingConflict=false;
   const conflictsApi=window.MemoryCardConflictV81;
   const transfer=window.MemoryCardCloudTransferV80;
+  const vault=window.MemoryCardAccountVaultV83;
   if(!transfer?.downloadGames||!conflictsApi?.plan||!conflictsApi?.sendChanges){
     console.error('Memory Card cloud transfer module is missing');
     window.MemoryCardBackendV2={configured:false};
@@ -202,11 +203,24 @@
     if(syncing){pushQueuedDuringSync=true;return false;}
     syncing=true;
     const uid=session.user.id;
-    const epoch=localEpoch;
+    let epoch=localEpoch;
     let rerun=false,success=false;
     setSyncNotice('busy','Сверяю изменения между устройствами…');
     try{
       disableLegacySync();
+      // Select an isolated local workspace BEFORE reading cloud data.
+      // Never merge the prior user's "main" IndexedDB entry into this UID.
+      if(vault?.activate){
+        const activated=await vault.activate(uid);
+        if(activated.changed){
+          localEpoch++;
+          epoch=localEpoch;
+          conflictItems=[];
+          cloudReady=false;
+          applyTheme();
+          if(!state.modal)baseRender();
+        }
+      }
       const cloud=await loadCloud();
       if(!session||session.user.id!==uid)throw new Error('Cloud session changed during synchronization');
       if(localAccountMismatch(cloud,uid)){
@@ -306,13 +320,25 @@
         setSyncNotice('conflict','Облачная версия изменилась во время записи. Нажми «Синхронизировать» для повторной сверки.');
       }else{
         setSyncNotice('error','Синхронизация не завершена. Локальные записи сохранены; попробуй ещё раз.');
+        // If the new account's local vault could not open, never expose the
+        // previous owner's in-memory library under a different login.
+        if(vault && String(state.settings?.cloudOwnerUid||'')!==uid){
+          authWarning='Не удалось открыть локальное хранилище аккаунта. Вход отменён без изменения сохранённых записей.';
+          try{await client.auth.signOut();}catch(_){}
+          session=null;
+          profile=null;
+          showAuth();
+        }
       }
       return false;
     }finally{
       syncing=false;
       const queued=pushQueuedDuringSync||rerun;
       pushQueuedDuringSync=false;
-      if(queued&&session&&!conflictItems.length&&(success||rerun)){
+      // An auth change while the old user's sync was running must retry
+      // for the new account rather than leaving cloud sync stalled.
+      const accountChanged=!!session && session.user.id!==uid;
+      if(queued&&session&&!conflictItems.length&&(success||rerun||accountChanged)){
         setTimeout(()=>reconcile(),250);
       }
       queueMicrotask(injectAccount);
@@ -413,7 +439,35 @@
     await reconcile();
     setToast('Пароль изменён');
   }
-  async function logout(){clearTimeout(pushTimer);cloudReady=false;conflictItems=[];pushQueuedDuringSync=false;authWarning='';await client.auth.signOut();session=null;profile=null;showAuth();}
+  async function logout(){
+    if(syncing||resolvingConflict){
+      setToast('Дождись завершения синхронизации перед выходом.');
+      return;
+    }
+    const previous=session;
+    try{
+      // This transaction keeps a named local copy before it clears "main".
+      if(vault?.deactivate)await vault.deactivate();
+      clearTimeout(pushTimer);
+      cloudReady=false;
+      conflictItems=[];
+      pushQueuedDuringSync=false;
+      authWarning='';
+      const {error}=await client.auth.signOut();
+      if(error)throw error;
+      session=null;
+      profile=null;
+      baseRender();
+      showAuth();
+    }catch(error){
+      console.error('Memory Card sign-out failed',error);
+      // Failed remote logout must not strand the user with an empty workspace.
+      if(previous?.user?.id && vault?.activate){
+        try{await vault.activate(previous.user.id);applyTheme();baseRender();}catch(_){}
+      }
+      setToast('Не удалось выйти безопасно. Повтори попытку.');
+    }
+  }
 
   function hideLegacySyncUi(){
     document.querySelectorAll('.panel').forEach(panel=>{
@@ -421,19 +475,65 @@
       if(title.includes('Google Sheets')) panel.hidden=true;
     });
   }
+  async function injectGuestImport(card){
+    if(!vault?.guestInfo||!card?.isConnected)return;
+    try{
+      const info=await vault.guestInfo();
+      if(!card.isConnected||state.view!=='settings'||!session)return;
+      let area=card.querySelector('[data-v83-guest-import-area]');
+      if(!info.remaining){area?.remove();return;}
+      if(!area){
+        area=document.createElement('div');
+        area.dataset.v83GuestImportArea='1';
+        area.className='mc-guest-import';
+        card.appendChild(area);
+      }
+      area.innerHTML='<p>Из гостевой библиотеки можно перенести '+info.remaining+
+        ' игр (в архиве '+info.games+'). Ничего не перенесено автоматически.</p>'+
+        '<button class="secondary compact" type="button" data-v83-import-guest>'+
+        'Перенести недостающие игры</button>';
+    }catch(error){
+      console.warn('Guest library lookup failed',error);
+    }
+  }
+
+  async function importGuest(){
+    if(!vault?.importGuest||!session||syncing)return;
+    try{
+      const info=await vault.guestInfo();
+      if(!info.remaining){setToast('Все гостевые игры уже есть в библиотеке.');return;}
+      if(!window.confirm('Добавить '+info.remaining+
+        ' гостевых игр в этот аккаунт? Совпадающие ID останутся без изменений. '+
+        'Гостевой архив будет сохранён отдельно.'))return;
+      const result=await vault.importGuest();
+      if(result.imported){
+        localEpoch++;
+        await persist();
+        applyTheme();
+        baseRender();
+        queueMicrotask(injectAccount);
+      }
+      setToast('Перенесено игр: '+result.imported+'. Пропущено совпадений: '+result.skipped+'.');
+    }catch(error){
+      console.error('Guest import failed',error);
+      setToast('Не удалось безопасно перенести гостевую библиотеку.');
+    }
+  }
+
   function injectAccount(){
     hideLegacySyncUi();
     if(state.view!=='settings'||!session) return;
     const root=document.querySelector('.settings-grid')||document.querySelector('.content');
     if(!root)return;
     const existing=root.querySelector('[data-v2-account]');
-    if(existing){renderConflictPanel(existing);return;}
+    if(existing){renderConflictPanel(existing);void injectGuestImport(existing);return;}
     const card=document.createElement('section');
     card.className='panel';
     card.dataset.v2Account='1';
     card.innerHTML=`<div class="settings-panel-head"><div><h3>Аккаунт</h3><p class="status-line">${escHtml(session.user.email||'')} · ${escHtml(profile?.memory_id||state.settings.userId||'')}</p></div><div class="mc-account-chip"><button class="secondary compact" type="button" data-v2-sync>Синхронизировать</button><button class="ghost compact" type="button" data-v2-logout>Выйти</button></div></div><p data-v2-sync-state data-sync-kind="${escHtml(syncKind)}" class="mc-cloud-sync-state" role="status">${escHtml(syncMessage)}</p>`;
     root.prepend(card);
     renderConflictPanel(card);
+    void injectGuestImport(card);
   }
 
   render=function(){baseRender();queueMicrotask(injectAccount);};
@@ -445,6 +545,11 @@
     if(event.target instanceof Element&&event.target.closest('[data-auth-reset]')){resetPassword();return;}
     if(event.target instanceof Element&&event.target.closest('[data-v2-logout]')){logout();return;}
     if(event.target instanceof Element&&event.target.closest('[data-v2-sync]')){reconcile();return;}
+    if(event.target instanceof Element&&event.target.closest('[data-v83-import-guest]')){
+      event.preventDefault();
+      void importGuest();
+      return;
+    }
     const resolve=event.target instanceof Element?event.target.closest('[data-v81-resolve]'):null;
     if(resolve){event.preventDefault();resolveConflict(resolve.dataset.v81Id,resolve.dataset.v81Resolve);return;}
   },true);
@@ -476,7 +581,7 @@
       clearTimeout(pushTimer);
     }
     session=next;
-    setTimeout(()=>{
+    setTimeout(async()=>{
       if(event==='PASSWORD_RECOVERY'){
         showPasswordRecovery();
         return;
@@ -484,20 +589,35 @@
       if(session){
         hideAuth();
         // Token refresh alone must not wipe a currently edited form.
-        if(!cloudReady)reconcile();
-      }else showAuth();
+        if(!cloudReady)await reconcile();
+      }else{
+        try{
+          if(vault?.deactivate)await vault.deactivate();
+          baseRender();
+        }catch(error){
+          console.error('Could not clear signed-out account view',error);
+        }
+        showAuth();
+      }
     },0);
   });
 
   async function init(){
+    // Core IndexedDB loading must finish before session-based workspace
+    // activation, otherwise its late "main" write could restore old data.
+    if(window.MemoryCardInitialLoad)await window.MemoryCardInitialLoad;
     disableLegacySync();
     await localPersist();
     const {data}=await client.auth.getSession();
     session=data.session||null;
     if(session){hideAuth();await reconcile();}
-    else showAuth();
+    else{
+      if(vault?.deactivate)await vault.deactivate();
+      baseRender();
+      showAuth();
+    }
   }
 
-  window.MemoryCardBackendV2={configured:true,client,sync:reconcile,push:pushCloud,logout,isBusy:()=>syncing,getSyncState:()=>({kind:syncKind,message:syncMessage,conflicts:conflictItems.length}),getSession:()=>session,getProfile:()=>profile,sendFriendRequest:async memoryId=>client.rpc('send_friend_request',{target_memory_id:memoryId}),acceptFriendRequest:async id=>client.rpc('accept_friend_request',{friendship_id:id}),getFriendProfile:async memoryId=>client.rpc('get_friend_profile',{target_memory_id:memoryId})};
+  window.MemoryCardBackendV2={configured:true,client,sync:reconcile,push:pushCloud,logout,isBusy:()=>syncing||!!vault?.isSwitching?.(),getSyncState:()=>({kind:syncKind,message:syncMessage,conflicts:conflictItems.length}),getSession:()=>session,getProfile:()=>profile,sendFriendRequest:async memoryId=>client.rpc('send_friend_request',{target_memory_id:memoryId}),acceptFriendRequest:async id=>client.rpc('accept_friend_request',{friendship_id:id}),getFriendProfile:async memoryId=>client.rpc('get_friend_profile',{target_memory_id:memoryId})};
   init();
 })();
