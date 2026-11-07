@@ -4,3 +4,32 @@
 .mc-auth-tabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:5px;border-radius:15px;background:var(--panel2);margin-bottom:18px}.mc-auth-tab{border:0;background:transparent;color:var(--muted);border-radius:11px;padding:10px;font-weight:850}.mc-auth-tab.active{background:var(--panel);color:var(--text);box-shadow:0 4px 14px rgba(0,0,0,.1)}
 .mc-auth-form{display:grid;gap:13px}.mc-auth-form[hidden]{display:none}.mc-auth-field{display:grid;gap:6px}.mc-auth-field span{font-size:12px;font-weight:800;color:var(--muted)}.mc-auth-field input{width:100%}.mc-auth-submit{width:100%;margin-top:3px}.mc-auth-note{font-size:12px;line-height:1.45;color:var(--muted);margin:2px 0 0}.mc-auth-status{min-height:20px;font-size:13px}.mc-auth-status.error{color:#ff6d7d}.mc-auth-status.ok{color:#55d890}.mc-auth-link{border:0;background:transparent;color:var(--accent);padding:0;font:inherit;font-weight:800;cursor:pointer}.mc-auth-turnstile{min-height:65px}.mc-auth-confirm{text-align:center;padding:14px 0 4px}.mc-auth-confirm h2{margin:8px 0}.mc-auth-confirm p{color:var(--muted);line-height:1.55}.mc-account-chip{display:flex;align-items:center;gap:8px}.mc-account-chip button{white-space:nowrap}
 @media(max-width:520px){.mc-auth-shell{padding:12px}.mc-auth-card{padding:20px;border-radius:22px}.mc-auth-brand h1{font-size:21px}}
+
+
+/* v80: show the actual cloud state separately from local save confirmations. */
+.mc-cloud-sync-state {
+  margin: 10px 0 0;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--muted);
+  background: var(--panel2);
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.mc-cloud-sync-state:empty { display: none; }
+.mc-cloud-sync-state[data-sync-kind="ok"] { color: var(--success, var(--text)); }
+.mc-cloud-sync-state[data-sync-kind="error"] {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--warning, var(--accent)) 55%, var(--line));
+}
+.mc-auth-warning {
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--warning, var(--accent)) 52%, var(--line));
+  border-radius: 12px;
+  background: var(--panel2);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+}
