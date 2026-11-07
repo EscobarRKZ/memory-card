@@ -96,7 +96,9 @@
       const row={...toRow(change.game),user_id:userId,id};
       // Using the request time ensures the revision changes even if the
       // original local timestamp is older than the remote revision.
-      row.updated_at=new Date().toISOString();
+      const previous=Date.parse(String(change.revision||''));
+      const moment=Number.isFinite(previous)?Math.max(Date.now(),previous+1):Date.now();
+      row.updated_at=new Date(moment).toISOString();
       let result;
       if(change.kind==='insert'){
         result=await client.from('games').insert(row).select('id,updated_at');
