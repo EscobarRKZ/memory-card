@@ -10,6 +10,7 @@
   const STORE_NAME='state';
   let gate=Promise.resolve();
   let switching=false;
+  let activatedOwner='';
 
   function keyFor(owner){
     if(typeof owner!=='string'||!owner.trim()||owner.length>120)throw new Error('Invalid account ID');
@@ -111,9 +112,11 @@
       const oldOwner=String(state.settings?.cloudOwnerUid||'');
       const current=take();
       if(oldOwner===uid){
+        if(activatedOwner===uid)return {changed:false,owner:uid};
         const entries=[[targetKey,current]];
         await oldBackup(uid,entries);
         await writeAtomic(entries);
+        activatedOwner=uid;
         return {changed:false,owner:uid};
       }
       const existing=await read(targetKey);
@@ -152,6 +155,7 @@
       await oldBackup(oldOwner,entries);
       await writeAtomic(entries);
       restore(target,uid);
+      activatedOwner=uid;
       return {changed:true,from:oldOwner||'guest',owner:uid,hadSavedCopy:!!existing};
     });
   }
@@ -166,15 +170,19 @@
       await oldBackup(oldOwner,entries);
       await writeAtomic(entries);
       restore(blank,'');
+      activatedOwner='';
       return {changed:true,owner:oldOwner};
     });
   }
 
   async function guestInfo(){
-    return serial(async()=>{
-      const data=await read(GUEST);
-      return validSnapshot(data)?{games:data.games.length,exists:true}:{games:0,exists:false};
-    });
+    // Read-only UI hints must not block ordinary saves during their IDB read.
+    await gate;
+    const data=await read(GUEST);
+    if(!validSnapshot(data))return {games:0,remaining:0,exists:false};
+    const current=new Set((state.games||[]).map(g=>String(g.id)));
+    const remaining=data.games.filter(g=>!current.has(String(g?.id||''))).length;
+    return {games:data.games.length,remaining,exists:true};
   }
 
   async function importGuest(){
