@@ -17,20 +17,21 @@ Reviewed: 2026-11-07. This document tracks launch gates, not a declaration that 
 
 **Observed on the active Supabase project on 2026-11-07:** one account has 110 game rows. The `friendships_update_participant` policy is absent and `authenticated` lacks `UPDATE` privilege; six authenticated social RPCs use `SECURITY DEFINER`, by design, and require explicit authorization/abuse testing. Supabase security advisors also flagged leaked-password protection being disabled; enable and verify it in Auth dashboard before public signup. This code change does not modify production database policies.
 
-## Stage 2 — conflict-safe multi-device sync (v81: partial)
+## Stage 2 — conflict-safe multi-device sync (v82: server RPC deployed; lockdown pending)
 
 - [x] Replace unconditional **frontend** game upserts with three-way comparisons and per-game SQL UPDATE predicates that check the exact previously read `updated_at` value. Duplicate new IDs are prevented by the existing composite primary key.
 - [x] Avoid reuploading unchanged games; batch newly created games in chunks of 100.
 - [x] Keep a **device-local** last-acknowledged snapshot for each game; preserve and explicitly present conflicting local/cloud versions rather than automatically choosing one using client clocks.
 - [x] Offer user-confirmed conflict resolution in Settings. Both variants are archived locally and included in profile JSON exports; archived variants are never uploaded automatically.
 - [x] Run simulated two-device tests for offline edits, conflicting writes, explicit resolution, concurrent races, partial reads and large initial imports.
-- [ ] Add **server-enforced revision control** (e.g., versioned RPC + restricted direct writes). Old PWA versions still have permission to issue unconditional upserts; client-side conditional updates do not eliminate that risk.
+- [x] Deploy an authenticated **server-side compare-and-swap RPC** in Supabase (migration `20261107105332`) and switch the v82 client to use it exclusively. Tested create/update/stale rejection in a rolled-back SQL probe; no live game rows changed.
+- [ ] **Rollout phase B (still required):** revoke direct `INSERT/UPDATE/DELETE` on `public.games` from `anon` and `authenticated` after v82 PWA is smoke-tested with a signed-in account. Until then older v80/v81 clients can still bypass server-checked writes.
 - [ ] Implement exponential retry/backoff for transient failures; current behavior retries on reconnect and explicit user sync.
 - [ ] Implement full per-account local storage separation and safe account switching (the v80 guard intentionally blocks mixing accounts).
 - [ ] Run authenticated end-to-end tests against a disposable Supabase environment and real Android devices, including deleting/restoring games and two simultaneous writers.
 - [ ] Make backups easy to find, export, restore and verify.
 
-**Important:** The v81 client patch makes conflicts visible and blocks its own stale writes but is **not yet sufficient to guarantee race-free sync across old clients**. Do not open public signups until the server-side migration and real-device testing are complete.
+**Important (2026-11-07):** Phase A of v82 is live: the authenticated RPC exists and new game writes will use it exclusively. Phase B direct-table-write lockdown is **not active** yet, so old PWA clients can still bypass CAS. Keep public signup closed until the lockdown, signed-in testing, and account/privacy work are complete. See [SERVER_CAS_ROLLOUT_V82.md](docs/SERVER_CAS_ROLLOUT_V82.md).
 
 ## Stage 3 — identity and privacy controls
 
