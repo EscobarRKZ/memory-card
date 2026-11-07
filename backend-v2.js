@@ -478,15 +478,15 @@
       const info=await vault.guestInfo();
       if(!card.isConnected||state.view!=='settings'||!session)return;
       let area=card.querySelector('[data-v83-guest-import-area]');
-      if(!info.games){area?.remove();return;}
+      if(!info.remaining){area?.remove();return;}
       if(!area){
         area=document.createElement('div');
         area.dataset.v83GuestImportArea='1';
         area.className='mc-guest-import';
         card.appendChild(area);
       }
-      area.innerHTML='<p>Найдена гостевая библиотека: '+info.games+
-        ' игр. Она сохранена отдельно и не перенесена автоматически.</p>'+
+      area.innerHTML='<p>Из гостевой библиотеки можно перенести '+info.remaining+
+        ' игр (в архиве '+info.games+'). Ничего не перенесено автоматически.</p>'+
         '<button class="secondary compact" type="button" data-v83-import-guest>'+
         'Перенести недостающие игры</button>';
     }catch(error){
@@ -498,8 +498,8 @@
     if(!vault?.importGuest||!session||syncing)return;
     try{
       const info=await vault.guestInfo();
-      if(!info.games){setToast('Гостевая библиотека не найдена.');return;}
-      if(!window.confirm('Добавить '+info.games+
+      if(!info.remaining){setToast('Все гостевые игры уже есть в библиотеке.');return;}
+      if(!window.confirm('Добавить '+info.remaining+
         ' гостевых игр в этот аккаунт? Совпадающие ID останутся без изменений. '+
         'Гостевой архив будет сохранён отдельно.'))return;
       const result=await vault.importGuest();
