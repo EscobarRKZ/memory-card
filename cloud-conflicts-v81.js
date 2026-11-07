@@ -86,58 +86,67 @@
     return err;
   }
 
+  // v82: all game writes go through a narrowly scoped authenticated RPC.
+  // The server, not the browser, determines the owner and new revision.
+  // Do not fall back to direct INSERT/UPDATE: that would undo protection.
   async function sendChanges(client,userId,writes,toRow){
-    if(!userId||typeof toRow!=='function')throw new Error('Invalid cloud sync context');
+    if(!userId||typeof toRow!=='function'||typeof client?.rpc!=='function'){
+      throw new Error('Verified cloud writer is unavailable');
+    }
     if(!Array.isArray(writes))throw new Error('Invalid write plan');
-    const rows=[],ids=new Set();
+    const changes=[],seen=new Set();
     for(const change of writes){
-      const id=string(change.id);
-      if(!id||!change.game||id!==string(change.game.id)||ids.has(id)){
+      const id=string(change?.id);
+      if(!id||!change.game||id!==string(change.game.id)||seen.has(id)){
         throw new Error('Invalid or duplicate game change');
       }
-      ids.add(id);
-      const row={...toRow(change.game),user_id:userId,id};
-      const previous=Date.parse(string(change.revision));
-      const moment=Number.isFinite(previous)?Math.max(Date.now(),previous+1):Date.now();
-      row.updated_at=new Date(moment).toISOString();
-      rows.push({change,row});
+      seen.add(id);
+      const kind=change.kind;
+      const revision=change.revision==null?null:string(change.revision);
+      if((kind==='insert'&&revision!==null)||(kind==='update'&&!revision)){
+        throw new Error('Invalid cloud revision in write plan');
+      }
+      if(kind!=='insert'&&kind!=='update')throw new Error('Invalid cloud operation');
+
+      const row={...toRow(change.game),id};
+      // Owner and updated_at are deliberately ignored on the server as well.
+      delete row.user_id;
+      delete row.updated_at;
+      changes.push({kind,revision,game:row,id,signature:signature(change.game)});
     }
     const applied=[];
-    const added=rows.filter(x=>x.change.kind==='insert');
-    const updates=rows.filter(x=>x.change.kind!=='insert');
-    // Bounded, atomic INSERT batches. A duplicate PK aborts that entire batch.
-    for(let offset=0;offset<added.length;offset+=100){
-      const batch=added.slice(offset,offset+100);
-      const result=await client.from('games').insert(batch.map(x=>x.row)).select('id,updated_at');
-      if(result?.error){
-        if(String(result.error.code)==='23505')throw conflictError(batch[0].change.id,'Another device already created a game in this batch');
-        throw result.error;
+    for(let offset=0;offset<changes.length;offset+=100){
+      const part=changes.slice(offset,offset+100);
+      const {data,error}=await client.rpc('save_games_if_unchanged',{
+        p_changes:part.map(({kind,revision,game})=>({kind,revision,game}))
+      });
+      if(error){
+        if(String(error.message||'').includes('MC_SYNC_CONFLICT')||
+           String(error.code||'')==='23505'){
+          throw conflictError(part[0].id,'Cloud revision changed during the save');
+        }
+        throw error;
       }
-      const returned=result?.data;
-      if(!Array.isArray(returned)||returned.length!==batch.length){
-        throw conflictError(batch[0].change.id,'Incomplete cloud insert response');
+      if(!Array.isArray(data)||data.length!==part.length){
+        throw conflictError(part[0].id,'Unconfirmed cloud write response');
       }
-      const returnedById=new Map(returned.map(x=>[string(x.id),x]));
-      for(const {change} of batch){
-        const item=returnedById.get(change.id);
-        if(!item?.updated_at)throw conflictError(change.id,'Cloud insert was not confirmed');
-        applied.push({id:change.id,revision:string(item.updated_at),signature:signature(change.game)});
+      const byId=new Map();
+      for(const item of data){
+        const id=string(item?.id);
+        if(!id||byId.has(id)||!item?.updated_at){
+          throw conflictError(part[0].id,'Invalid cloud acknowledgement');
+        }
+        byId.set(id,item);
       }
-    }
-    // Conditional UPDATE is one database statement with an exact revision
-    // predicate, not a read-then-unconditional-write race.
-    for(const {change,row} of updates){
-      if(change.kind!=='update'||!change.revision)throw new Error('Invalid update operation');
-      const result=await client.from('games').update(row)
-        .eq('user_id',userId).eq('id',change.id)
-        .eq('updated_at',change.revision).select('id,updated_at');
-      if(result?.error)throw result.error;
-      if(!Array.isArray(result?.data)||result.data.length!==1||
-          string(result.data[0].id)!==change.id||!result.data[0].updated_at){
-        throw conflictError(change.id,'Cloud game changed since last read');
+      for(const change of part){
+        const item=byId.get(change.id);
+        if(!item)throw conflictError(change.id,'Missing cloud acknowledgement');
+        applied.push({
+          id:change.id,
+          revision:string(item.updated_at),
+          signature:change.signature
+        });
       }
-      applied.push({id:change.id,revision:string(result.data[0].updated_at),
-        signature:signature(change.game)});
     }
     return applied;
   }
