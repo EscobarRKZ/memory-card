@@ -78,3 +78,34 @@
 @media (max-width: 530px) {
   .mc-cloud-conflict-actions button { flex: 1 1 calc(50% - 6px); min-width: 0; white-space: normal; }
 }
+
+
+/* v83: account-local guest recovery stays separate from cloud sync status. */
+.mc-guest-import {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 13px;
+  border: 1px solid var(--line);
+  background: var(--panel2);
+  color: var(--text);
+}
+.mc-guest-import p {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.mc-guest-import button {
+  min-height: 44px;
+  max-width: 100%;
+  white-space: normal;
+  touch-action: manipulation;
+}
+.mc-guest-import button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+@media (max-width: 480px) {
+  .mc-guest-import button { width: 100%; }
+}
