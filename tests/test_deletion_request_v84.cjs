@@ -22,7 +22,8 @@ const client={
   auth:{
     async getUser(){return {data:{user:state.current?users[state.current]:null},
       error:state.current?null:{message:'not logged in'}};},
-    async signInWithPassword({email,password}){
+    async signInWithPassword({email,password,options}){
+      assert.equal(options.captchaToken,'verified-captcha');
       if(!password||!Object.values(users).some(u=>u.email===email)){
         return {error:{message:'bad credentials'}};
       }
@@ -64,21 +65,26 @@ const requestForm=element();
 const requestButton=element();
 requestForm.querySelector=()=>requestButton;
 requestForm.elements={confirmation:{value:''}};
-const pending=element(),logout=element(),status=element();
+const pending=element(),logout=element(),status=element(),captchaHost=element();
 const nodes={
   '[data-request-status]':status,'[data-request-login]':signIn,
   '[data-request-account]':account,'[data-request-email]':emailText,
   '[data-request-form]':requestForm,'[data-request-pending]':pending,
-  '[data-request-logout]':logout
+  '[data-request-logout]':logout,'[data-request-turnstile]':captchaHost
 };
 const page={querySelector:key=>nodes[key]};
 const document={
   getElementById:id=>id==='mc-deletion-page'?page:null
 };
+let confirmCaptcha=null,resetCaptchaCount=0;
 const window={
   MC_BACKEND_V2:{enabled:true,supabaseUrl:'https://test.supabase.co',
-    supabaseAnonKey:'public-example'},
-  supabase:{createClient:()=>client}
+    supabaseAnonKey:'public-example',turnstileSiteKey:'site-key'},
+  supabase:{createClient:()=>client},
+  turnstile:{
+    render(host,config){assert.equal(host,captchaHost);confirmCaptcha=config.callback;return 12;},
+    reset(id){assert.equal(id,12);resetCaptchaCount++;}
+  }
 };
 new Function('document','window',src)(document,window);
 const settle=async()=>{for(let i=0;i<40;i++)await Promise.resolve()};
@@ -91,6 +97,9 @@ const fire=async(node,type)=>node.handlers[type]({preventDefault(){}});
 
   signIn.elements.email.value=users.A.email;
   signIn.elements.password.value='a-password';
+  await fire(signIn,'submit');
+  assert.match(status.textContent,/проверку безопасности/);
+  confirmCaptcha('verified-captcha');
   await fire(signIn,'submit');
   assert.equal(signIn.elements.password.value,'');
   assert.equal(signIn.hidden,true);
@@ -116,6 +125,7 @@ const fire=async(node,type)=>node.handlers[type]({preventDefault(){}});
   assert.equal(account.hidden,true);
   signIn.elements.email.value=users.B.email;
   signIn.elements.password.value='b-password';
+  confirmCaptcha('verified-captcha');
   await fire(signIn,'submit');
   assert.equal(emailText.textContent,users.B.email);
   assert.equal(requestForm.hidden,false,
@@ -126,6 +136,7 @@ const fire=async(node,type)=>node.handlers[type]({preventDefault(){}});
   assert.equal(state.stored.size,2);
   assert.deepEqual(state.inserts[1],{user_id:users.B.id,status:'pending'});
   assert.equal(state.signouts,1);
+  assert.equal(resetCaptchaCount,2);
   assert.equal(Object.prototype.hasOwnProperty.call(window,'deleteUser'),false);
   console.log('v84 deletion requests: auth, confirmation, status, isolation, signout PASS');
 })().catch(error=>{console.error(error);process.exitCode=1;});
