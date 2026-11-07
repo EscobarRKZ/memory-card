@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="index,follow">
+  <meta name="theme-color" content="#111722">
+  <title>Запрос на удаление аккаунта — Memory Card</title>
+  <style>
+    :root{color-scheme:dark;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:#111722;color:#f4f6f9}
+    *{box-sizing:border-box}
+    body{margin:0;padding:32px 18px 64px;min-height:100vh}
+    main{max-width:610px;margin:0 auto}
+    a{color:#a9c5ff;text-underline-offset:3px}
+    .brand{display:inline-flex;gap:12px;align-items:center;color:#f4f6f9;text-decoration:none;font-weight:800;letter-spacing:-.02em}
+    .logo{display:grid;place-items:center;width:42px;height:42px;border-radius:13px;background:#4563b5;color:white}
+    h1{font-size:clamp(27px,6vw,37px);letter-spacing:-.035em;line-height:1.16;margin:28px 0 14px}
+    h2{font-size:18px;letter-spacing:-.01em;margin:24px 0 12px}
+    p,li{color:#c4cedc;line-height:1.65;font-size:14px}
+    .panel{background:#1b2431;border:1px solid #374458;border-radius:17px;padding:24px;margin:24px 0}
+    label{display:block;font-size:13px;font-weight:700;margin:18px 0 8px}
+    input{display:block;width:100%;min-height:48px;margin:8px 0 0;padding:12px 14px;border:1px solid #66738b;border-radius:11px;background:#121a26;color:white;font:inherit;font-size:16px}
+    input:focus-visible,a:focus-visible,button:focus-visible{outline:3px solid #91b8ff;outline-offset:3px}
+    button,.action{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:11px 17px;border:0;border-radius:11px;background:#90b4fb;color:#111722;font-size:14px;font-weight:800;cursor:pointer}
+    button[disabled]{opacity:.55;cursor:wait}
+    .secondary{border:1px solid #62708a;background:#253247;color:#e8eeff}
+    .actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:18px}
+    [hidden]{display:none!important}
+    #request-status[data-kind=error]{color:#ffb3a8}
+    #request-status[data-kind=ok]{color:#b5e2ca}
+    .meta{border-top:1px solid #334155;margin-top:22px;padding-top:12px}
+    .muted{color:#a8b4c5;font-size:12px}
+    .warning{padding:12px 14px;border:1px solid #6e5e51;border-radius:11px;background:#2b2929}
+    @media(max-width:460px){.panel{padding:18px}.actions button{width:100%}}
+  </style>
+</head>
+<body>
+<main id="mc-deletion-page">
+  <a class="brand" href="./"><span class="logo">MC</span><span>Memory Card</span></a>
+  <h1>Запрос на удаление аккаунта</h1>
+  <p>Даже если приложение больше не установлено, можно войти через эту веб-страницу и запросить удаление учётной записи и связанных с ней данных.</p>
+
+  <section class="panel" aria-labelledby="deletion-heading">
+    <h2 id="deletion-heading">Отправить запрос</h2>
+    <p class="warning">Запрос <strong>не удаляет данные немедленно</strong>. Он будет зарегистрирован для проверки и последующей обработки. Не удаляй резервные копии до завершения процедуры, если хочешь сохранить свои записи.</p>
+    <form data-request-login autocomplete="on">
+      <label>Email
+        <input type="email" name="email" autocomplete="email" required>
+      </label>
+      <label>Пароль Memory Card
+        <input type="password" name="password" autocomplete="current-password" required>
+      </label>
+      <div class="actions">
+        <button type="submit">Войти</button>
+        <a class="action secondary" href="./">Открыть Memory Card</a>
+      </div>
+      <p class="muted">Не помнишь пароль? Используй «Забыли пароль?» на странице входа Memory Card.</p>
+    </form>
+    <div data-request-account hidden>
+      <p>Вы вошли как <strong data-request-email></strong>.</p>
+      <form data-request-form>
+        <p>Для отправки запроса введи <strong>УДАЛИТЬ</strong>. Это подтверждает запрос, но не запускает немедленное удаление.</p>
+        <label>Подтверждение запроса
+          <input name="confirmation" autocomplete="off" autocapitalize="characters" required>
+        </label>
+        <div class="actions">
+          <button type="submit">Отправить запрос на удаление</button>
+          <button class="secondary" type="button" data-request-logout>Выйти</button>
+        </div>
+      </form>
+      <p data-request-pending role="status" hidden></p>
+    </div>
+    <p id="request-status" data-request-status role="status" aria-live="polite"></p>
+  </section>
+
+  <section aria-labelledby="deletion-data">
+    <h2 id="deletion-data">Какие данные затрагивает запрос</h2>
+    <p>Учётная запись Supabase Auth, облачная библиотека игр, личные заметки и оценки, коллекции, настройки профиля и связи с друзьями. После подтверждённого удаления эти записи удаляются из активной базы согласно настройкам связей.</p>
+    <p>Локальные копии в браузере и ранее скачанные JSON-файлы могут сохраниться отдельно. Их можно удалить вручную в настройках устройства. Срок хранения резервных копий сервера ещё должен быть документирован перед публичным релизом.</p>
+    <p>Подробнее: <a href="./privacy.html">данные и конфиденциальность Memory Card</a>.</p>
+  </section>
+  <footer class="meta">
+    <p class="muted">Предрелизная функция. Приложение ещё готовится к Google Play. Для вопросов по работе приложения: <a href="https://github.com/EscobarRKZ/memory-card/issues">публичный раздел Issues проекта</a> (не публикуйте там пароли и персональные сведения).</p>
+  </footer>
+</main>
+<script src="./backend-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="./account-deletion-request-v84.js?v=84"></script>
+</body>
+</html>
