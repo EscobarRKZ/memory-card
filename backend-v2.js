@@ -191,77 +191,124 @@
   }
 
   async function reconcile(){
-    if(!session||syncing) return;
+    if(!session)return false;
+    if(syncing){pushQueuedDuringSync=true;return false;}
     syncing=true;
-    let completed=false;
-    setSyncNotice('busy','Проверяю облачную библиотеку…');
+    const uid=session.user.id;
+    const epoch=localEpoch;
+    let rerun=false,success=false;
+    setSyncNotice('busy','Сверяю изменения между устройствами…');
     try{
       disableLegacySync();
       const cloud=await loadCloud();
-      // Never mix one account's local library into another user's cloud account.
-      const boundOwner=String(state.settings?.cloudOwnerUid||'');
-      const localMemoryId=String(state.settings?.userId||'').trim().toUpperCase();
-      const remoteMemoryId=String(cloud.profile?.memory_id||'').trim().toUpperCase();
-      const otherProfile=boundOwner && boundOwner!==session.user.id;
-      const legacyOtherProfile=!boundOwner && /^MC-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(localMemoryId) &&
-        remoteMemoryId && localMemoryId!==remoteMemoryId && (state.games||[]).length>0;
-      if(otherProfile||legacyOtherProfile){
+      if(!session||session.user.id!==uid)throw new Error('Cloud session changed during synchronization');
+      if(localAccountMismatch(cloud,uid)){
         const error=new Error('LOCAL_ACCOUNT_MISMATCH');
         error.code='LOCAL_ACCOUNT_MISMATCH';
         throw error;
       }
+      if(epoch!==localEpoch){rerun=true;return false;}
       profile=cloud.profile;
-      const localSettings={...(state.settings||{})};
-      const remoteSettings=cloud.settings?.payload&&typeof cloud.settings.payload==='object'?cloud.settings.payload:{};
-      const localAccent=localSettings.accentTheme;
-      const localStamp=String(localSettings.settingsUpdatedAt||'');
+      const remote=(cloud.games||[]).map(rowToGame).map(migrateGame);
+      const plan=conflictsApi.plan(state.games||[],remote,localBaseline(uid));
+
+      if(plan.conflicts.length){
+        conflictItems=plan.conflicts;
+        cloudReady=false;
+        setSyncNotice('conflict','Есть конфликтующие изменения ('+conflictItems.length+
+          '). Выбери вариант в Настройки → Аккаунт.');
+        queueMicrotask(injectAccount);
+        return false;
+      }
+
+      conflictItems=[];
+      const oldSettings=state.settings,oldGames=state.games;
+      const remoteSettings=cloud.settings?.payload&&typeof cloud.settings.payload==='object'
+        ?cloud.settings.payload:{};
+      const localStamp=String(oldSettings?.settingsUpdatedAt||'');
       const remoteStamp=String(cloud.settings?.updated_at||remoteSettings.settingsUpdatedAt||'');
-      const chosen=remoteStamp>localStamp?{...localSettings,...remoteSettings}:{...remoteSettings,...localSettings};
-      chosen.profileName=profile.display_name||chosen.profileName||'Игрок';
-      chosen.userId=profile.memory_id;
-      chosen.cloudOwnerUid=session.user.id;
+      const chosen=remoteStamp>localStamp
+        ?{...oldSettings,...remoteSettings}:{...remoteSettings,...oldSettings};
+      chosen.profileName=cloud.profile.display_name||chosen.profileName||'Игрок';
+      chosen.userId=cloud.profile.memory_id;
+      chosen.cloudOwnerUid=uid;
       chosen.autoSync=false;
-      if(localAccent) chosen.accentTheme=localAccent;
+      if(oldSettings?.accentTheme)chosen.accentTheme=oldSettings.accentTheme;
+      chosen[conflictsApi.KEY]={owner:uid,records:plan.baseline.records};
+      chosen[conflictsApi.ARCHIVE_KEY]=oldSettings?.[conflictsApi.ARCHIVE_KEY]||[];
       chosen.settingsUpdatedAt=newer(localStamp,remoteStamp)||new Date().toISOString();
-      // No state mutation until every cloud page has been loaded and verified.
-      const updatedSettings=migrateSettings(chosen);
-      const updatedGames=mergeGames(state.games||[],cloud.games.map(rowToGame)).map(migrateGame);
-      const previousSettings=state.settings,previousGames=state.games;
-      state.settings=updatedSettings;
-      state.settings.autoSync=false;
-      state.games=updatedGames;
-      try{
-        await localPersist();
-      }catch(error){
-        state.settings=previousSettings;
-        state.games=previousGames;
+
+      state.settings=migrateSettings(chosen);
+      state.games=plan.merged.map(migrateGame);
+      try{await localPersist();}
+      catch(error){
+        state.settings=oldSettings;
+        state.games=oldGames;
         throw error;
       }
       cloudReady=true;
-      completed=true;
+
+      // The user may have saved while localPersistence was running.
+      // The next pass must reconsider their newer edit.
+      if(epoch!==localEpoch){rerun=true;return false;}
+
+      // Every changed game uses the exact revision seen in the cloud pull.
+      // A concurrent update produces zero affected rows and stops the sync.
+      const applied=await conflictsApi.sendChanges(client,uid,plan.writes,gameToRow);
+      if(applied.length){
+        const records={...localBaseline(uid).records};
+        for(const item of applied)records[item.id]={
+          signature:item.signature,revision:item.revision
+        };
+        state.settings[conflictsApi.KEY]={owner:uid,records};
+        await localPersist();
+      }
+      const payload=omitLocalSettings(state.settings||{});
+      const settingsUpdatedAt=state.settings?.settingsUpdatedAt||new Date().toISOString();
+      const name=String(state.settings?.profileName||profile?.display_name||'Игрок')
+        .trim().slice(0,40)||'Игрок';
+      const results=await Promise.all([
+        client.from('profiles').update({
+          display_name:name,updated_at:new Date().toISOString()
+        }).eq('user_id',uid),
+        client.from('user_settings').upsert({
+          user_id:uid,payload,updated_at:settingsUpdatedAt
+        },{onConflict:'user_id'})
+      ]);
+      const failed=results.find(x=>x.error);
+      if(failed?.error)throw failed.error;
+
       authWarning='';
-      setSyncNotice('busy','Облачная библиотека сверена. Сохраняю изменения…');
-      baseRender();
+      success=true;
+      setSyncNotice('ok','Синхронизировано: '+state.games.length+
+        ' игр. Отправлено изменений: '+applied.length);
+      if(!state.modal&&!document.querySelector('.modal-backdrop'))baseRender();
       queueMicrotask(injectAccount);
+      return true;
     }catch(error){
       console.error('Memory Card cloud sync failed',error);
       cloudReady=false;
       if(error?.code==='LOCAL_ACCOUNT_MISMATCH'){
-        setSyncNotice('error','Синхронизация заблокирована: данные другого аккаунта на устройстве.');
-        authWarning='На этом устройстве сохранена библиотека другого аккаунта. Чтобы не смешивать данные, вход отменён. Для смены аккаунта пока используй отдельный профиль браузера.';
+        conflictItems=[];
+        setSyncNotice('error','Синхронизация заблокирована: данные другого аккаунта.');
+        authWarning='На устройстве есть библиотека другого аккаунта. Чтобы не смешать записи, вход отменён. Используй отдельный профиль браузера.';
         clearTimeout(pushTimer);
         try{await client.auth.signOut();}catch(_){}
-        session=null;profile=null;
-        showAuth();
+        session=null;profile=null;showAuth();
+      }else if(error?.code==='SYNC_CONFLICT'){
+        setSyncNotice('conflict','Облачная версия изменилась во время записи. Нажми «Синхронизировать» для повторной сверки.');
       }else{
-        setSyncNotice('error','Не удалось получить полную облачную библиотеку. Локальные записи не изменены; попробуй ещё раз.');
+        setSyncNotice('error','Синхронизация не завершена. Локальные записи сохранены; попробуй ещё раз.');
       }
+      return false;
     }finally{
       syncing=false;
-      if(completed){
-        pushQueuedDuringSync=false;
-        schedulePush(250);
+      const queued=pushQueuedDuringSync||rerun;
+      pushQueuedDuringSync=false;
+      if(queued&&session&&!conflictItems.length&&(success||rerun)){
+        setTimeout(()=>reconcile(),250);
       }
+      queueMicrotask(injectAccount);
     }
   }
 
