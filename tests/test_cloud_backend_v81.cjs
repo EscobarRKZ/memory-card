@@ -199,7 +199,7 @@ const record={
   const before=clone(offline.state.games);
   server.failRead=true;
   await offline.api.sync();
-  assert.deepEqual(offline.state.games,before);
+  assert.deepEqual(clone(offline.state.games),before);
   assert.equal(offline.api.getSyncState().kind,'error');
   server.failRead=false;
 
