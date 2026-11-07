@@ -18,6 +18,7 @@
   let localEpoch=0,conflictItems=[],resolvingConflict=false;
   const conflictsApi=window.MemoryCardConflictV81;
   const transfer=window.MemoryCardCloudTransferV80;
+  const vault=window.MemoryCardAccountVaultV83;
   if(!transfer?.downloadGames||!conflictsApi?.plan||!conflictsApi?.sendChanges){
     console.error('Memory Card cloud transfer module is missing');
     window.MemoryCardBackendV2={configured:false};
@@ -202,11 +203,24 @@
     if(syncing){pushQueuedDuringSync=true;return false;}
     syncing=true;
     const uid=session.user.id;
-    const epoch=localEpoch;
+    let epoch=localEpoch;
     let rerun=false,success=false;
     setSyncNotice('busy','Сверяю изменения между устройствами…');
     try{
       disableLegacySync();
+      // Select an isolated local workspace BEFORE reading cloud data.
+      // Never merge the prior user's "main" IndexedDB entry into this UID.
+      if(vault?.activate){
+        const activated=await vault.activate(uid);
+        if(activated.changed){
+          localEpoch++;
+          epoch=localEpoch;
+          conflictItems=[];
+          cloudReady=false;
+          applyTheme();
+          if(!state.modal)baseRender();
+        }
+      }
       const cloud=await loadCloud();
       if(!session||session.user.id!==uid)throw new Error('Cloud session changed during synchronization');
       if(localAccountMismatch(cloud,uid)){
@@ -413,7 +427,35 @@
     await reconcile();
     setToast('Пароль изменён');
   }
-  async function logout(){clearTimeout(pushTimer);cloudReady=false;conflictItems=[];pushQueuedDuringSync=false;authWarning='';await client.auth.signOut();session=null;profile=null;showAuth();}
+  async function logout(){
+    if(syncing||resolvingConflict){
+      setToast('Дождись завершения синхронизации перед выходом.');
+      return;
+    }
+    const previous=session;
+    try{
+      // This transaction keeps a named local copy before it clears "main".
+      if(vault?.deactivate)await vault.deactivate();
+      clearTimeout(pushTimer);
+      cloudReady=false;
+      conflictItems=[];
+      pushQueuedDuringSync=false;
+      authWarning='';
+      const {error}=await client.auth.signOut();
+      if(error)throw error;
+      session=null;
+      profile=null;
+      baseRender();
+      showAuth();
+    }catch(error){
+      console.error('Memory Card sign-out failed',error);
+      // Failed remote logout must not strand the user with an empty workspace.
+      if(previous?.user?.id && vault?.activate){
+        try{await vault.activate(previous.user.id);applyTheme();baseRender();}catch(_){}
+      }
+      setToast('Не удалось выйти безопасно. Повтори попытку.');
+    }
+  }
 
   function hideLegacySyncUi(){
     document.querySelectorAll('.panel').forEach(panel=>{
@@ -476,7 +518,7 @@
       clearTimeout(pushTimer);
     }
     session=next;
-    setTimeout(()=>{
+    setTimeout(async()=>{
       if(event==='PASSWORD_RECOVERY'){
         showPasswordRecovery();
         return;
@@ -484,18 +526,33 @@
       if(session){
         hideAuth();
         // Token refresh alone must not wipe a currently edited form.
-        if(!cloudReady)reconcile();
-      }else showAuth();
+        if(!cloudReady)await reconcile();
+      }else{
+        try{
+          if(vault?.deactivate)await vault.deactivate();
+          baseRender();
+        }catch(error){
+          console.error('Could not clear signed-out account view',error);
+        }
+        showAuth();
+      }
     },0);
   });
 
   async function init(){
+    // Core IndexedDB loading must finish before session-based workspace
+    // activation, otherwise its late "main" write could restore old data.
+    if(window.MemoryCardInitialLoad)await window.MemoryCardInitialLoad;
     disableLegacySync();
     await localPersist();
     const {data}=await client.auth.getSession();
     session=data.session||null;
     if(session){hideAuth();await reconcile();}
-    else showAuth();
+    else{
+      if(vault?.deactivate)await vault.deactivate();
+      baseRender();
+      showAuth();
+    }
   }
 
   window.MemoryCardBackendV2={configured:true,client,sync:reconcile,push:pushCloud,logout,isBusy:()=>syncing,getSyncState:()=>({kind:syncKind,message:syncMessage,conflicts:conflictItems.length}),getSession:()=>session,getProfile:()=>profile,sendFriendRequest:async memoryId=>client.rpc('send_friend_request',{target_memory_id:memoryId}),acceptFriendRequest:async id=>client.rpc('accept_friend_request',{friendship_id:id}),getFriendProfile:async memoryId=>client.rpc('get_friend_profile',{target_memory_id:memoryId})};
