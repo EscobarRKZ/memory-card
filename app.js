@@ -547,11 +547,22 @@ async function persist() {
       const tx = db.transaction(STORE, 'readwrite');
       const store = tx.objectStore(STORE);
       const snapshot = { games: state.games, settings: state.settings };
-      store.put(snapshot, KEY);
-      if(owner) store.put(snapshot, 'mc-account-v83:'+owner);
+      // A second browser tab may have switched accounts. A stale tab must
+      // never overwrite the active workspace of that different account.
+      const current = store.get(KEY);
+      current.onsuccess = () => {
+        const activeOwner=String(current.result?.settings?.cloudOwnerUid||'');
+        if(activeOwner!==owner){
+          tx.abort();
+          return;
+        }
+        store.put(snapshot, KEY);
+        if(owner) store.put(snapshot, 'mc-account-v83:'+owner);
+      };
+      current.onerror = () => tx.abort();
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
-      tx.onabort = () => reject(tx.error || new Error('Local save aborted'));
+      tx.onabort = () => reject(tx.error || new Error('Local save aborted: account changed in another tab'));
     });
     db.close?.();
   } catch (e) {
