@@ -35,9 +35,11 @@
       el.textContent=message;
       el.dataset.syncKind=kind;
     });
-    if(kind==='error' && typeof setToast==='function' && Date.now()-lastCloudErrorToast>60000){
+    if((kind==='error'||kind==='conflict') && typeof setToast==='function' && Date.now()-lastCloudErrorToast>60000){
       lastCloudErrorToast=Date.now();
-      setToast('Облачная синхронизация не завершена. Локальная библиотека сохранена.');
+      setToast(kind==='conflict'
+        ? 'Обнаружены разные версии игры. Открой Настройки → Аккаунт.'
+        : 'Облачная синхронизация не завершена. Локальная библиотека сохранена.');
     }
   }
 
@@ -135,6 +137,11 @@
     if(syncing||resolvingConflict||!session)return;
     const item=conflictItems.find(c=>c.id===id);
     if(!item||!['local','cloud'].includes(choice))return;
+    const current=state.games.find(g=>String(g.id)===id);
+    if(current && item.local && conflictsApi.signature(current)!==conflictsApi.signature(item.local)){
+      setSyncNotice('conflict','Игра менялась после появления конфликта. Сначала повтори синхронизацию.');
+      return;
+    }
     if(choice==='cloud'&&!item.remote)return;
     if(!window.confirm(choice==='cloud'
       ? 'Взять облачный вариант? Обе версии сохранятся в локальном архиве.'
