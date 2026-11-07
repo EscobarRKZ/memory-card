@@ -128,8 +128,27 @@
       // The previous active workspace is stored even when signed out or
       // when the last login belongs to another user. An unbound workspace
       // goes to a guest archive, never silently into another cloud account.
-      const sourceKey=oldOwner?keyFor(oldOwner):GUEST;
-      const entries=[[sourceKey,current],[targetKey,target],[MAIN,target]];
+      const entries=[[targetKey,target],[MAIN,target]];
+      if(oldOwner){
+        entries.unshift([keyFor(oldOwner),current]);
+      }else if(current.games.length){
+        // Never overwrite a previously archived guest library with an
+        // empty workspace after a sign-out. Preserve older guest IDs too.
+        const existingGuest=await read(GUEST);
+        if(existingGuest!==null && !validSnapshot(existingGuest)){
+          throw new Error('Guest archive is corrupted');
+        }
+        if(existingGuest?.games?.length){
+          const ids=new Set(existingGuest.games.map(g=>String(g.id)));
+          const additions=current.games.filter(g=>!ids.has(String(g.id)));
+          entries.unshift([GUEST,{
+            games:[...existingGuest.games,...additions],
+            settings:existingGuest.settings
+          }]);
+        }else{
+          entries.unshift([GUEST,current]);
+        }
+      }
       await oldBackup(oldOwner,entries);
       await writeAtomic(entries);
       restore(target,uid);
@@ -158,7 +177,36 @@
     });
   }
 
-  const api=Object.freeze({activate,deactivate,guestInfo,keyFor,
+  async function importGuest(){
+    return serial(async()=>{
+      const owner=String(state.settings?.cloudOwnerUid||'');
+      if(!owner)throw new Error('Sign in before importing guest games');
+      const guest=await read(GUEST);
+      if(guest===null)return {imported:0,skipped:0};
+      if(!validSnapshot(guest))throw new Error('Guest archive is corrupted');
+      const ids=new Set((state.games||[]).map(g=>String(g.id)));
+      const added=guest.games.filter(g=>{
+        const id=String(g?.id||'');
+        if(!id||ids.has(id))return false;
+        ids.add(id);
+        return true;
+      }).map(migrateGame);
+      const current=take();
+      const updated={
+        ...current,
+        games:[...current.games,...added],
+        settings:{...current.settings,settingsUpdatedAt:new Date().toISOString()}
+      };
+      // Preserve the guest archive and the active account in the same
+      // transaction. Do not import any guest settings or credentials.
+      await writeAtomic([[keyFor(owner),updated],[MAIN,updated]]);
+      state.games=updated.games;
+      state.settings=migrateSettings(updated.settings);
+      return {imported:added.length,skipped:guest.games.length-added.length};
+    });
+  }
+
+  const api=Object.freeze({activate,deactivate,guestInfo,importGuest,keyFor,
     guestKey:GUEST,isSnapshot:validSnapshot,isSwitching:()=>switching});
   root.MemoryCardAccountVaultV83=api;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
