@@ -5,6 +5,12 @@ on:
     branches: [main]
     paths:
       - "backend-v2.js"
+      - "account-deletion-request-v84.js"
+      - "delete-account.html"
+      - "privacy.html"
+      - "supabase/functions/delete-account/index.ts"
+      - "supabase/migrations/20261107131531_account_deletion_requests_v84.sql"
+      - "tests/test_deletion_request_v84.cjs"
       - "app.js"
       - "account-vault-v83.js"
       - "tests/test_account_*.cjs"
@@ -17,6 +23,12 @@ on:
   pull_request:
     paths:
       - "backend-v2.js"
+      - "account-deletion-request-v84.js"
+      - "delete-account.html"
+      - "privacy.html"
+      - "supabase/functions/delete-account/index.ts"
+      - "supabase/migrations/20261107131531_account_deletion_requests_v84.sql"
+      - "tests/test_deletion_request_v84.cjs"
       - "app.js"
       - "account-vault-v83.js"
       - "tests/test_account_*.cjs"
@@ -42,6 +54,7 @@ jobs:
       - name: Check production JavaScript syntax
         run: |
           node --check backend-v2.js
+          node --check account-deletion-request-v84.js
           node --check app.js
           node --check account-vault-v83.js
           node --check cloud-transfer-v80.js
@@ -54,3 +67,5 @@ jobs:
           node tests/test_server_rpc_v82.cjs
           node tests/test_account_vault_v83.cjs
           node tests/test_account_backend_v83.cjs
+          node tests/test_deletion_request_v84.cjs
+          node tests/test_account_deletion_gate_v84.cjs
