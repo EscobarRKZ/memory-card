@@ -178,7 +178,7 @@
   };
 
   exportData = function() {
-    const settings=clonePlain(state.settings); ['authToken','syncSecret','sheetEndpoint','lastSync'].forEach(k=>delete settings[k]);
+    const settings=clonePlain(state.settings); ['authToken','syncSecret','sheetEndpoint','lastSync','cloudOwnerUid'].forEach(k=>delete settings[k]);
     const payload={version:12,exportedAt:nowIso(),profile:{userId:state.settings.userId||'',displayName:state.settings.profileName||'Игрок'},settings,games:state.games,socialSnapshot:{friends:(state.social?.friends||[]).map(f=>({userId:f.userId,displayName:f.displayName}))}};
     const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}),a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`memory-card-profile-${new Date().toISOString().slice(0,10)}.json`; a.click(); URL.revokeObjectURL(a.href);
   };
@@ -186,7 +186,7 @@
     const file=e.target.files?.[0]; if(!file)return;
     try { const obj=JSON.parse(await file.text()); if(!Array.isArray(obj.games))throw new Error('Нет массива games');
       if(!confirm(`Импортировать профиль с ${obj.games.length} записями? Серверный ID и друзья останутся текущими.`))return;
-      const identity={userId:state.settings.userId,authToken:state.settings.authToken,sheetEndpoint:state.settings.sheetEndpoint,syncSecret:state.settings.syncSecret,autoSync:state.settings.autoSync};
+      const identity={userId:state.settings.userId,cloudOwnerUid:state.settings.cloudOwnerUid,authToken:state.settings.authToken,sheetEndpoint:state.settings.sheetEndpoint,syncSecret:state.settings.syncSecret,autoSync:state.settings.autoSync};
       const map=new Map(state.games.map(g=>[g.id,g])); obj.games.forEach(raw=>{const g=migrateGame(raw),old=map.get(g.id);if(!old||String(g.updatedAt||'')>String(old.updatedAt||''))map.set(g.id,g);}); state.games=[...map.values()];
       if(obj.settings)state.settings=migrateSettings({...state.settings,...obj.settings,...identity}); if(obj.profile?.displayName&&!obj.settings?.profileName)state.settings.profileName=String(obj.profile.displayName).slice(0,40);
       state.settings.settingsUpdatedAt=nowIso(); applyTheme(); await persist(); setToast('Профиль импортирован');
