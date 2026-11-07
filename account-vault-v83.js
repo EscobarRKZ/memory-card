@@ -9,6 +9,7 @@
   const MAIN='main';
   const STORE_NAME='state';
   let gate=Promise.resolve();
+  let switching=false;
 
   function keyFor(owner){
     if(typeof owner!=='string'||!owner.trim()||owner.length>120)throw new Error('Invalid account ID');
@@ -86,9 +87,21 @@
   }
 
   function serial(fn){
-    const result=gate.then(fn);
+    const result=gate.then(async()=>{
+      switching=true;
+      try{return await fn();}finally{switching=false;}
+    });
     gate=result.catch(()=>{});
     return result;
+  }
+
+  async function oldBackup(owner,entries){
+    if(!owner)return;
+    const ownKey='sync-backups-v1:'+owner;
+    const saved=await read(ownKey);
+    if(saved!==null)return;
+    const legacy=await read('sync-backups-v1');
+    if(Array.isArray(legacy)&&legacy.length)entries.push([ownKey,clone(legacy)]);
   }
 
   async function activate(owner){
@@ -98,7 +111,9 @@
       const oldOwner=String(state.settings?.cloudOwnerUid||'');
       const current=take();
       if(oldOwner===uid){
-        await writeAtomic([[targetKey,current]]);
+        const entries=[[targetKey,current]];
+        await oldBackup(uid,entries);
+        await writeAtomic(entries);
         return {changed:false,owner:uid};
       }
       const existing=await read(targetKey);
@@ -115,6 +130,7 @@
       // goes to a guest archive, never silently into another cloud account.
       const sourceKey=oldOwner?keyFor(oldOwner):GUEST;
       const entries=[[sourceKey,current],[targetKey,target],[MAIN,target]];
+      await oldBackup(oldOwner,entries);
       await writeAtomic(entries);
       restore(target,uid);
       return {changed:true,from:oldOwner||'guest',owner:uid,hadSavedCopy:!!existing};
@@ -127,7 +143,9 @@
       // Already signed out, no private library visible.
       if(!oldOwner)return {changed:false};
       const current=take(),blank=fresh();
-      await writeAtomic([[keyFor(oldOwner),current],[MAIN,blank]]);
+      const entries=[[keyFor(oldOwner),current],[MAIN,blank]];
+      await oldBackup(oldOwner,entries);
+      await writeAtomic(entries);
       restore(blank,'');
       return {changed:true,owner:oldOwner};
     });
@@ -141,7 +159,7 @@
   }
 
   const api=Object.freeze({activate,deactivate,guestInfo,keyFor,
-    guestKey:GUEST,isSnapshot:validSnapshot});
+    guestKey:GUEST,isSnapshot:validSnapshot,isSwitching:()=>switching});
   root.MemoryCardAccountVaultV83=api;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof window!=='undefined'?window:{});
