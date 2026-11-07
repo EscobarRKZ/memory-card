@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="color-scheme" content="dark light" />
+  <meta name="robots" content="index,follow" />
+  <title>Удаление аккаунта — Memory Card</title>
+  <meta name="description" content="Как отправить запрос на удаление аккаунта Memory Card и связанных с ним данных." />
+  <link rel="icon" href="./logo-192.png" />
+  <link rel="stylesheet" href="./account-deletion-page-v84.css?v=84" />
+</head>
+<body>
+  <main class="wrap">
+    <header><a href="./" class="brand">◼ Memory Card</a><span>Управление аккаунтом</span></header>
+    <article>
+      <h1>Удаление аккаунта</h1>
+      <p>Здесь можно отправить запрос на удаление аккаунта Memory Card, даже если приложение больше не установлено на телефоне.</p>
+      <section aria-labelledby="deletion-details">
+        <h2 id="deletion-details">Что будет удалено после обработки заявки</h2>
+        <p>Учётная запись и связанные облачные данные: профиль, игровая библиотека, отзывы и оценки, настройки, коллекции и связи с друзьями. Простая отправка запроса <strong>ещё не удаляет данные</strong>.</p>
+        <p>Локальные данные и резервные копии на других устройствах могут оставаться в хранилище браузера. При необходимости их можно удалить через настройки браузера или данные приложения. Перед запросом рекомендуется экспортировать свои игры в JSON.</p>
+      </section>
+      <section aria-labelledby="how-to">
+        <h2 id="how-to">Отправить запрос</h2>
+        <p>Для защиты аккаунта войди с email и паролем Memory Card. После входа можно проверить, есть ли уже заявка. Если пароль забыт, восстанови доступ на <a href="./">основной странице Memory Card</a>.</p>
+        <div id="loading" role="status">Проверяю доступность сервиса…</div>
+        <form id="login" hidden autocomplete="on">
+          <label>Email <input name="email" type="email" required autocomplete="username" inputmode="email" /></label>
+          <label>Пароль <input name="password" type="password" required autocomplete="current-password" /></label>
+          <div id="turnstile"></div>
+          <button type="submit">Войти для запроса</button>
+        </form>
+        <div id="account" hidden>
+          <p id="signed-in-as"></p>
+          <p id="request-state" role="status"></p>
+          <form id="request" hidden>
+            <label class="confirm-label">Для подтверждения введи <strong>УДАЛИТЬ</strong>
+              <input name="confirmation" autocomplete="off" required spellcheck="false" />
+            </label>
+            <button type="submit" class="danger">Отправить запрос на удаление</button>
+          </form>
+          <button id="sign-out" type="button" class="secondary">Выйти</button>
+        </div>
+        <p id="notice" class="notice" role="alert" aria-live="polite"></p>
+      </section>
+      <section>
+        <h2>Что происходит дальше</h2>
+        <p>Заявка получает статус «Ожидает обработки». Это не автоматическое удаление. Удаление данных будет выполнено отдельно после проверки запроса. Пока статус не изменился, аккаунт продолжает работать.</p>
+        <p>Не отправляй пароль или секретные ключи через сторонние формы. Этот сайт использует вход через Supabase Auth.</p>
+      </section>
+    </article>
+    <footer><a href="./">Вернуться в Memory Card</a></footer>
+  </main>
+  <script src="./backend-config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
+  <script src="./account-deletion-v84.js?v=84"></script>
+  <script src="./account-deletion-page-v84.js?v=84"></script>
+</body>
+</html>
