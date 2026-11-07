@@ -84,6 +84,99 @@
     return {profile:p.data,settings:s.data,games};
   }
 
+  function localBaseline(uid){
+    const data=state.settings?.[conflictsApi.KEY];
+    if(data?.owner===uid && data.records && typeof data.records==='object')return data;
+    return {owner:uid,records:{}};
+  }
+
+  function localAccountMismatch(cloud,uid){
+    const owner=String(state.settings?.cloudOwnerUid||'');
+    const localId=String(state.settings?.userId||'').trim().toUpperCase();
+    const remoteId=String(cloud.profile?.memory_id||'').trim().toUpperCase();
+    return (owner && owner!==uid) ||
+      (!owner && /^MC-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(localId) &&
+        remoteId && remoteId!==localId && (state.games||[]).length>0);
+  }
+
+  function renderConflictPanel(card){
+    if(!card)return;
+    let area=card.querySelector('[data-v81-conflicts]');
+    if(!area){
+      area=document.createElement('div');
+      area.dataset.v81Conflicts='1';
+      area.className='mc-cloud-conflicts';
+      card.appendChild(area);
+    }
+    if(!conflictItems.length){area.replaceChildren();area.hidden=true;return;}
+    area.hidden=false;
+    const info=g=>escHtml(String(g?.platform||'—'))+' · '+
+      escHtml(String(g?.status||'—'))+' · '+
+      escHtml(g?.rating?String(g.rating)+'/10':'без оценки');
+    const note=g=>escHtml(String(g?.notes||'').slice(0,360)||'—');
+    area.innerHTML='<h4>Конфликты игр: '+conflictItems.length+'</h4>'+
+      '<p>Эти записи различаются на устройствах. Автоматическая отправка остановлена. '+
+      'При выборе обе версии сохраняются в локальном архиве, который входит в экспорт JSON.</p>'+
+      conflictItems.slice(0,30).map(c=>{
+        const title=escHtml(String(c.local?.title||c.remote?.title||c.id));
+        return '<div class="mc-cloud-conflict"><strong>'+title+'</strong>'+
+          '<details><summary>Сравнить варианты</summary>'+
+          '<div><b>Этот телефон</b><small>'+info(c.local)+'</small><p>'+note(c.local)+'</p></div>'+
+          '<div><b>Облако</b><small>'+info(c.remote)+'</small><p>'+note(c.remote)+'</p></div></details>'+
+          '<div class="mc-cloud-conflict-actions">'+
+          '<button class="secondary compact" type="button" data-v81-id="'+escHtml(c.id)+'" data-v81-resolve="local">Оставить мою</button>'+
+          '<button class="ghost compact" type="button" data-v81-id="'+escHtml(c.id)+'" data-v81-resolve="cloud"'+(!c.remote?' disabled':'')+'>Взять из облака</button>'+
+          '</div></div>';
+      }).join('')+
+      (conflictItems.length>30?'<p>Показаны первые 30 конфликтов.</p>':'');
+  }
+
+  async function resolveConflict(id,choice){
+    if(syncing||resolvingConflict||!session)return;
+    const item=conflictItems.find(c=>c.id===id);
+    if(!item||!['local','cloud'].includes(choice))return;
+    if(choice==='cloud'&&!item.remote)return;
+    if(!window.confirm(choice==='cloud'
+      ? 'Взять облачный вариант? Обе версии сохранятся в локальном архиве.'
+      : 'Оставить локальный вариант? Обе версии сохранятся в локальном архиве. При изменении облака операция будет остановлена.'))return;
+    resolvingConflict=true;
+    const oldSettings=state.settings,oldGames=state.games;
+    try{
+      const uid=session.user.id,base=localBaseline(uid);
+      const records={...base.records};
+      if(item.remote)records[id]={signature:conflictsApi.signature(item.remote),revision:String(item.remote.updatedAt)};
+      else delete records[id];
+      const previous=Array.isArray(state.settings?.[conflictsApi.ARCHIVE_KEY])
+        ?state.settings[conflictsApi.ARCHIVE_KEY]:[];
+      const archive=[...previous,{
+        at:new Date().toISOString(),id,choice,
+        local:item.local?JSON.parse(JSON.stringify(item.local)):null,
+        remote:item.remote?JSON.parse(JSON.stringify(item.remote)):null
+      }];
+      const games=[...state.games];
+      if(choice==='cloud'){
+        const index=games.findIndex(g=>String(g.id)===id);
+        if(index<0)throw new Error('Local game to replace not found');
+        games[index]=item.remote;
+      }
+      state.settings={...state.settings,
+        [conflictsApi.KEY]:{owner:uid,records},
+        [conflictsApi.ARCHIVE_KEY]:archive};
+      state.games=games;
+      await localPersist();
+      conflictItems=conflictItems.filter(c=>c.id!==id);
+      cloudReady=false;
+      setSyncNotice('busy','Повторно сверяю выбранный вариант с облаком…');
+    }catch(error){
+      state.settings=oldSettings;state.games=oldGames;
+      console.error('Conflict resolution failed',error);
+      setSyncNotice('error','Не удалось сохранить выбранный вариант. Записи оставлены без изменений.');
+      return;
+    }finally{resolvingConflict=false;}
+    queueMicrotask(injectAccount);
+    await reconcile();
+  }
+
   async function pushCloud(){
     clearTimeout(pushTimer);
     if(!session||syncing||!cloudReady) return;
