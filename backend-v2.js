@@ -129,7 +129,12 @@
       const cloud=await loadCloud();
       // Never mix one account's local library into another user's cloud account.
       const boundOwner=String(state.settings?.cloudOwnerUid||'');
-      if(boundOwner && boundOwner!==session.user.id){
+      const localMemoryId=String(state.settings?.userId||'').trim().toUpperCase();
+      const remoteMemoryId=String(cloud.profile?.memory_id||'').trim().toUpperCase();
+      const otherProfile=boundOwner && boundOwner!==session.user.id;
+      const legacyOtherProfile=!boundOwner && /^MC-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(localMemoryId) &&
+        remoteMemoryId && localMemoryId!==remoteMemoryId && (state.games||[]).length>0;
+      if(otherProfile||legacyOtherProfile){
         const error=new Error('LOCAL_ACCOUNT_MISMATCH');
         error.code='LOCAL_ACCOUNT_MISMATCH';
         throw error;
@@ -150,10 +155,17 @@
       // No state mutation until every cloud page has been loaded and verified.
       const updatedSettings=migrateSettings(chosen);
       const updatedGames=mergeGames(state.games||[],cloud.games.map(rowToGame)).map(migrateGame);
+      const previousSettings=state.settings,previousGames=state.games;
       state.settings=updatedSettings;
       state.settings.autoSync=false;
       state.games=updatedGames;
-      await localPersist();
+      try{
+        await localPersist();
+      }catch(error){
+        state.settings=previousSettings;
+        state.games=previousGames;
+        throw error;
+      }
       cloudReady=true;
       completed=true;
       authWarning='';
