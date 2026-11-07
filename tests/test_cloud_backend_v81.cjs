@@ -24,6 +24,47 @@ class Server {
         onAuthStateChange(){},
         async signOut(){return {error:null};}
       },
+      async rpc(fn,args){
+        assert.equal(fn,'save_games_if_unchanged');
+        assert.ok(Array.isArray(args?.p_changes));
+        assert.ok(args.p_changes.length<=100);
+        const updates=args.p_changes.filter(c=>c.kind==='update');
+        if(updates.length&&server.raceUpdate){
+          const race=server.raceUpdate;
+          server.raceUpdate=null;
+          race(server);
+        }
+        const staging=new Map([...server.games.entries()].map(([id,row])=>[id,clone(row)]));
+        const ack=[];
+        let inserts=0,updatesCount=0;
+        for(const entry of args.p_changes){
+          assert.ok(!Object.prototype.hasOwnProperty.call(entry.game,'user_id'));
+          assert.ok(!Object.prototype.hasOwnProperty.call(entry.game,'updated_at'));
+          const id=String(entry.game?.id||'');
+          const prev=staging.get(id);
+          const expected=entry.revision;
+          if(entry.kind==='insert'){
+            if(expected!==null||prev){
+              return {data:null,error:{code:'P0001',message:'MC_SYNC_CONFLICT'}};
+            }
+            inserts++;
+          }else if(entry.kind==='update'){
+            if(!expected||!prev||prev.updated_at!==expected){
+              return {data:null,error:{code:'P0001',message:'MC_SYNC_CONFLICT'}};
+            }
+            updatesCount++;
+          }else return {data:null,error:{code:'22023',message:'invalid change'}};
+          const now=new Date(Math.max(Date.now(),Date.parse(expected||0)+1)).toISOString();
+          const row={...entry.game,user_id:'u',updated_at:now};
+          staging.set(id,clone(row));
+          ack.push({id,updated_at:now});
+        }
+        // A failing batch never commits a prefix.
+        server.games=staging;
+        if(inserts)server.inserts.push(inserts);
+        server.updates+=updatesCount;
+        return {data:ack,error:null};
+      },
       from(table){
         if(table==='games'){
           return {
@@ -37,27 +78,8 @@ class Server {
                 return {data:clone(rows.slice(from,to+1)),count:from===0?rows.length:null,error:null};
               }
             };},
-            update(row){const filter={};return {
-              eq(k,v){filter[k]=v;return this;},
-              async select(){
-                if(server.raceUpdate){
-                  server.raceUpdate(server);
-                  server.raceUpdate=null;
-                }
-                const previous=server.games.get(filter.id);
-                if(!previous||filter.user_id!==previous.user_id||filter.updated_at!==previous.updated_at)return {data:[],error:null};
-                server.games.set(filter.id,clone(row));
-                server.updates++;
-                return {data:[{id:row.id,updated_at:row.updated_at}],error:null};
-              }
-            };},
-            insert(rows){return {async select(){
-              if(!Array.isArray(rows))throw new Error('Insert must be batched');
-              server.inserts.push(rows.length);
-              if(rows.some(r=>server.games.has(r.id)))return {data:null,error:{code:'23505',message:'duplicate'}};
-              rows.forEach(row=>server.games.set(row.id,clone(row)));
-              return {data:rows.map(r=>({id:r.id,updated_at:r.updated_at})),error:null};
-            }};}
+            update(){throw new Error('Direct game UPDATE is forbidden in v82');},
+            insert(){throw new Error('Direct game INSERT is forbidden in v82');}
           };
         }
         if(table==='profiles')return {
@@ -193,5 +215,5 @@ const record={
   assert.deepEqual(empty.inserts,[100,100,5]);
   assert.equal(fresh.api.getSyncState().conflicts,0);
 
-  console.log('v81: two devices, conflicts, explicit resolution, CAS, offline, 205 inserts PASS');
+  console.log('v82: server RPC, two devices, conflicts, explicit resolution, CAS, offline, 205 inserts PASS');
 })().catch(error=>{console.error(error);process.exitCode=1;});
