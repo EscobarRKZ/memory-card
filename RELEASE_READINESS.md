@@ -27,7 +27,9 @@ Reviewed: 2026-11-07. This document tracks launch gates, not a declaration that 
 - [x] Deploy an authenticated **server-side compare-and-swap RPC** in Supabase (migration `20261107105332`) and switch the v82 client to use it exclusively. Tested create/update/stale rejection in a rolled-back SQL probe; no live game rows changed.
 - [ ] **Rollout phase B (still required):** revoke direct `INSERT/UPDATE/DELETE` on `public.games` from `anon` and `authenticated` after v82 PWA is smoke-tested with a signed-in account. Until then older v80/v81 clients can still bypass server-checked writes.
 - [ ] Implement exponential retry/backoff for transient failures; current behavior retries on reconnect and explicit user sync.
-- [ ] Implement full per-account local storage separation and safe account switching (the v80 guard intentionally blocks mixing accounts).
+- [x] v83: atomic per-account IndexedDB workspaces; safe sign-out clears active main state; known guest/legacy games are retained separately and may be imported manually without overwriting matching IDs. Legacy backups move to their owner's namespace when known.
+- [ ] Verify multi-tab behavior on real browsers and old v82 PWA tabs. New v83 tabs refuse stale writes to a workspace owned by another account; older clients cannot enforce the same safeguard.
+- [ ] Run end-to-end login/logout/account switching on real Android and desktop with two disposable Supabase identities.
 - [ ] Run authenticated end-to-end tests against a disposable Supabase environment and real Android devices, including deleting/restoring games and two simultaneous writers.
 - [ ] Make backups easy to find, export, restore and verify.
 
