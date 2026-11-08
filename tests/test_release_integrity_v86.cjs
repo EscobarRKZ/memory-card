@@ -21,8 +21,8 @@ assert.ok(match,'offline precache not found');
 const assets=JSON.parse(match[1]);
 assert.ok(assets.includes('./index.html'));
 assert.ok(assets.includes('./delete-account.html'),'external deletion page must be precached');
-assert.ok(assets.includes('./pwa-updates-v66.js?v=${version}'));
-assert.ok(main.includes('./pwa-updates-v66.js?v=${version}'));
+assert.ok(assets.includes(`./pwa-updates-v66.js?v=${version}`));
+assert.ok(main.includes(`./pwa-updates-v66.js?v=${version}`));
 const allLocalAssets=(html)=>Array.from(
   html.matchAll(/\b(?:src|href)="(\.\/[^"#?]+(?:\?[^"#]*)?)"/g),
   found=>found[1]
