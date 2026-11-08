@@ -205,11 +205,11 @@
       img.loading = 'lazy';
       img.alt = `Обложка ${title}`;
       const tryNext = () => {
-        if (!container?.isConnected || index >= urls.length) { resolve(false); return; }
+        if (!window.MemoryCardCoverRightsV90?.enabled() || !container?.isConnected || index >= urls.length) { resolve(false); return; }
         img.src = urls[index++];
       };
       img.onload = () => {
-        if (!container?.isConnected) { resolve(false); return; }
+        if (!window.MemoryCardCoverRightsV90?.enabled() || !container?.isConnected) { resolve(false); return; }
         container.querySelector('img')?.remove();
         container.prepend(img);
         container.classList.add('has-image');
@@ -226,6 +226,7 @@
   }
 
   async function enhance(container) {
+    if (!window.MemoryCardCoverRightsV90?.enabled()) return;
     if (!container?.isConnected || container.querySelector('img')) return;
     const title = getTitle(container);
     if (!title) return;
@@ -267,6 +268,7 @@
   }
 
   function scan() {
+    if (!window.MemoryCardCoverRightsV90?.enabled()) return;
     const now = Date.now();
     for (const el of document.querySelectorAll('.cover, .detail-cover, .mini-cover, .playing-cover')) {
       if (!(el instanceof HTMLElement) || el.querySelector('img')) continue;
