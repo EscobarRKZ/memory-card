@@ -25,6 +25,7 @@
   <link rel="stylesheet" href="./collection-card-badges-v18.css" />
   <link rel="stylesheet" href="./manual-cover-picker-v18.css" />
   <link rel="stylesheet" href="./settings-dashboard-v18.css" />
+  <link rel="stylesheet" href="./cover-rights-v90.css?v=90" />
   <link rel="stylesheet" href="./onboarding-v20.css" />
   <link rel="stylesheet" href="./backend-v2.css?v=84" />
   <link rel="stylesheet" href="./backlog-v23.css?v=73" />
@@ -45,27 +46,28 @@
   <div id="app"></div>
   <script>window.MemoryCardInstallProbe=new Promise(resolve=>{try{const request=indexedDB.open('memory-card-db',1);let fresh=false;request.onupgradeneeded=()=>{fresh=true;const db=request.result;if(!db.objectStoreNames.contains('state'))db.createObjectStore('state')};request.onerror=()=>resolve(true);request.onsuccess=()=>{const db=request.result;try{const tx=db.transaction('state','readonly');const get=tx.objectStore('state').get('main');get.onsuccess=()=>resolve(Boolean(get.result));get.onerror=()=>resolve(true);tx.oncomplete=()=>db.close()}catch(_){db.close();resolve(!fresh)}}}catch(_){resolve(true)}})</script>
   <script src="./title-search-helper.js?v=76"></script>
-  <script src="./switch-cover-helper.js"></script>
-  <script src="./ps3-cover-helper.js"></script>
-  <script src="./ps3-wikipedia-cover-helper.js"></script>
+  <script src="./switch-cover-helper.js?v=90"></script>
+  <script src="./ps3-cover-helper.js?v=90"></script>
+  <script src="./ps3-wikipedia-cover-helper.js?v=90"></script>
   <script src="./ui-enhancements.js?v=61"></script>
   <script src="./catalog-refresh-helper.js?v=64"></script>
   <script src="./modal-draft-helper.js"></script>
-  <script src="./app.js?v=83"></script>
+  <script src="./cover-rights-v90.js?v=90"></script>
+  <script src="./app.js?v=90"></script>
   <script src="./cover-sources.js?v=64"></script>
   <script src="./profile-core.js?v=81"></script>
   <script src="./onboarding-v20.js"></script>
   <script src="./friends-supabase-v2.js?v=88"></script>
-  <script src="./cover-refresh-helper.js"></script>
+  <script src="./cover-refresh-helper.js?v=90"></script>
   <script src="./product-v13.js?v=60"></script>
   <script src="./mutation-stability-guard.js"></script>
   <script src="./product-v14.js"></script>
   <script src="./achievements-v16.js"></script>
-  <script src="./product-v16.js?v=27"></script>
-  <script src="./product-v17.js?v=27"></script>
-  <script src="./manual-cover-picker-v18.js?v=27"></script>
+  <script src="./product-v16.js?v=90"></script>
+  <script src="./product-v17.js?v=90"></script>
+  <script src="./manual-cover-picker-v18.js?v=90"></script>
   <script src="./collection-card-badges-v18.js?v=74"></script>
-  <script src="./settings-dashboard-v18.js"></script>
+  <script src="./settings-dashboard-v18.js?v=90"></script>
   <script src="./catalog-dashboard-runtime-v18.js"></script>
   <script src="./theme-core-v19.js"></script>
   <script src="./backend-config.js"></script>
@@ -86,9 +88,9 @@
   <script src="./game-card-fixes-v25.js?v=26"></script>
   <script src="./universal-title-search-v62.js"></script>
   <script src="./library-ux-v63.js?v=74"></script>
-  <script src="./experience-v66.js?v=75"></script>
-  <script src="./share-card-v66.js?v=66"></script>
-  <script src="./pwa-updates-v66.js?v=89"></script>
+  <script src="./experience-v66.js?v=90"></script>
+  <script src="./share-card-v66.js?v=90"></script>
+  <script src="./pwa-updates-v66.js?v=90"></script>
   <script src="./memory-delight-v67.js?v=70"></script>
   <script src="./memory-companion-v68.js?v=68"></script>
   <script src="./tactile-v78.js?v=78"></script>

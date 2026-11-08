@@ -28,8 +28,10 @@ const event=base=>Object.assign({promises:[],waitUntil(p){this.promises.push(p)}
  const install=event({});handlers.install(install);await Promise.all(install.promises);assert.equal(skip,0);
  await caches.open(previous);await caches.open(obsolete);await caches.open(future);await caches.open('another-app');await caches.open('memory-card-covers-v14');
  const activate=event({});handlers.activate(activate);await Promise.all(activate.promises);
- assert.equal(claims,1);assert.deepEqual(removed,[obsolete]);
+ assert.equal(claims,1);assert.deepEqual(removed,[obsolete,'memory-card-covers-v14']);
  const message=event({data:{type:'MC_SKIP_WAITING'}});handlers.message(message);await Promise.all(message.promises);assert.equal(skip,1);
+ const external=event({request:{url:'https://art.gametdb.com/switch/cover/US/example.jpg',method:'GET',mode:'no-cors',destination:'image'}});
+ handlers.fetch(external);assert.equal(external.response,undefined,'third-party image fetch must bypass Memory Card worker');
  const run=async(url,mode='cors')=>{
   const e=event({request:{url:origin+url,method:'GET',mode,destination:url.endsWith('.png')?'image':'script'}});
   handlers.fetch(e);const result=await e.response;await Promise.all(e.promises);return result;
@@ -38,5 +40,5 @@ const event=base=>Object.assign({promises:[],waitUntil(p){this.promises.push(p)}
  response=await run('/index.html','navigate');assert.equal(await response.text(),'network');assert.equal(network[0].options.cache,'no-cache');
  fail=true;response=await run('/missing.js');assert.equal(response.type,'error');
  response=await run('/some-route','navigate');assert.equal(await response.text(),'network');
- console.log(JSON.stringify({activation:'explicit only',previousCacheRetained:true,futureCacheRetained:true,unrelatedCacheRetained:true,htmlFallback:'navigation only',assetCache:'versioned',installBypassesHttpCache:true}));
+ console.log(JSON.stringify({activation:'explicit only',previousCacheRetained:true,futureCacheRetained:true,unrelatedCacheRetained:true,thirdPartyCoverCacheRemoved:true,htmlFallback:'navigation only',assetCache:'versioned',installBypassesHttpCache:true}));
 })().catch(err=>{console.error(err);process.exit(1)});
