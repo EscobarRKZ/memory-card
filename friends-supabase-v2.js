@@ -1,5 +1,5 @@
 (() => {
-  state.social=state.social||{loading:false,loaded:false,friends:[],incoming:[],outgoing:[],profile:null,error:''};
+  state.social=state.social||{loading:false,loaded:false,friends:[],incoming:[],outgoing:[],blocked:[],profile:null,error:''};
   state.friendProfile=null;
 
   const getApi=()=>window.MemoryCardBackendV2?.configured?window.MemoryCardBackendV2:null;
@@ -15,6 +15,8 @@
     const raw=String(error?.message||error||'Ошибка Memory Card Network');
     if(raw.includes('USER_NOT_FOUND'))return new Error('Пользователь с таким Memory Card ID не найден');
     if(raw.includes('SELF_REQUEST'))return new Error('Нельзя добавить самого себя');
+    if(raw.includes('FRIEND_RATE_LIMIT'))return new Error('Слишком много приглашений. Повтори попытку позже.');
+    if(raw.includes('FRIEND_UNAVAILABLE'))return new Error('Приглашение этому пользователю недоступно.');
     if(raw.includes('NOT_FRIENDS'))return new Error('Профиль доступен только друзьям');
     if(raw.includes('NOT_AUTHENTICATED'))return new Error('Нужно войти в аккаунт');
     return new Error(raw);
@@ -58,17 +60,25 @@
     return Boolean(state.settings.userId);
   }
 
+
+  function renderBlockedPanel(blocked=[]){
+    if(!blocked.length)return '';
+    return '<section class="panel"><div class="section-head"><div><h3>Заблокированные</h3><p>Приглашения и доступ к профилю отключены</p></div></div><div class="friend-list">'+
+      blocked.map(b=>'<article class="friend-row"><div class="social-avatar small">'+avatar(b.displayName)+'</div><div class="friend-main"><div class="game-title">'+esc(b.displayName||'Игрок')+'</div><div class="memory-id">'+esc(b.userId)+'</div></div><div class="friend-actions"><button type="button" class="secondary compact" data-action="friend-unblock" data-friend-id="'+esc(b.userId)+'">Разблокировать</button></div></article>').join('')+
+      '</div></section>';
+  }
+
   function renderFriends(){
     if(!getApi())return `<div class="section-head"><div><h2>Друзья</h2><p>Подключаю Memory Card Network…</p></div></div><section class="panel"><div class="social-loader">Загружаю облачный профиль…</div></section>`;
     if(state.social.loading&&!state.social.loaded)return `<div class="section-head"><div><h2>Друзья</h2><p>Загружаю список друзей…</p></div></div><section class="panel"><div class="social-loader">Подключение к Memory Card Network…</div></section>`;
     if(!state.settings.userId)return `<div class="section-head"><div><h2>Друзья</h2><p>Получаю твой профиль…</p></div></div><section class="panel"><div class="social-loader">Получаю уникальный Memory Card ID…</div></section>`;
-    const {friends=[],incoming=[],outgoing=[]}=state.social;
+    const {friends=[],incoming=[],outgoing=[],blocked=[]}=state.social;
     return `<div class="section-head"><div><h2>Друзья</h2><p>Смотри игровые профили друзей и их статистику.</p></div><button class="secondary" data-action="social-refresh">Обновить</button></div>
       <section class="panel social-me-card"><div class="social-avatar">${avatar(state.settings.profileName)}</div><div class="social-me-main"><div class="game-title">${esc(state.settings.profileName||'Игрок')}</div><div class="memory-id">${esc(state.settings.userId)}</div></div><button class="ghost compact" data-action="copy-user-id">Копировать ID</button></section>
       <section class="panel friend-add-panel"><h3>Добавить друга</h3><p class="status-line">Поиск работает только по точному Memory Card ID.</p><form id="friendAddForm" class="friend-search"><input name="friendId" autocomplete="off" placeholder="MC-AB12-CD34" maxlength="20"><button class="primary" type="submit">Отправить приглашение</button></form></section>
-      ${incoming.length?`<section class="panel"><div class="section-head"><div><h3>Входящие приглашения</h3><p>${incoming.length}</p></div></div><div class="friend-list">${incoming.map(r=>`<article class="friend-row"><div class="social-avatar small">${avatar(r.displayName)}</div><div class="friend-main"><div class="game-title">${esc(r.displayName||'Игрок')}</div><div class="memory-id">${esc(r.userId)}</div></div><div class="friend-actions"><button class="secondary compact" data-action="friend-reject" data-request-id="${esc(r.requestId)}">Отклонить</button><button class="primary compact" data-action="friend-accept" data-request-id="${esc(r.requestId)}">Принять</button></div></article>`).join('')}</div></section>`:''}
+      ${incoming.length?`<section class="panel"><div class="section-head"><div><h3>Входящие приглашения</h3><p>${incoming.length}</p></div></div><div class="friend-list">${incoming.map(r=>`<article class="friend-row"><div class="social-avatar small">${avatar(r.displayName)}</div><div class="friend-main"><div class="game-title">${esc(r.displayName||'Игрок')}</div><div class="memory-id">${esc(r.userId)}</div></div><div class="friend-actions"><button class="secondary compact" data-action="friend-reject" data-request-id="${esc(r.requestId)}">Отклонить</button><button class="ghost compact" data-action="friend-block" data-friend-id="${esc(r.userId)}">Блокировать</button><button class="primary compact" data-action="friend-accept" data-request-id="${esc(r.requestId)}">Принять</button></div></article>`).join('')}</div></section>`:''}
       ${outgoing.length?`<section class="panel"><div class="section-head"><div><h3>Отправленные</h3><p>Ожидают подтверждения</p></div></div><div class="friend-list">${outgoing.map(r=>`<article class="friend-row muted-row"><div class="social-avatar small">${avatar(r.displayName)}</div><div class="friend-main"><div class="game-title">${esc(r.displayName||'Игрок')}</div><div class="memory-id">${esc(r.userId)}</div></div><span class="request-status">Ожидает</span></article>`).join('')}</div></section>`:''}
-      <section class="panel"><div class="section-head"><div><h3>Мои друзья</h3><p>${friends.length?`${friends.length} в списке`:'Пока никого'}</p></div></div>${friends.length?`<div class="friend-grid">${friends.map(f=>`<button class="friend-card" data-friend-open="${esc(f.userId)}"><div class="social-avatar">${avatar(f.displayName)}</div><div><div class="game-title">${esc(f.displayName||'Игрок')}</div><div class="memory-id">${esc(f.userId)}</div><div class="friend-mini-stats"><span>${Number(f.completed||0)} пройдено</span><span>${Number(f.playing||0)} играет</span></div></div></button>`).join('')}</div>`:`<div class="empty">Добавь друга по ID. Профиль станет доступен только после принятия приглашения.</div>`}</section>`;
+      <section class="panel"><div class="section-head"><div><h3>Мои друзья</h3><p>${friends.length?`${friends.length} в списке`:'Пока никого'}</p></div></div>${friends.length?`<div class="friend-grid">${friends.map(f=>`<button class="friend-card" data-friend-open="${esc(f.userId)}"><div class="social-avatar">${avatar(f.displayName)}</div><div><div class="game-title">${esc(f.displayName||'Игрок')}</div><div class="memory-id">${esc(f.userId)}</div><div class="friend-mini-stats"><span>${Number(f.completed||0)} пройдено</span><span>${Number(f.playing||0)} играет</span></div></div></button>`).join('')}</div>`:`<div class="empty">Добавь друга по ID. Профиль станет доступен только после принятия приглашения.</div>`}</section>${renderBlockedPanel(blocked)}`;
   }
 
   function friendRow(g){return `<div class="game-row static-row with-cover">${coverMarkup(g,'mini-cover')}<div><div class="game-title">${esc(g.title)}</div><div class="meta">${platform(g.platform).abbr}${g.releaseYear?` · ${esc(g.releaseYear)}`:''}${g.genre?` · ${esc(g.genre)}`:''}</div></div><div class="rating-text">${g.rating?`${ratingStars(g.rating)} <span>${g.rating}/10</span>`:''}</div></div>`;}
@@ -80,7 +90,7 @@
     if(fp.error)return `<div class="section-head"><div><h2>Профиль друга</h2><p>${esc(fp.error)}</p></div><button class="secondary" data-action="friend-back">← К друзьям</button></div>`;
     const p=fp.profile||{},games=(fp.games||[]).map(migrateGame),st=fp.stats||stats(games),playing=games.filter(g=>g.status==='playing'),completed=games.filter(g=>g.status==='completed').sort((a,b)=>String(b.updatedAt||b.addedAt||'').localeCompare(String(a.updatedAt||a.addedAt||''))),owned=new Set(p.ownedPlatforms||[]);
     return `<div class="section-head"><div><h2>${esc(p.displayName||'Игрок')}</h2><p class="memory-id">${esc(p.userId||'')}</p></div><button class="secondary" data-action="friend-back">← К друзьям</button></div>
-      <section class="panel friend-profile-hero"><div class="social-avatar xl">${avatar(p.displayName)}</div><div class="friend-profile-title"><h3>${esc(p.displayName||'Игрок')}</h3><div class="memory-id">${esc(p.userId||'')}</div><div class="meta">Профиль только для просмотра</div></div><button class="danger compact" data-action="friend-remove" data-friend-id="${esc(p.userId||'')}">Удалить из друзей</button></section>
+      <section class="panel friend-profile-hero"><div class="social-avatar xl">${avatar(p.displayName)}</div><div class="friend-profile-title"><h3>${esc(p.displayName||'Игрок')}</h3><div class="memory-id">${esc(p.userId||'')}</div><div class="meta">Профиль только для просмотра</div></div><div class="friend-actions"><button class="danger compact" data-action="friend-remove" data-friend-id="${esc(p.userId||'')}">Удалить из друзей</button><button class="ghost compact" data-action="friend-block" data-friend-id="${esc(p.userId||'')}">Заблокировать</button></div></section>
       <div class="stats"><div class="stat-card"><div class="stat-value">${st.completed??completed.length}</div><div class="stat-label">Игр пройдено</div></div><div class="stat-card"><div class="stat-value">${st.averageRating??'—'}</div><div class="stat-label">Средняя оценка</div></div><div class="stat-card"><div class="stat-value">${st.playing??playing.length}</div><div class="stat-label">Сейчас играет</div></div><div class="stat-card"><div class="stat-value">${st.tens??0}</div><div class="stat-label">Игр на 10/10</div></div></div>
       ${playing.length?`<section class="panel"><div class="section-head"><div><h3>Сейчас играет</h3></div></div><div class="list">${playing.map(friendRow).join('')}</div></section>`:''}
       <section class="panel"><div class="section-head"><div><h3>Приставки</h3><p>Устройства друга</p></div></div><div class="friend-platforms">${PLATFORMS.filter(x=>owned.has(x.id)).map(x=>`<div class="friend-platform-chip">${platformIcon(x.id)}<span>${esc(x.abbr)}</span></div>`).join('')||'<div class="empty">Не указаны</div>'}</div></section>
@@ -93,8 +103,8 @@
     try{
       if(!await ensureIdentity())return;
       if(!quiet)setTaskProgress('Друзья',15,100,'Обновляю список');
-      const data=await rpc('social_state');
-      Object.assign(state.social,{profile:data?.profile||state.social.profile,friends:data?.friends||[],incoming:data?.incoming||[],outgoing:data?.outgoing||[],loaded:true,error:''});
+      const [data,blocked]=await Promise.all([rpc('social_state'),rpc('list_blocked_users')]);
+      Object.assign(state.social,{profile:data?.profile||state.social.profile,friends:data?.friends||[],incoming:data?.incoming||[],outgoing:data?.outgoing||[],blocked:Array.isArray(blocked)?blocked:[],loaded:true,error:''});
       if(!quiet)finishTaskProgress('Друзья обновлены',`${state.social.friends.length} друзей`);
       render();
     }catch(error){
@@ -144,6 +154,28 @@
     render();
   }
 
+
+  async function blockFriend(id){
+    if(!id||!confirm('Заблокировать пользователя? Он больше не сможет отправлять тебе приглашения, а существующая дружба будет удалена.'))return;
+    try{
+      const ok=await rpc('block_user',{target_memory_id:id});
+      if(ok!==true)throw new Error('Не удалось заблокировать пользователя');
+      state.friendProfile=null;
+      await refreshSocial(true);
+      setToast('Пользователь заблокирован');
+    }catch(error){alert(friendlyError(error).message);}
+  }
+
+  async function unblockFriend(id){
+    if(!id||!confirm('Разблокировать пользователя? Дружба не восстановится автоматически.'))return;
+    try{
+      const ok=await rpc('unblock_user',{target_memory_id:id});
+      if(ok!==true)throw new Error('Пользователь уже разблокирован');
+      await refreshSocial(true);
+      setToast('Пользователь разблокирован');
+    }catch(error){alert(friendlyError(error).message);}
+  }
+
   async function removeFriend(id){
     if(!confirm('Удалить этого пользователя из друзей? После этого профили снова станут недоступны друг другу.'))return;
     try{
@@ -188,6 +220,8 @@
     document.querySelectorAll('[data-friend-open]').forEach(x=>x.onclick=()=>openFriend(x.dataset.friendOpen));
     document.querySelectorAll('[data-action="friend-back"]').forEach(x=>x.onclick=()=>{state.friendProfile=null;render();});
     document.querySelectorAll('[data-action="friend-remove"]').forEach(x=>x.onclick=()=>removeFriend(x.dataset.friendId));
+    document.querySelectorAll('[data-action="friend-block"]').forEach(x=>x.onclick=()=>blockFriend(x.dataset.friendId));
+    document.querySelectorAll('[data-action="friend-unblock"]').forEach(x=>x.onclick=()=>unblockFriend(x.dataset.friendId));
     const form=document.querySelector('#friendAddForm');
     if(form)form.onsubmit=addFriend;
     const name=document.querySelector('#profileName');
