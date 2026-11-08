@@ -11,7 +11,7 @@ Memory Card is a game library/log and optional social-profile service. Users may
 - Account authentication: email and authentication metadata processed by Supabase Auth.
 - Account profile: display name and Memory Card ID.
 - User-generated game data: titles, platforms, statuses, scores, dates, notes and collections.
-- Social data: friendship requests, accepted friendship relationships, block list and server-side invitation event logs (sender, recipient and timestamp) for abuse throttling; invitation logs are currently retained until either related account is deleted. Approved friends may view selected library information.
+- Social data: friendship requests, accepted friendship relationships, block list and server-side invitation event logs (sender, recipient and timestamp) for abuse throttling. v88 adds private user reports (reporter account ID, reported account ID, reason, optional message, creation time and moderation status). Reports are not shared with other app users. Logs and reports currently persist until either related account is deleted; specific backup retention and a staffed response process remain unverified. Approved friends may view selected library information.
 - Device-local data: offline game library, sync baselines, conflict archives, backup snapshots and locally selected appearance settings.
 - Game cover images and title suggestions fetched from external catalog/artwork hosts. Review individual hosts, request patterns, licenses and provider privacy documents before finalizing.
 - Cloudflare Turnstile is loaded on the sign-in/registration path as a bot-prevention provider.

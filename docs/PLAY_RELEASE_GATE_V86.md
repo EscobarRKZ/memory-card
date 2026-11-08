@@ -15,6 +15,12 @@
 - Removed client direct INSERT/UPDATE/DELETE grants on `public.friendships`; verified zero existing friendships were modified, no block events were created, and 110 games/2 accounts remain intact.
 - The UI now supports blocking from incoming requests and friend profiles and unblocking from a separate list. Still required: disposable-account testing, abuse/race tests and a public reporting/moderation contact path.
 
+## v88 user-reporting launch gate
+
+- Added private `mc_private.user_reports` with RLS and no direct client privileges; `report_user` derives reporter identity from `auth.uid()`, validates target/reason/message and rate-limits to three new reports per rolling day.
+- UI supports complaints from incoming invitations, friend profiles, blocked users and a standalone friends-page form. User complaints do not trigger automated sanctions, and complaint text is not visible to ordinary clients.
+- **No actual moderator is staffed.** Before public registration, assign a private support channel, accountable queue owner, review cadence and escalation/appeal policy. See `docs/MODERATION_OPERATIONS_V88.md`.
+
 ## Google Play requirements that affect the Android launch
 
 - New phone apps submitted from 2026-08-31 must target **Android 16 / API 36** or higher. Official policy: https://support.google.com/googleplay/android-developer/answer/11926878

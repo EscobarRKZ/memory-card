@@ -1,6 +1,6 @@
 # Memory Card — Google Play release readiness
 
-Reviewed: 2026-11-07. This document tracks launch gates, not a declaration that the app is ready to publish.
+Reviewed: 2026-11-08. This document tracks launch gates, not a declaration that the app is ready to publish.
 
 ## Stage 0 — least-privilege database grants (v86)
 
@@ -42,6 +42,13 @@ Reviewed: 2026-11-07. This document tracks launch gates, not a declaration that 
 **Important (2026-11-07):** Phase A of v82 is live: the authenticated RPC exists and new game writes will use it exclusively. Phase B direct-table-write lockdown is **not active** yet, so old PWA clients can still bypass CAS. Keep public signup closed until the lockdown, signed-in testing, and account/privacy work are complete. See [SERVER_CAS_ROLLOUT_V82.md](docs/SERVER_CAS_ROLLOUT_V82.md).
 
 ## Stage 3 — identity and privacy controls
+
+- [x] v88: private `report_user` RPC and `mc_private.user_reports` table, five validated reasons, optional note up to 1000 chars, three new reports per rolling 24h, 24h duplicate suppression.
+- [x] v88: explicit report form and shortcuts from incoming invites, friend profiles and blocked list, plus test and runbook `docs/MODERATION_OPERATIONS_V88.md`.
+- [ ] Assign a real moderator, private support address, documented review cadence, urgent escalation and appeal process. A database queue without staffed review is **not** operational moderation.
+- [ ] E2E report authorization/limits/retention on two disposable Auth accounts, including malformed input, cross-account access, and Android/iOS device flows.
+
+
 
 - [x] v87: add block/unblock and read-only blocked list RPCs, protected in a non-exposed private schema; prevent blocked pairs from re-inviting each other.
 - [x] v87: rate-limit newly created invitations to 10/hour and 30/day with server-only durable request event history; revoke direct client mutation rights to friendships.
