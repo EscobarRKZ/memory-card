@@ -43,6 +43,11 @@ Reviewed: 2026-11-07. This document tracks launch gates, not a declaration that 
 
 ## Stage 3 — identity and privacy controls
 
+- [x] v87: add block/unblock and read-only blocked list RPCs, protected in a non-exposed private schema; prevent blocked pairs from re-inviting each other.
+- [x] v87: rate-limit newly created invitations to 10/hour and 30/day with server-only durable request event history; revoke direct client mutation rights to friendships.
+- [ ] Verify block/unblock/rate-limit and simultaneous racing invites with two disposable identities on actual clients. Existing social RPCs are still privileged and require broader abuse testing.
+- [ ] Define operational retention for friend-request event logs and user-block data (currently retained until account deletion).
+
 - [x] v84: create an authenticated, RLS-restricted account deletion **request** from Settings and from a standalone browser URL; prevent duplicate requests and show pending status. Requests do NOT delete the account.
 - [x] v85: deploy a JWT-protected, password-verified, **self-service hard-deletion** Edge Function and external final confirmation UI. Requires an existing own pending request and verifies the target with Auth, not request JSON. Code and mocked security tests complete.
 - [ ] Verify hard deletion end-to-end with **disposable Supabase Auth accounts** (not the personal profile), checking all cascading data and old login/session behavior.

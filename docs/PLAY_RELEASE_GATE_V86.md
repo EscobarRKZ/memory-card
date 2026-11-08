@@ -9,6 +9,12 @@
 - The standalone resource is `https://escobarrkz.github.io/memory-card/delete-account.html` in the source. **Public reachability, form submission and Android/iOS browser behavior have NOT been verified.**
 - Browser Supabase SDK is pinned to `@supabase/supabase-js@2.95.0` in all three entry HTML documents; CDN loading and supply-chain integrity still require an online test. The service worker and manual update screen have build 86 and CI checks asset paths.
 
+## v87 social safety (code and database audit; device E2E still required)
+
+- Implemented server-side block/unblock/list RPCs with current-user authorization and an isolated private schema; invitations check both block directions and are limited to 10 per hour and 30 per day. Request history is retained until the sending or target account is deleted.
+- Removed client direct INSERT/UPDATE/DELETE grants on `public.friendships`; verified zero existing friendships were modified, no block events were created, and 110 games/2 accounts remain intact.
+- The UI now supports blocking from incoming requests and friend profiles and unblocking from a separate list. Still required: disposable-account testing, abuse/race tests and a public reporting/moderation contact path.
+
 ## Google Play requirements that affect the Android launch
 
 - New phone apps submitted from 2026-08-31 must target **Android 16 / API 36** or higher. Official policy: https://support.google.com/googleplay/android-developer/answer/11926878

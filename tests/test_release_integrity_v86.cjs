@@ -13,16 +13,16 @@ const updater=load('pwa-updates-v66.js');
 const manifest=JSON.parse(load('manifest.webmanifest'));
 const version=Number(sw.match(/const VERSION=(\d+);/)?.[1]);
 const build=Number(updater.match(/const BUILD\s*=\s*(\d+);/)?.[1]);
-assert.equal(version,86,'expected release version 86');
+assert.ok(version>=86,'release version unexpectedly old');
 assert.equal(build,version,'updater and service-worker release versions disagree');
-assert.match(sw,/const CACHE='memory-card-v86-[^']+';/);
+assert.match(sw,new RegExp(`const CACHE='memory-card-v${version}-[^']+';`));
 const match=sw.match(/const ASSETS=(\[.*\]);/);
 assert.ok(match,'offline precache not found');
 const assets=JSON.parse(match[1]);
 assert.ok(assets.includes('./index.html'));
 assert.ok(assets.includes('./delete-account.html'),'external deletion page must be precached');
-assert.ok(assets.includes('./pwa-updates-v66.js?v=86'));
-assert.ok(main.includes('./pwa-updates-v66.js?v=86'));
+assert.ok(assets.includes(`./pwa-updates-v66.js?v=${version}`));
+assert.ok(main.includes(`./pwa-updates-v66.js?v=${version}`));
 const allLocalAssets=(html)=>Array.from(
   html.matchAll(/\b(?:src|href)="(\.\/[^"#?]+(?:\?[^"#]*)?)"/g),
   found=>found[1]
@@ -51,4 +51,4 @@ assert.equal(manifest.start_url,'./');
 for(const icon of manifest.icons){
   assert.ok(fs.existsSync(path.join(root,icon.src)),'manifest icon missing: '+icon.src);
 }
-console.log('Memory Card v86 PWA integrity PASS: build, manifest, versioned cache, local assets, deletion page, pinned SDK');
+console.log('Memory Card PWA integrity PASS: build, manifest, versioned cache, local assets, deletion page, pinned SDK');
