@@ -25,6 +25,9 @@ on:
       - "tests/test_release_integrity_v86.cjs"
       - "tests/test_social_safety_v87.cjs"
       - "tests/test_user_reporting_v88.cjs"
+      - "tests/test_auth_experience_v89.cjs"
+      - "auth-messages-v89.js"
+      - "emails/**"
       - "supabase/migrations/20261108052249_private_user_reporting_v88.sql"
       - "profile-social.css"
       - "friends-supabase-v2.js"
@@ -60,6 +63,9 @@ on:
       - "tests/test_release_integrity_v86.cjs"
       - "tests/test_social_safety_v87.cjs"
       - "tests/test_user_reporting_v88.cjs"
+      - "tests/test_auth_experience_v89.cjs"
+      - "auth-messages-v89.js"
+      - "emails/**"
       - "supabase/migrations/20261108052249_private_user_reporting_v88.sql"
       - "profile-social.css"
       - "friends-supabase-v2.js"
@@ -97,6 +103,7 @@ jobs:
           node --check cloud-transfer-v80.js
           node --check cloud-conflicts-v81.js
           node --check friends-supabase-v2.js
+          node --check auth-messages-v89.js
       - name: Run offline sync regression tests
         run: |
           node tests/test_cloud_transfer_v80.cjs
@@ -113,3 +120,4 @@ jobs:
           node tests/test_release_integrity_v86.cjs
           node tests/test_social_safety_v87.cjs
           node tests/test_user_reporting_v88.cjs
+          node tests/test_auth_experience_v89.cjs
