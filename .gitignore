@@ -1,0 +1,15 @@
+# Never commit signing material, generated Android bundles or local credentials.
+*.keystore
+*.jks
+*.p12
+*.aab
+*.apk
+local.properties
+.env
+.env.*
+!.env.example
+android/assetlinks.json
+android/*.key
+android/*.pem
+.gradle/
+**/build/

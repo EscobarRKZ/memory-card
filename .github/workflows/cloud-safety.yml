@@ -17,6 +17,12 @@ on:
       - "tests/test_account_delete_client_v85.cjs"
       - "delete-account.html"
       - "index.html"
+      - "tests/test_assetlinks_v91.mjs"
+      - "tests/test_hosted_release_v91.mjs"
+      - "scripts/generate-assetlinks.mjs"
+      - "scripts/check-hosted-release.mjs"
+      - "android/README.md"
+      - "privacy.html"
       - "RELEASE_READINESS.md"
       - "CHANGELOG.md"
       - "README.md"
@@ -72,6 +78,12 @@ on:
       - "tests/test_account_delete_client_v85.cjs"
       - "delete-account.html"
       - "index.html"
+      - "tests/test_assetlinks_v91.mjs"
+      - "tests/test_hosted_release_v91.mjs"
+      - "scripts/generate-assetlinks.mjs"
+      - "scripts/check-hosted-release.mjs"
+      - "android/README.md"
+      - "privacy.html"
       - "RELEASE_READINESS.md"
       - "CHANGELOG.md"
       - "README.md"
@@ -139,6 +151,8 @@ jobs:
           node --check friends-supabase-v2.js
           node --check auth-messages-v89.js
           node --check cover-rights-v90.js
+          node --check scripts/check-hosted-release.mjs
+          node --check scripts/generate-assetlinks.mjs
       - name: Run offline sync regression tests
         run: |
           node tests/test_cloud_transfer_v80.cjs
@@ -157,3 +171,5 @@ jobs:
           node tests/test_user_reporting_v88.cjs
           node tests/test_auth_experience_v89.cjs
           node tests/test_cover_rights_v90.cjs
+          node tests/test_hosted_release_v91.mjs
+          node tests/test_assetlinks_v91.mjs
