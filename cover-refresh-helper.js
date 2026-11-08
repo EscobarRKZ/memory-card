@@ -673,6 +673,7 @@
   }
 
   async function runRefresh(button) {
+    if (!window.MemoryCardCoverRightsV90?.enabled()) { fail('Сначала включи внешние обложки в Настройки → Каталоги.'); return; }
     if (running) return;
     running = true;
     const wasDisabled = button?.disabled;
@@ -690,6 +691,7 @@
       let checked = 0;
       progress('Проверяю сохранённые обложки', 0, games.length, `0 из ${games.length}`);
       await mapLimit(games, 5, async game => {
+        if (!window.MemoryCardCoverRightsV90?.enabled()) throw new Error('Внешние обложки выключены');
         const url = String(game.coverUrl || '').trim();
         const valid = url ? await imageWorks(url, 2800) : false;
         if (!valid) missing.push(game);
@@ -708,9 +710,11 @@
       progress('Ищу отсутствующие обложки', 0, missing.length, `0 из ${missing.length} · найдено: 0`);
 
       await mapLimit(missing, 2, async game => {
+        if (!window.MemoryCardCoverRightsV90?.enabled()) throw new Error('Внешние обложки выключены');
         let resolved = null;
         try { resolved = await resolveCover(game); }
         catch (error) { console.warn('Cover resolver failed', game.title, error); }
+        if (!window.MemoryCardCoverRightsV90?.enabled()) throw new Error('Внешние обложки выключены');
         if (resolved?.url) {
           game.coverUrl = resolved.url;
           game.coverSource = resolved.source || 'cover-refresh-v15';

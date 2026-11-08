@@ -813,7 +813,7 @@ function renderRotationCard(group) {
 
 function coverMarkup(g, cls = 'cover') {
   const hue = franchiseHue(g.franchise, g.title);
-  const img = safeImage(g.coverUrl);
+  const img = window.MemoryCardCoverRightsV90?.enabled() ? safeImage(g.coverUrl) : '';
   const initials = String(g.title || '?').split(/\s+/).slice(0, 3).map(x => x[0]).join('').toUpperCase();
   return `<div class="${cls} ${img ? 'has-image' : ''}" style="--coverHue:${hue}">${img ? `<img loading="lazy" decoding="async" src="${esc(img)}" alt="Обложка ${esc(g.title)}" onerror="this.parentElement.classList.add('image-failed');this.remove()">` : ''}<div class="cover-fallback"><span class="cover-franchise">${esc(g.franchise || platform(g.platform).abbr)}</span><strong>${esc(initials)}</strong></div><span class="cover-platform-badge">${platform(g.platform).abbr}</span></div>`;
 }
@@ -1243,6 +1243,7 @@ async function fetchLibretroCover(title, platformId = '') {
 }
 
 async function fetchCoverForGame(title, releaseYear = '', platformId = '') {
+  if (!window.MemoryCardCoverRightsV90?.enabled()) return { url:'', source:'', matchedTitle:'' };
   if (LIBRETRO_COVER_REPOS[platformId]?.length) {
     const libretro = await fetchLibretroCover(title, platformId);
     if (libretro.url) return libretro;
@@ -1255,6 +1256,7 @@ async function fetchCoverForGame(title, releaseYear = '', platformId = '') {
 }
 
 async function fetchWikipediaCover(title, releaseYear = '', platformId = '') {
+  if (!window.MemoryCardCoverRightsV90?.enabled()) return { url:'', source:'', pageTitle:'' };
   const cacheKey = `infobox-v3|${normalizeText(title)}|${releaseYear}|${platformId}`;
   if (coverLookups.has(cacheKey)) return coverLookups.get(cacheKey);
   const job = (async () => {
@@ -1309,6 +1311,7 @@ async function fetchWikipediaCover(title, releaseYear = '', platformId = '') {
 }
 
 async function hydrateGameCover(game, { force = false } = {}) {
+  if (!window.MemoryCardCoverRightsV90?.enabled()) return false;
   if (!game || game.deletedAt) return false;
   if (!force && game.coverUrl && (game.coverSource === 'manual' || String(game.coverSource || '').startsWith('libretro:') || game.coverSource === 'wikipedia-infobox-v3')) return false;
   const titleKey = normalizeText(game.title);
@@ -1335,6 +1338,7 @@ async function hydrateGameCover(game, { force = false } = {}) {
 }
 
 async function hydrateMissingCoversForGames(platformId = '', limit = 60, options = {}) {
+  if (!window.MemoryCardCoverRightsV90?.enabled()) return 0;
   const { force = false, label = 'Ищу обложки' } = options;
   let pending = liveGames().filter(g => (!platformId || g.platform === platformId) && (force || !g.coverUrl));
   if (Number.isFinite(limit)) pending = pending.slice(0, limit);

@@ -56,6 +56,16 @@
           </button>
         </div>
       </div>
+        <div class="mc-cover-rights-control">
+          <label class="mc-cover-rights-toggle">
+            <input type="checkbox" data-mc-external-covers ${window.MemoryCardCoverRightsV90?.enabled()?'checked':''}>
+            <span><b>${tr('Показывать внешние обложки игр','Show external game cover art')}</b>
+              <small>${tr('Отключено по умолчанию. Внешние сайты могут получать сетевые данные устройства; права на обложки нужно проверять отдельно.','Off by default. Third-party hosts may receive device network data; image rights still require separate review.')}</small>
+            </span>
+          </label>
+          <p>${tr('Настройка сохраняется только на этом устройстве. Отключение не удаляет мои игры и ссылки на обложки.','This setting is local to this device. Turning it off never deletes games or cover links.')}</p>
+        </div>
+      <p class="mc-cover-rights-provider">${tr('Каталог обложек:','Artwork directory:')} <a href="https://www.gametdb.com/" target="_blank" rel="noopener noreferrer">GameTDB</a>. ${tr('Ссылка на источник не означает передачу авторских прав.','A source link does not provide a copyright license.')}</p>
       <div class="mc-catalog-platforms-head"><b>${tr('Наполнение по платформам','Catalog coverage by platform')}</b><span>${tr('0 означает, что локальный каталог для системы пока не загружен','0 means that platform catalog is not loaded yet')}</span></div>
       <div id="catalogStatus" class="mc-catalog-platforms">
         ${rows.map(p => `<span class="mc-catalog-platform ${p.count ? '' : 'is-empty'}" title="${esc(p.name)}"><b>${esc(p.abbr)}</b><strong>${p.count.toLocaleString('ru-RU')}</strong></span>`).join('')}

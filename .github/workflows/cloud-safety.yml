@@ -17,6 +17,23 @@ on:
       - "tests/test_account_delete_client_v85.cjs"
       - "delete-account.html"
       - "index.html"
+      - "RELEASE_READINESS.md"
+      - "CHANGELOG.md"
+      - "README.md"
+      - "ps3-wikipedia-cover-helper.js"
+      - "ps3-cover-helper.js"
+      - "switch-cover-helper.js"
+      - "cover-refresh-helper.js"
+      - "manual-cover-picker-v18.js"
+      - "settings-dashboard-v18.js"
+      - "share-card-v66.js"
+      - "product-v17.js"
+      - "product-v16.js"
+      - "experience-v66.js"
+      - "docs/COVER_ART_RIGHTS_V90.md"
+      - "tests/test_cover_rights_v90.cjs"
+      - "cover-rights-v90.css"
+      - "cover-rights-v90.js"
       - "staging-v2.html"
       - "sw.js"
       - "pwa-updates-v66.js"
@@ -55,6 +72,23 @@ on:
       - "tests/test_account_delete_client_v85.cjs"
       - "delete-account.html"
       - "index.html"
+      - "RELEASE_READINESS.md"
+      - "CHANGELOG.md"
+      - "README.md"
+      - "ps3-wikipedia-cover-helper.js"
+      - "ps3-cover-helper.js"
+      - "switch-cover-helper.js"
+      - "cover-refresh-helper.js"
+      - "manual-cover-picker-v18.js"
+      - "settings-dashboard-v18.js"
+      - "share-card-v66.js"
+      - "product-v17.js"
+      - "product-v16.js"
+      - "experience-v66.js"
+      - "docs/COVER_ART_RIGHTS_V90.md"
+      - "tests/test_cover_rights_v90.cjs"
+      - "cover-rights-v90.css"
+      - "cover-rights-v90.js"
       - "staging-v2.html"
       - "sw.js"
       - "pwa-updates-v66.js"
@@ -104,6 +138,7 @@ jobs:
           node --check cloud-conflicts-v81.js
           node --check friends-supabase-v2.js
           node --check auth-messages-v89.js
+          node --check cover-rights-v90.js
       - name: Run offline sync regression tests
         run: |
           node tests/test_cloud_transfer_v80.cjs
@@ -121,3 +156,4 @@ jobs:
           node tests/test_social_safety_v87.cjs
           node tests/test_user_reporting_v88.cjs
           node tests/test_auth_experience_v89.cjs
+          node tests/test_cover_rights_v90.cjs

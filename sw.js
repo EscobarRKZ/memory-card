@@ -1,7 +1,7 @@
-const VERSION=89;
-const CACHE='memory-card-v89-auth-readiness';
+const VERSION=90;
+const CACHE='memory-card-v90-cover-rights';
 const COVER_CACHE='memory-card-covers-v14';
-const ASSETS=["./mobile-card-layout-v74.css?v=74","./","./index.html","./delete-account.html","./account-deletion-page-v84.css?v=85","./local-delete-cleanup-v85.js?v=85","./account-deletion-page-v84.js?v=85","./manifest.webmanifest","./logo-192.png","./styles.css","./mobile.css","./cover-fixes.css","./ui-enhancements.css?v=61","./universal-title-search-v62.css","./profile-social.css?v=88","./product-v13.css","./product-v14.css","./product-v16.css","./product-v17.css","./theme-unified-v18.css","./collection-card-badges-v18.css","./manual-cover-picker-v18.css","./settings-dashboard-v18.css","./onboarding-v20.css","./backend-v2.css?v=84","./backlog-v23.css?v=73","./playing-detail-actions-v24.css","./mobile-nav-v21.css?v=77","./game-card-fixes-v25.css?v=27","./library-ux-v63.css?v=64","./visual-polish-v65.css?v=65","./experience-v66.css?v=75","./title-search-helper.js?v=76","./switch-cover-helper.js","./ps3-cover-helper.js","./ps3-wikipedia-cover-helper.js","./ui-enhancements.js?v=61","./catalog-refresh-helper.js?v=64","./modal-draft-helper.js","./app.js?v=83","./cover-sources.js?v=64","./profile-core.js?v=81","./onboarding-v20.js","./friends-supabase-v2.js?v=88","./cover-refresh-helper.js","./product-v13.js?v=60","./mutation-stability-guard.js","./product-v14.js","./achievements-v16.js","./product-v16.js?v=27","./product-v17.js?v=27","./manual-cover-picker-v18.js?v=27","./collection-card-badges-v18.js?v=74","./settings-dashboard-v18.js","./catalog-dashboard-runtime-v18.js","./theme-core-v19.js","./backend-config.js","./cloud-transfer-v80.js?v=80","./cloud-conflicts-v81.js?v=82","./account-vault-v83.js?v=83","./account-deletion-v84.js?v=85","./auth-messages-v89.js?v=89","./backend-v2.js?v=89","./rotation-consistency-v21.js","./game-detail-history-v22.js","./backlog-v23.js?v=73","./mobile-nav-v21.js?v=77","./mobile-search-v24.js","./playing-detail-actions-v24.js","./game-card-fixes-v25.js?v=26","./universal-title-search-v62.js","./library-ux-v63.js?v=74","./experience-v66.js?v=75","./share-card-v66.js?v=66","./pwa-updates-v66.js?v=89","./icon.svg","./logo-512.png","./logo.png","./memory-delight-v67.css?v=70","./memory-delight-v67.js?v=70","./memory-companion-v68.css?v=68","./library-context-v69.css?v=76","./memory-companion-v68.js?v=68","./tactile-v78.css?v=78","./quick-actions-v78.css?v=79","./tactile-v78.js?v=78","./quick-actions-v78.js?v=79"];
+const ASSETS=["./mobile-card-layout-v74.css?v=74","./","./index.html","./delete-account.html","./account-deletion-page-v84.css?v=85","./local-delete-cleanup-v85.js?v=85","./account-deletion-page-v84.js?v=85","./manifest.webmanifest","./logo-192.png","./styles.css","./mobile.css","./cover-fixes.css","./ui-enhancements.css?v=61","./universal-title-search-v62.css","./profile-social.css?v=88","./product-v13.css","./product-v14.css","./product-v16.css","./product-v17.css","./theme-unified-v18.css","./collection-card-badges-v18.css","./manual-cover-picker-v18.css","./settings-dashboard-v18.css","./onboarding-v20.css","./backend-v2.css?v=84","./backlog-v23.css?v=73","./playing-detail-actions-v24.css","./mobile-nav-v21.css?v=77","./game-card-fixes-v25.css?v=27","./library-ux-v63.css?v=64","./visual-polish-v65.css?v=65","./experience-v66.css?v=75","./title-search-helper.js?v=76","./switch-cover-helper.js?v=90","./ps3-cover-helper.js?v=90","./ps3-wikipedia-cover-helper.js?v=90","./ui-enhancements.js?v=61","./catalog-refresh-helper.js?v=64","./modal-draft-helper.js","./app.js?v=90","./cover-sources.js?v=64","./profile-core.js?v=81","./onboarding-v20.js","./friends-supabase-v2.js?v=88","./cover-refresh-helper.js?v=90","./product-v13.js?v=60","./mutation-stability-guard.js","./product-v14.js","./achievements-v16.js","./product-v16.js?v=90","./product-v17.js?v=90","./manual-cover-picker-v18.js?v=90","./collection-card-badges-v18.js?v=74","./settings-dashboard-v18.js?v=90","./catalog-dashboard-runtime-v18.js","./theme-core-v19.js","./backend-config.js","./cloud-transfer-v80.js?v=80","./cloud-conflicts-v81.js?v=82","./account-vault-v83.js?v=83","./account-deletion-v84.js?v=85","./auth-messages-v89.js?v=89","./backend-v2.js?v=89","./rotation-consistency-v21.js","./game-detail-history-v22.js","./backlog-v23.js?v=73","./mobile-nav-v21.js?v=77","./mobile-search-v24.js","./playing-detail-actions-v24.js","./game-card-fixes-v25.js?v=26","./universal-title-search-v62.js","./library-ux-v63.js?v=74","./experience-v66.js?v=90","./share-card-v66.js?v=90","./pwa-updates-v66.js?v=90","./icon.svg","./logo-512.png","./logo.png","./memory-delight-v67.css?v=70","./memory-delight-v67.js?v=70","./memory-companion-v68.css?v=68","./library-context-v69.css?v=76","./memory-companion-v68.js?v=68","./tactile-v78.css?v=78","./quick-actions-v78.css?v=79","./tactile-v78.js?v=78","./quick-actions-v78.js?v=79","./cover-rights-v90.js?v=90","./cover-rights-v90.css?v=90"];
 // First install activates normally. Later versions wait for the user's Update click.
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS.map(url=>new Request(url,{cache:'reload'}))))));
 self.addEventListener('message',event=>{
@@ -13,23 +13,16 @@ self.addEventListener('activate',event=>event.waitUntil((async()=>{
   const versions=keys.filter(key=>/^memory-card-v\d+-/.test(key))
     .sort((a,b)=>Number(b.match(/-v(\d+)-/)[1])-Number(a.match(/-v(\d+)-/)[1]));
   const previous=versions.filter(key=>Number(key.match(/-v(\d+)-/)[1])<VERSION).slice(0,1);
-  const keep=new Set([CACHE,COVER_CACHE,...previous,...versions.filter(key=>Number(key.match(/-v(\d+)-/)[1])>VERSION)]);
+  const keep=new Set([CACHE,...previous,...versions.filter(key=>Number(key.match(/-v(\d+)-/)[1])>VERSION)]);
   // Keep one previous release for tabs still running old code. Never remove other apps' caches.
   await Promise.all(versions.filter(key=>!keep.has(key)).map(key=>caches.delete(key)));
+  // Drop only Memory Card's own legacy cache of third-party cover bytes.
+  await caches.delete(COVER_CACHE);
   await self.clients.claim();
 })()));
 self.addEventListener('fetch',event=>{
   if(event.request.method!=='GET')return;
   const url=new URL(event.request.url);
-  const image=event.request.destination==='image' && /(^|\.)(wikimedia\.org|raw\.githubusercontent\.com|art\.gametdb\.com|images\.weserv\.nl)$/.test(url.hostname);
-  if(image){
-    event.respondWith((async()=>{
-      const cache=await caches.open(COVER_CACHE),hit=await cache.match(event.request);
-      if(hit?.ok)return hit;
-      try{const response=await fetch(event.request);if(response.ok)await cache.put(event.request,response.clone());return response;}
-      catch(_){return Response.error();}
-    })());return;
-  }
   if(url.origin!==self.location.origin)return;
   const versioned=/\.(js|css)$/.test(url.pathname)&&url.searchParams.has('v');
   event.respondWith((async()=>{

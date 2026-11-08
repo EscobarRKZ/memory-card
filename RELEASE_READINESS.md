@@ -76,6 +76,17 @@ Reviewed: 2026-11-08. This document tracks launch gates, not a declaration that 
 - [ ] Add user blocking/reporting and review moderation obligations; alternatively omit social features from the first release.
 - [ ] Review account recovery, public user-name display and profile visibility.
 
+## Stage 3.5 — game cover rights and privacy (v90)
+
+- [x] v90: per-device, opt-in third-party cover display. Default off; local game data and cloud cover URLs persist unchanged.
+- [x] v90: gate artwork requests from cards, hero backgrounds, collection stacks, PS3/Switch/Wikipedia DOM enhancers, manual picker, bulk refresh and PNG share export.
+- [x] v90: stop app-owned cross-origin artwork caching and delete the old artwork CacheStorage bucket on v90 SW activation, without affecting unrelated caches.
+- [x] v90: show technical cover source and explicitly label image copyright clearance as unknown; inventory available in `docs/COVER_ART_RIGHTS_V90.md`.
+- [ ] **Release-blocker:** verify copyright and contract rights for all third-party images distributed in a public/commercial app, including store screenshots. User consent is NOT a copyright license.
+- [ ] Contact GameTDB (website permission is specifically required by their FAQ); verify artwork rights for Libretro, AldoTools, HexFlow and each Wikimedia file.
+- [ ] Create a reviewable licensing/attribution ledger and a workable publisher complaint/takedown path that can remove artwork without deleting games.
+- [ ] Real-device network audit: disabled/on state, CSS backgrounds, PWA image cache, manual picker, sharing/export, account switching and offline behavior.
+
 ## Stage 4 — Android package and platform experience
 
 - [x] v86: pin browser Supabase SDK to exact version `2.95.0`, add static release-integrity checks and service worker regression test to CI.

@@ -1,0 +1,7 @@
+/* v90: local choice for third-party cover requests. */
+.mc-cover-rights-control{padding:14px 16px;margin:14px 0;border:1px solid var(--border,#dde3ee);border-radius:14px;background:var(--surface-2,rgba(255,255,255,.05))}
+.mc-cover-rights-toggle{display:flex;align-items:flex-start;gap:12px;cursor:pointer;line-height:1.5}
+.mc-cover-rights-toggle input{flex:0 0 20px;width:20px;height:20px;margin-top:3px;accent-color:var(--accent,#7c5cff)}
+.mc-cover-rights-toggle b{display:block;font-size:14px}
+.mc-cover-rights-toggle small{display:block;margin-top:5px;font-size:12px;opacity:.76}
+.mc-cover-rights-control p{margin:9px 0 0 32px;font-size:12px;opacity:.7}

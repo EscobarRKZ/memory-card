@@ -261,6 +261,7 @@
   }
 
   async function applyCover(game, candidate) {
+    if (!window.MemoryCardCoverRightsV90?.enabled()) return;
     if (!candidate?.url || !/^https?:\/\//i.test(candidate.url)) return;
     game.coverUrl = candidate.url;
     game.coverSource = candidate.source || 'manual-cover-picker';
@@ -281,6 +282,7 @@
   }
 
   async function openPicker(gameId, trigger) {
+    if (!window.MemoryCardCoverRightsV90?.enabled()) { setToast('Сначала включи внешние обложки в Настройки → Каталоги.'); return; }
     const game = state.games.find(g => g && String(g.id) === String(gameId) && !g.deletedAt);
     if (!game || document.querySelector('.mc-cover-picker-backdrop')) return;
     const oldText = trigger?.textContent || '↻ Обновить обложку';
@@ -313,6 +315,7 @@
   }
 
   fetchCoverForGame = async function(title, releaseYear = '', platformId = '') {
+    if (!window.MemoryCardCoverRightsV90?.enabled()) return {url:'',source:'',matchedTitle:''};
     try {
       const exact = await libretroExactCandidates({ title, releaseYear, platform: platformId });
       if (exact.length) return { url: exact[0].url, source: exact[0].source || 'libretro-exact' };

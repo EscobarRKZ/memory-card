@@ -32,7 +32,7 @@
     return out;
   }
   function cover(url) {
-    if (!/^https?:\/\//i.test(url || '')) return Promise.resolve(null);
+    if (!window.MemoryCardCoverRightsV90?.enabled() || !/^https?:\/\//i.test(url || '')) return Promise.resolve(null);
     return new Promise(resolve => {
       const image = new Image(); let finished = false;
       const finish = result => { if (finished) return; finished = true; clearTimeout(timer); image.onload = image.onerror = null; resolve(result); };
@@ -112,7 +112,10 @@
     const get=id=>dialog.querySelector(`[data-share-${id}]`);
     const opts={art:get('art').checked,note:get('note').checked,name:get('name').checked,date:get('date').checked,excerpt:get('excerpt').value,nickname:box.nickname};
     let image=null;
-    if(opts.art && game.coverUrl) image=await box.image;
+    if(opts.art && window.MemoryCardCoverRightsV90?.enabled() && game.coverUrl) {
+      if(!box.image)box.image=cover(game.coverUrl);
+      image=await box.image;
+    }
     if(current!==box || revision!==box.revision)return;
     const canvas=paint(get('canvas'),game,opts,image,box.accent);
     try {
@@ -148,7 +151,7 @@
     dialog.innerHTML=`<div class="mc-share-head"><div><h2 id="mc-share-title">${tr('Карточка для друзей','A card for friends')}</h2><p>${tr('Сначала предпросмотр. Ничего не отправляется автоматически.','Preview first. Nothing is sent automatically.')}</p></div><button type="button" class="icon-btn" data-share-close aria-label="${tr('Закрыть','Close')}">${icon('close')}</button></div>
       <div class="mc-share-layout"><div class="mc-share-preview"><canvas data-share-canvas width="1080" height="1350" role="img" aria-label="${tr('Предпросмотр карточки игры','Game card preview')}"></canvas></div>
       <div class="mc-share-options"><h3>${tr('Что показать на карточке','Include on the card')}</h3>
-      <label><input type="checkbox" data-share-art checked><span>${tr('Обложка игры','Game cover')}</span></label>
+      <label><input type="checkbox" data-share-art ${window.MemoryCardCoverRightsV90?.enabled()?"":"disabled"}><span>${tr('Обложка игры','Game cover')}</span></label>
       <label><input type="checkbox" data-share-name><span>${tr('Имя из профиля','Profile name')}</span></label>
       <label><input type="checkbox" data-share-date><span>${tr('Дата добавления записи','Date entry was added')}</span></label>
       <label><input type="checkbox" data-share-note><span>${tr('Фрагмент моего отзыва','An excerpt from my review')}</span></label>
@@ -159,7 +162,7 @@
     const probe=document.createElement('span');probe.style.color='var(--accent)';dialog.appendChild(probe);
     document.body.appendChild(dialog);
     const accent=getComputedStyle(probe).color;probe.remove();
-    const box={dialog,game,nickname:clean(state.settings?.profileName),accent,filename:'memory-card-'+(clean(game.title).replace(/[^\p{L}\p{N}]+/gu,'-').slice(0,80)||'game')+'.png',returnFocus:document.activeElement,revision:0,timer:0,blob:null,file:null,image:cover(game.coverUrl)};
+    const box={dialog,game,nickname:clean(state.settings?.profileName),accent,filename:'memory-card-'+(clean(game.title).replace(/[^\p{L}\p{N}]+/gu,'-').slice(0,80)||'game')+'.png',returnFocus:document.activeElement,revision:0,timer:0,blob:null,file:null,image:null};
     current=box;dialog.querySelector('[data-share-excerpt]').value=String(game.notes||'').slice(0,360);
     paint(dialog.querySelector('[data-share-canvas]'),game,{art:true,note:false,name:false,date:false},null,accent);
     dialog.addEventListener('cancel',event=>{event.preventDefault();close();});

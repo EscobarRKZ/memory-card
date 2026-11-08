@@ -35,7 +35,7 @@
   const baseCover = coverMarkup;
   coverMarkup = function(game, cls = 'cover') {
     let html = baseCover.apply(this, arguments);
-    if (!safeImage(game?.coverUrl)) return html;
+    if (!window.MemoryCardCoverRightsV90?.enabled() || !safeImage(game?.coverUrl)) return html;
     html = html.replace(/^<div class="/, '<div class="mc-art mc-art-pending ')
       .replace(/\sonerror="[^"]*"/g, '')
       .replace('<img ', '<img data-mc-art-image ');
