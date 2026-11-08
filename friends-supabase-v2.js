@@ -16,6 +16,10 @@
     if(raw.includes('USER_NOT_FOUND'))return new Error('Пользователь с таким Memory Card ID не найден');
     if(raw.includes('SELF_REQUEST'))return new Error('Нельзя добавить самого себя');
     if(raw.includes('FRIEND_RATE_LIMIT'))return new Error('Слишком много приглашений. Повтори попытку позже.');
+    if(raw.includes('REPORT_RATE_LIMIT'))return new Error('Достигнут лимит жалоб: не более трёх новых обращений за сутки.');
+    if(raw.includes('REPORT_INVALID_REASON'))return new Error('Выбери причину жалобы.');
+    if(raw.includes('REPORT_TOO_LONG'))return new Error('Описание жалобы слишком длинное.');
+    if(raw.includes('SELF_REPORT'))return new Error('Нельзя отправить жалобу на собственный аккаунт.');
     if(raw.includes('FRIEND_UNAVAILABLE'))return new Error('Приглашение этому пользователю недоступно.');
     if(raw.includes('NOT_FRIENDS'))return new Error('Профиль доступен только друзьям');
     if(raw.includes('NOT_AUTHENTICATED'))return new Error('Нужно войти в аккаунт');
@@ -64,7 +68,7 @@
   function renderBlockedPanel(blocked=[]){
     if(!blocked.length)return '';
     return '<section class="panel"><div class="section-head"><div><h3>Заблокированные</h3><p>Приглашения и доступ к профилю отключены</p></div></div><div class="friend-list">'+
-      blocked.map(b=>'<article class="friend-row"><div class="social-avatar small">'+avatar(b.displayName)+'</div><div class="friend-main"><div class="game-title">'+esc(b.displayName||'Игрок')+'</div><div class="memory-id">'+esc(b.userId)+'</div></div><div class="friend-actions"><button type="button" class="secondary compact" data-action="friend-unblock" data-friend-id="'+esc(b.userId)+'">Разблокировать</button></div></article>').join('')+
+      blocked.map(b=>'<article class="friend-row"><div class="social-avatar small">'+avatar(b.displayName)+'</div><div class="friend-main"><div class="game-title">'+esc(b.displayName||'Игрок')+'</div><div class="memory-id">'+esc(b.userId)+'</div></div><div class="friend-actions"><button type="button" class="secondary compact" data-action="friend-unblock" data-friend-id="'+esc(b.userId)+'">Разблокировать</button><button type="button" class="ghost compact" data-action="friend-report" data-friend-id="'+esc(b.userId)+'">Пожаловаться</button></div></article>').join('')+
       '</div></section>';
   }
 
@@ -76,7 +80,29 @@
     return `<div class="section-head"><div><h2>Друзья</h2><p>Смотри игровые профили друзей и их статистику.</p></div><button class="secondary" data-action="social-refresh">Обновить</button></div>
       <section class="panel social-me-card"><div class="social-avatar">${avatar(state.settings.profileName)}</div><div class="social-me-main"><div class="game-title">${esc(state.settings.profileName||'Игрок')}</div><div class="memory-id">${esc(state.settings.userId)}</div></div><button class="ghost compact" data-action="copy-user-id">Копировать ID</button></section>
       <section class="panel friend-add-panel"><h3>Добавить друга</h3><p class="status-line">Поиск работает только по точному Memory Card ID.</p><form id="friendAddForm" class="friend-search"><input name="friendId" autocomplete="off" placeholder="MC-AB12-CD34" maxlength="20"><button class="primary" type="submit">Отправить приглашение</button></form></section>
-      ${incoming.length?`<section class="panel"><div class="section-head"><div><h3>Входящие приглашения</h3><p>${incoming.length}</p></div></div><div class="friend-list">${incoming.map(r=>`<article class="friend-row"><div class="social-avatar small">${avatar(r.displayName)}</div><div class="friend-main"><div class="game-title">${esc(r.displayName||'Игрок')}</div><div class="memory-id">${esc(r.userId)}</div></div><div class="friend-actions"><button class="secondary compact" data-action="friend-reject" data-request-id="${esc(r.requestId)}">Отклонить</button><button class="ghost compact" data-action="friend-block" data-friend-id="${esc(r.userId)}">Блокировать</button><button class="primary compact" data-action="friend-accept" data-request-id="${esc(r.requestId)}">Принять</button></div></article>`).join('')}</div></section>`:''}
+      <section class="panel mc-report-panel" aria-labelledby="mc-report-title">
+        <h3 id="mc-report-title">Пожаловаться на пользователя</h3>
+        <p class="status-line">Нужен точный Memory Card ID. Жалоба сохраняется для ручной проверки, но не блокирует человека автоматически.</p>
+        <form id="friendReportForm" class="mc-report-form">
+          <label>Memory Card ID
+            <input name="userId" type="text" required autocomplete="off" spellcheck="false" placeholder="MC-AB12-CD34" maxlength="20">
+          </label>
+          <label>Причина
+            <select name="reason" required>
+              <option value="spam">Спам</option>
+              <option value="harassment">Преследование или оскорбления</option>
+              <option value="privacy">Нарушение приватности</option>
+              <option value="inappropriate">Неприемлемое содержание</option>
+              <option value="other">Другое</option>
+            </select>
+          </label>
+          <label class="mc-report-details">Описание (необязательно)
+            <textarea name="details" rows="3" maxlength="1000" placeholder="Кратко опиши ситуацию. Не отправляй пароли или чужие персональные данные."></textarea>
+          </label>
+          <div class="mc-report-actions"><button type="submit" class="secondary">Отправить жалобу</button><small>Максимум 3 новые жалобы в течение 24 часов</small></div>
+        </form>
+      </section>
+      ${incoming.length?`<section class="panel"><div class="section-head"><div><h3>Входящие приглашения</h3><p>${incoming.length}</p></div></div><div class="friend-list">${incoming.map(r=>`<article class="friend-row"><div class="social-avatar small">${avatar(r.displayName)}</div><div class="friend-main"><div class="game-title">${esc(r.displayName||'Игрок')}</div><div class="memory-id">${esc(r.userId)}</div></div><div class="friend-actions"><button class="secondary compact" data-action="friend-reject" data-request-id="${esc(r.requestId)}">Отклонить</button><button class="ghost compact" data-action="friend-block" data-friend-id="${esc(r.userId)}">Блокировать</button><button class="ghost compact" data-action="friend-report" data-friend-id="${esc(r.userId)}">Пожаловаться</button><button class="primary compact" data-action="friend-accept" data-request-id="${esc(r.requestId)}">Принять</button></div></article>`).join('')}</div></section>`:''}
       ${outgoing.length?`<section class="panel"><div class="section-head"><div><h3>Отправленные</h3><p>Ожидают подтверждения</p></div></div><div class="friend-list">${outgoing.map(r=>`<article class="friend-row muted-row"><div class="social-avatar small">${avatar(r.displayName)}</div><div class="friend-main"><div class="game-title">${esc(r.displayName||'Игрок')}</div><div class="memory-id">${esc(r.userId)}</div></div><span class="request-status">Ожидает</span></article>`).join('')}</div></section>`:''}
       <section class="panel"><div class="section-head"><div><h3>Мои друзья</h3><p>${friends.length?`${friends.length} в списке`:'Пока никого'}</p></div></div>${friends.length?`<div class="friend-grid">${friends.map(f=>`<button class="friend-card" data-friend-open="${esc(f.userId)}"><div class="social-avatar">${avatar(f.displayName)}</div><div><div class="game-title">${esc(f.displayName||'Игрок')}</div><div class="memory-id">${esc(f.userId)}</div><div class="friend-mini-stats"><span>${Number(f.completed||0)} пройдено</span><span>${Number(f.playing||0)} играет</span></div></div></button>`).join('')}</div>`:`<div class="empty">Добавь друга по ID. Профиль станет доступен только после принятия приглашения.</div>`}</section>${renderBlockedPanel(blocked)}`;
   }
@@ -90,7 +116,7 @@
     if(fp.error)return `<div class="section-head"><div><h2>Профиль друга</h2><p>${esc(fp.error)}</p></div><button class="secondary" data-action="friend-back">← К друзьям</button></div>`;
     const p=fp.profile||{},games=(fp.games||[]).map(migrateGame),st=fp.stats||stats(games),playing=games.filter(g=>g.status==='playing'),completed=games.filter(g=>g.status==='completed').sort((a,b)=>String(b.updatedAt||b.addedAt||'').localeCompare(String(a.updatedAt||a.addedAt||''))),owned=new Set(p.ownedPlatforms||[]);
     return `<div class="section-head"><div><h2>${esc(p.displayName||'Игрок')}</h2><p class="memory-id">${esc(p.userId||'')}</p></div><button class="secondary" data-action="friend-back">← К друзьям</button></div>
-      <section class="panel friend-profile-hero"><div class="social-avatar xl">${avatar(p.displayName)}</div><div class="friend-profile-title"><h3>${esc(p.displayName||'Игрок')}</h3><div class="memory-id">${esc(p.userId||'')}</div><div class="meta">Профиль только для просмотра</div></div><div class="friend-actions"><button class="danger compact" data-action="friend-remove" data-friend-id="${esc(p.userId||'')}">Удалить из друзей</button><button class="ghost compact" data-action="friend-block" data-friend-id="${esc(p.userId||'')}">Заблокировать</button></div></section>
+      <section class="panel friend-profile-hero"><div class="social-avatar xl">${avatar(p.displayName)}</div><div class="friend-profile-title"><h3>${esc(p.displayName||'Игрок')}</h3><div class="memory-id">${esc(p.userId||'')}</div><div class="meta">Профиль только для просмотра</div></div><div class="friend-actions"><button class="danger compact" data-action="friend-remove" data-friend-id="${esc(p.userId||'')}">Удалить из друзей</button><button class="ghost compact" data-action="friend-block" data-friend-id="${esc(p.userId||'')}">Заблокировать</button><button class="secondary compact" data-action="friend-report" data-friend-id="${esc(p.userId||'')}">Пожаловаться</button></div></section>
       <div class="stats"><div class="stat-card"><div class="stat-value">${st.completed??completed.length}</div><div class="stat-label">Игр пройдено</div></div><div class="stat-card"><div class="stat-value">${st.averageRating??'—'}</div><div class="stat-label">Средняя оценка</div></div><div class="stat-card"><div class="stat-value">${st.playing??playing.length}</div><div class="stat-label">Сейчас играет</div></div><div class="stat-card"><div class="stat-value">${st.tens??0}</div><div class="stat-label">Игр на 10/10</div></div></div>
       ${playing.length?`<section class="panel"><div class="section-head"><div><h3>Сейчас играет</h3></div></div><div class="list">${playing.map(friendRow).join('')}</div></section>`:''}
       <section class="panel"><div class="section-head"><div><h3>Приставки</h3><p>Устройства друга</p></div></div><div class="friend-platforms">${PLATFORMS.filter(x=>owned.has(x.id)).map(x=>`<div class="friend-platform-chip">${platformIcon(x.id)}<span>${esc(x.abbr)}</span></div>`).join('')||'<div class="empty">Не указаны</div>'}</div></section>
@@ -154,6 +180,48 @@
     render();
   }
 
+
+  async function submitUserReport(event){
+    event.preventDefault();
+    const form=event.currentTarget;
+    if(form.dataset.sending==='1')return;
+    const data=new FormData(form);
+    const userId=String(data.get('userId')||'').trim().toUpperCase();
+    const reason=String(data.get('reason')||'');
+    const details=String(data.get('details')||'').trim();
+    if(!userId){setToast('Укажи Memory Card ID пользователя.');return;}
+    if(!['spam','harassment','privacy','inappropriate','other'].includes(reason)){
+      setToast('Выбери причину жалобы.');return;
+    }
+    if(details.length>1000){setToast('Описание жалобы слишком длинное.');return;}
+    form.dataset.sending='1';
+    const button=form.querySelector('button[type="submit"]');
+    if(button)button.disabled=true;
+    try{
+      const id=await rpc('report_user',{
+        target_memory_id:userId,report_reason:reason,report_details:details
+      });
+      if(typeof id!=='string'||!id)throw new Error('Сервер не подтвердил жалобу');
+      form.reset();
+      setToast('Жалоба сохранена для ручной проверки.');
+    }catch(error){alert(friendlyError(error).message);}
+    finally{
+      delete form.dataset.sending;
+      if(button?.isConnected!==false)button.disabled=false;
+    }
+  }
+
+  function prepareUserReport(userId){
+    state.friendProfile=null;
+    render();
+    const form=document.querySelector('#friendReportForm');
+    const field=form?.elements?.namedItem('userId');
+    if(field){
+      field.value=String(userId||'').toUpperCase();
+      form.scrollIntoView?.({block:'center',behavior:'smooth'});
+      field.focus?.();
+    }
+  }
 
   async function blockFriend(id){
     if(!id||!confirm('Заблокировать пользователя? Он больше не сможет отправлять тебе приглашения, а существующая дружба будет удалена.'))return;
@@ -222,8 +290,11 @@
     document.querySelectorAll('[data-action="friend-remove"]').forEach(x=>x.onclick=()=>removeFriend(x.dataset.friendId));
     document.querySelectorAll('[data-action="friend-block"]').forEach(x=>x.onclick=()=>blockFriend(x.dataset.friendId));
     document.querySelectorAll('[data-action="friend-unblock"]').forEach(x=>x.onclick=()=>unblockFriend(x.dataset.friendId));
+    document.querySelectorAll('[data-action="friend-report"]').forEach(x=>x.onclick=()=>prepareUserReport(x.dataset.friendId));
     const form=document.querySelector('#friendAddForm');
     if(form)form.onsubmit=addFriend;
+    const reportForm=document.querySelector('#friendReportForm');
+    if(reportForm)reportForm.onsubmit=submitUserReport;
     const name=document.querySelector('#profileName');
     if(name)name.onchange=()=>saveName(name.value);
   };
