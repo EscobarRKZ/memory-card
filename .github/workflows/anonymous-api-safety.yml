@@ -1,0 +1,39 @@
+name: Memory Card anonymous API safety
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend-config.js"
+      - "supabase/migrations/**"
+      - "scripts/check-anonymous-access.mjs"
+      - "tests/test_anonymous_access_v91.mjs"
+      - ".github/workflows/anonymous-api-safety.yml"
+  pull_request:
+    paths:
+      - "backend-config.js"
+      - "supabase/migrations/**"
+      - "scripts/check-anonymous-access.mjs"
+      - "tests/test_anonymous_access_v91.mjs"
+      - ".github/workflows/anonymous-api-safety.yml"
+  workflow_dispatch:
+  schedule:
+    - cron: "40 3 * * 3"
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: Verify anonymous clients cannot read user data
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Offline fixture checks
+        run: node tests/test_anonymous_access_v91.mjs
+      - name: Query live public REST API without Auth
+        run: node scripts/check-anonymous-access.mjs
