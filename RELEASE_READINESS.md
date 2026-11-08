@@ -18,6 +18,14 @@ Reviewed: 2026-11-08. This document tracks launch gates, not a declaration that 
 - [ ] Confirm hosting of `/memory-card/delete-account.html`, signup confirmation/password reset links and real mobile behavior. Do not claim email delivery is already configured.
 - [ ] Enable leaked-password protection in Auth settings; verify rates and CAPTCHA before public registration.
 
+## Stage 0.7 — anonymous API privacy verification (v91)
+
+- [x] Add an anonymous, read-only live Supabase REST API probe for user games, profiles, settings, collections, friend relationships and deletion requests.
+- [x] Fail closed if any anonymous request returns user rows or if the private abuse-report schema becomes exposed. Only use the client publishable key; no user JWT, secrets, writes or record contents in logs.
+- [ ] Confirm the live API check is passing in GitHub Actions after merge; a successful static policy audit alone is not enough.
+- [ ] Follow with **authenticated two-disposable-user tests** for wrong-user access, cross-account writes, stale sessions and server CAS; anonymous checks cannot prove logged-in isolation.
+- [ ] Do not revoke direct game table writes from old clients until migration/physical-device testing is finished.
+
 ## Stage 1 — cloud safety (v80)
 
 - [x] Read active Supabase policies and current database security advisories.
