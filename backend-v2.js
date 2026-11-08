@@ -20,6 +20,9 @@
   const transfer=window.MemoryCardCloudTransferV80;
   const vault=window.MemoryCardAccountVaultV83;
   const deletionRequests=window.MemoryCardDeletionRequestV84;
+  const authMessages=window.MemoryCardAuthMessagesV89;
+  const friendlyAuthError=(error,operation)=>
+    authMessages?.describe?.(error,operation)||'Ошибка авторизации. Попробуй позже.';
   let deletionState={owner:'',loading:false,requested:null,error:''};
   if(!transfer?.downloadGames||!conflictsApi?.plan||!conflictsApi?.sendChanges){
     console.error('Memory Card cloud transfer module is missing');
@@ -385,7 +388,7 @@
   }
   function showConfirmation(email){
     document.querySelector('.mc-auth-shell')?.remove();
-    document.body.insertAdjacentHTML('beforeend',`<div class="mc-auth-shell"><section class="mc-auth-card mc-auth-confirm"><div class="mc-auth-logo" style="margin:0 auto">✓</div><h2>Подтверди email</h2><p>Мы отправили письмо на <b>${escHtml(email)}</b>. Перейди по ссылке в письме, затем вернись в Memory Card.</p><button class="primary" type="button" data-auth-back>Вернуться ко входу</button></section></div>`);
+    document.body.insertAdjacentHTML('beforeend',`<div class="mc-auth-shell"><section class="mc-auth-card mc-auth-confirm"><div class="mc-auth-logo" style="margin:0 auto">✓</div><h2>Подтверди email</h2><p>Мы отправили письмо на <b>${escHtml(email)}</b>. Перейди по ссылке в письме, затем вернись в Memory Card.</p><p class="mc-auth-note">Если письмо не пришло, проверь «Спам». Не отправляй повторные запросы подряд: у почтового сервиса есть лимиты.</p><button class="primary" type="button" data-auth-back>Вернуться ко входу</button></section></div>`);
   }
   function showPasswordRecovery(){
     document.querySelector('.mc-auth-shell')?.remove();
@@ -399,21 +402,36 @@
     const displayName=form.name.value.trim();
     if(cfg.turnstileSiteKey&&!captchaToken()){authStatus('Подтверди проверку','error');return;}
     authStatus('Создаю аккаунт…');
-    const {data,error}=await client.auth.signUp({email,password,options:{data:{display_name:displayName},captchaToken:captchaToken(),emailRedirectTo:appUrl()}});
-    if(error){authStatus(error.message,'error');resetCaptcha();return;}
-    resetCaptcha();
-    if(data.session){session=data.session;hideAuth();await reconcile();}
-    else showConfirmation(email);
+    try{
+      const {data,error}=await client.auth.signUp({email,password,options:{
+        data:{display_name:displayName},captchaToken:captchaToken(),emailRedirectTo:appUrl()
+      }});
+      if(error){authStatus(friendlyAuthError(error,'signup'),'error');resetCaptcha();return;}
+      resetCaptcha();
+      if(data?.session){session=data.session;hideAuth();await reconcile();}
+      else showConfirmation(email);
+    }catch(error){
+      authStatus(friendlyAuthError(error,'signup'),'error');
+      resetCaptcha();
+    }
   }
   async function signIn(form){
     const email=form.email.value.trim();
     const password=form.password.value;
     if(cfg.turnstileSiteKey&&!captchaToken()){authStatus('Подтверди проверку','error');return;}
     authStatus('Вхожу…');
-    const {data,error}=await client.auth.signInWithPassword({email,password,options:{captchaToken:captchaToken()}});
-    if(error){authStatus(error.message,'error');resetCaptcha();return;}
-    resetCaptcha();
-    session=data.session;hideAuth();await reconcile();
+    try{
+      const {data,error}=await client.auth.signInWithPassword({
+        email,password,options:{captchaToken:captchaToken()}
+      });
+      if(error){authStatus(friendlyAuthError(error,'login'),'error');resetCaptcha();return;}
+      resetCaptcha();
+      if(!data?.session){authStatus('Сервер не подтвердил вход. Попробуй позже.','error');return;}
+      session=data.session;hideAuth();await reconcile();
+    }catch(error){
+      authStatus(friendlyAuthError(error,'login'),'error');
+      resetCaptcha();
+    }
   }
   async function resetPassword(){
     const email=document.querySelector('[data-auth-form="login"] input[name="email"]')?.value.trim();
@@ -422,9 +440,9 @@
     authStatus('Отправляю письмо…');
     try{
       const {error}=await client.auth.resetPasswordForEmail(email,{redirectTo:appUrl(),captchaToken:captchaToken()});
-      authStatus(error?error.message:'Письмо для восстановления отправлено',error?'error':'ok');
+      authStatus(error?friendlyAuthError(error,'reset'):'Если этот адрес зарегистрирован, письмо для восстановления отправлено.',error?'error':'ok');
     }catch(error){
-      authStatus(error?.message||'Не удалось отправить письмо','error');
+      authStatus(friendlyAuthError(error,'reset'),'error');
     }finally{
       resetCaptcha();
     }
@@ -436,7 +454,7 @@
     if(password!==repeat){authStatus('Пароли не совпадают','error');return;}
     authStatus('Сохраняю пароль…');
     const {error}=await client.auth.updateUser({password});
-    if(error){authStatus(error.message,'error');return;}
+    if(error){authStatus(friendlyAuthError(error,'password'),'error');return;}
     hideAuth();
     await reconcile();
     setToast('Пароль изменён');

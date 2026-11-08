@@ -1,4 +1,4 @@
-# Memory Card — PWA build v88
+# Memory Card — PWA build v89
 
 **Memory Card** — local-first PWA для личной игровой библиотеки, ротации консолей, Backlog, коллекций, достижений и небольшой закрытой социальной сети.
 
@@ -23,6 +23,10 @@
 - ручное обновление обложки одной игры;
 - Русский / English;
 - Supabase Auth/облачная синхронизация, локальные копии по аккаунтам, snapshots и JSON export/import.
+
+### Подготовка публичного запуска
+
+Почта регистрации пока работает через тестовый Supabase SMTP и не готова для публичной аудитории. Шаблоны и пошаговая настройка: [EMAIL_DELIVERY_V89.md](./docs/EMAIL_DELIVERY_V89.md). Оценка квот и роста: [SUPABASE_GROWTH_V89.md](./docs/SUPABASE_GROWTH_V89.md). Монетизация пока не включена: [MONETIZATION_V89.md](./docs/MONETIZATION_V89.md).
 
 Полный spoiler-лист достижений: **[ACHIEVEMENTS.md](./ACHIEVEMENTS.md)**.
 

@@ -8,6 +8,16 @@ Reviewed: 2026-11-08. This document tracks launch gates, not a declaration that 
 - [x] Commit the exact deployed migration (`20261107173126`) and preserve existing client write rights during the phased v82 rollout.
 - [ ] Audit grants whenever new public tables are created; default privileges may expose new tables unless explicitly restricted.
 
+## Stage 0.5 — Auth email and growth readiness (v89)
+
+- [x] Translate Auth errors into safe, actionable Russian text: account restriction, SMTP quota, confirmation, CAPTCHA, wrong password and network failures.
+- [x] Add branded transactional email templates to source control and CI checks; do not include tracking images or individual user data in the templates.
+- [x] Document current organization Free subscription, quota estimates, email provider requirements and a no-advertising-first monetization concept.
+- [ ] **Critical before public registration:** enable custom SMTP with a verified owned sender domain. Built-in Supabase email supports only project-team recipients, 2 emails/hour; Free project created after June 3, 2026 cannot customize templates while on default SMTP.
+- [ ] Upload the verified templates to Supabase Dashboard > Authentication > Email Templates, configure Site URL/redirect allowlist, check sender DNS SPF/DKIM/DMARC and test delivery from a disposable external email address.
+- [ ] Confirm hosting of `/memory-card/delete-account.html`, signup confirmation/password reset links and real mobile behavior. Do not claim email delivery is already configured.
+- [ ] Enable leaked-password protection in Auth settings; verify rates and CAPTCHA before public registration.
+
 ## Stage 1 — cloud safety (v80)
 
 - [x] Read active Supabase policies and current database security advisories.
