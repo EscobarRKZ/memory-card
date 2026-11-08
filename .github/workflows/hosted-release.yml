@@ -1,0 +1,38 @@
+name: Memory Card hosted release smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "index.html"
+      - "delete-account.html"
+      - "privacy.html"
+      - "sw.js"
+      - "manifest.webmanifest"
+      - "scripts/check-hosted-release.mjs"
+      - ".github/workflows/hosted-release.yml"
+  workflow_dispatch:
+  schedule:
+    - cron: "25 3 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: memory-card-live-smoke
+  cancel-in-progress: true
+
+jobs:
+  hosted:
+    name: Verify published app routes and release version
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Offline self-test of release checker
+        run: node tests/test_hosted_release_v91.mjs
+      - name: Verify public site after Pages deployment
+        run: node scripts/check-hosted-release.mjs --attempts 14 --delay-ms 15000 --timeout-ms 12000
