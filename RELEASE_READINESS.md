@@ -87,6 +87,15 @@ Reviewed: 2026-11-08. This document tracks launch gates, not a declaration that 
 - [ ] Create a reviewable licensing/attribution ledger and a workable publisher complaint/takedown path that can remove artwork without deleting games.
 - [ ] Real-device network audit: disabled/on state, CSS backgrounds, PWA image cache, manual picker, sharing/export, account switching and offline behavior.
 
+## Stage 3.6 — verified public hosting and Android association (v91)
+
+- [x] Public v90 site, deletion page and Service Worker were reached independently on 2026-11-09; deployed worker reports version 90.
+- [x] Create a publicly accessible **pre-release** privacy notice (`privacy.html`) with direct route to deletion; cache it in v91 and link it from authentication and external deletion pages.
+- [ ] Publish **final** policy with verified controller/legal contact, precise retention/backups, data processors and rights/takedown procedure. Preliminary disclosure alone does not qualify as a completed Google Play privacy policy.
+- [ ] Publish Digital Asset Links at `https://escobarrkz.github.io/.well-known/assetlinks.json` (host root). Existing repo path `/memory-card/` is not the root; the address returned 404 as of 2026-11-09.
+- [ ] Decide owned Android application ID and signing key / Play App Signing certificate; only then generate and deploy the real assetlinks statement.
+- [ ] Run authenticated disposable-user deletion/sync tests and real Android/iOS device smoke tests before closing release gates.
+
 ## Stage 4 — Android package and platform experience
 
 - [x] v86: pin browser Supabase SDK to exact version `2.95.0`, add static release-integrity checks and service worker regression test to CI.
