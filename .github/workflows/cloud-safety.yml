@@ -24,6 +24,9 @@ on:
       - "tests/test_sw_v66.cjs"
       - "tests/test_release_integrity_v86.cjs"
       - "tests/test_social_safety_v87.cjs"
+      - "tests/test_user_reporting_v88.cjs"
+      - "supabase/migrations/20261108052249_private_user_reporting_v88.sql"
+      - "profile-social.css"
       - "friends-supabase-v2.js"
       - "supabase/migrations/20261108045954_social_block_and_invitation_limits_v87.sql"
       - "supabase/migrations/20261107173126_revoke_unsafe_default_table_grants_v86.sql"
@@ -56,6 +59,9 @@ on:
       - "tests/test_sw_v66.cjs"
       - "tests/test_release_integrity_v86.cjs"
       - "tests/test_social_safety_v87.cjs"
+      - "tests/test_user_reporting_v88.cjs"
+      - "supabase/migrations/20261108052249_private_user_reporting_v88.sql"
+      - "profile-social.css"
       - "friends-supabase-v2.js"
       - "supabase/migrations/20261108045954_social_block_and_invitation_limits_v87.sql"
       - "supabase/migrations/20261107173126_revoke_unsafe_default_table_grants_v86.sql"
@@ -106,3 +112,4 @@ jobs:
           node tests/test_sw_v66.cjs
           node tests/test_release_integrity_v86.cjs
           node tests/test_social_safety_v87.cjs
+          node tests/test_user_reporting_v88.cjs
