@@ -1,4 +1,4 @@
-# Memory Card — PWA build v89
+# Memory Card — PWA build v90
 
 **Memory Card** — local-first PWA для личной игровой библиотеки, ротации консолей, Backlog, коллекций, достижений и небольшой закрытой социальной сети.
 
