@@ -104,6 +104,16 @@ Reviewed: 2026-11-08. This document tracks launch gates, not a declaration that 
 - [ ] Add user blocking/reporting and review moderation obligations; alternatively omit social features from the first release.
 - [ ] Review account recovery, public user-name display and profile visibility.
 
+## Stage 3.2 — social block/race safety (v94)
+
+- [x] v94: `accept_friend_request` uses the same unordered-pair advisory transaction lock as sending and blocking, then rechecks the block table and pending invitation before updating a friendship.
+- [x] v94: `get_friend_profile` locks the pair and returns `NOT_FRIENDS` whenever either user has blocked the other, before reading the target library.
+- [x] v94: `social_state` filters blocked peers from the friends, incoming and outgoing lists even if a relationship row remains temporarily.
+- [x] v94: these three server RPCs use an empty `search_path` and remain callable only as `authenticated`; the client clears a stale invitation when the server rejects acceptance.
+- [x] Deploy the `20261109065016` migration to the current project, preserve live data and verify production function definitions/privileges and unaffiliated-JWT smoke contract.
+- [ ] **Still required:** two disposable, real Supabase Auth identities exercising concurrent block/accept, unblock/reinvite, both-direction block, direct API permissions and profile visibility with signed-in clients and physical devices. Offline static/mock CI is not a concurrency proof.
+- [ ] Audit the remaining social `SECURITY DEFINER` RPCs and broader client RLS grants; public signup is not cleared by this patch alone.
+
 ## Stage 3.5 — game cover rights and privacy (v90)
 
 - [x] v90: per-device, opt-in third-party cover display. Default off; local game data and cloud cover URLs persist unchanged.

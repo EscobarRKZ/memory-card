@@ -163,7 +163,14 @@
   async function respond(id,accept){
     try{
       const ok=accept?await rpc('accept_friend_request',{friendship_id:id}):await rpc('reject_friend_request',{friendship_id:id});
-      if(ok!==true)throw new Error('Заявка уже обработана или недоступна');
+      if(ok!==true){
+        // A block or a concurrent revoke may have removed this stale request.
+        // Update the list before surfacing the denial so the button disappears.
+        await refreshSocial(true);
+        throw new Error(accept
+          ? 'Приглашение больше недоступно: оно отменено или пользователь заблокирован.'
+          : 'Приглашение уже обработано или отменено.');
+      }
       await refreshSocial(true);
       setToast(accept?'Друг добавлен':'Приглашение отклонено');
     }catch(error){alert(friendlyError(error).message);}
