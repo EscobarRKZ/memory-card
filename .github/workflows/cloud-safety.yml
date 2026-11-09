@@ -17,6 +17,10 @@ on:
       - "tests/test_account_delete_client_v85.cjs"
       - "delete-account.html"
       - "index.html"
+      - "docs/LIVE_DB_INTEGRATION_V95.md"
+      - "tests/test_live_db_safety_v95.cjs"
+      - "tests/live_social_authorization_v95.sql"
+      - "tests/live_cloud_cas_v95.sql"
       - "docs/SOCIAL_PAIR_SAFETY_V94.md"
       - "supabase/migrations/20261109065016_social_pair_lock_and_block_read_guard_v94.sql"
       - "tests/test_social_pair_guard_v94.cjs"
@@ -88,6 +92,10 @@ on:
       - "tests/test_account_delete_client_v85.cjs"
       - "delete-account.html"
       - "index.html"
+      - "docs/LIVE_DB_INTEGRATION_V95.md"
+      - "tests/test_live_db_safety_v95.cjs"
+      - "tests/live_social_authorization_v95.sql"
+      - "tests/live_cloud_cas_v95.sql"
       - "docs/SOCIAL_PAIR_SAFETY_V94.md"
       - "supabase/migrations/20261109065016_social_pair_lock_and_block_read_guard_v94.sql"
       - "tests/test_social_pair_guard_v94.cjs"
@@ -198,3 +206,4 @@ jobs:
           node tests/test_backup_safety_v92.cjs
           node tests/test_cloud_retry_v93.cjs
           node tests/test_social_pair_guard_v94.cjs
+          node tests/test_live_db_safety_v95.cjs
