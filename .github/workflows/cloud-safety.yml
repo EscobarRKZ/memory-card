@@ -17,6 +17,10 @@ on:
       - "tests/test_account_delete_client_v85.cjs"
       - "delete-account.html"
       - "index.html"
+      - "docs/BACKUP_RECOVERY_V92.md"
+      - "tests/test_backup_safety_v92.cjs"
+      - "backup-center-v92.css"
+      - "backup-safety-v92.js"
       - "tests/test_assetlinks_v91.mjs"
       - "tests/test_hosted_release_v91.mjs"
       - "scripts/generate-assetlinks.mjs"
@@ -78,6 +82,10 @@ on:
       - "tests/test_account_delete_client_v85.cjs"
       - "delete-account.html"
       - "index.html"
+      - "docs/BACKUP_RECOVERY_V92.md"
+      - "tests/test_backup_safety_v92.cjs"
+      - "backup-center-v92.css"
+      - "backup-safety-v92.js"
       - "tests/test_assetlinks_v91.mjs"
       - "tests/test_hosted_release_v91.mjs"
       - "scripts/generate-assetlinks.mjs"
@@ -151,6 +159,7 @@ jobs:
           node --check friends-supabase-v2.js
           node --check auth-messages-v89.js
           node --check cover-rights-v90.js
+          node --check backup-safety-v92.js
           node --check scripts/check-hosted-release.mjs
           node --check scripts/generate-assetlinks.mjs
       - name: Run offline sync regression tests
@@ -173,3 +182,4 @@ jobs:
           node tests/test_cover_rights_v90.cjs
           node tests/test_hosted_release_v91.mjs
           node tests/test_assetlinks_v91.mjs
+          node tests/test_backup_safety_v92.cjs

@@ -45,7 +45,8 @@ events.storage({key:policy.storageKey,newValue:'disabled'});
 assert.equal(policy.enabled(),false);
 assert.equal(renders,2);
 const index=read('index.html');
-assert.ok(index.indexOf('./cover-rights-v90.js?v=90')<index.indexOf('./app.js?v=90'));
+const appScript=index.match(/\.\/app\.js\?v=\d+/)?.[0];
+assert.ok(appScript&&index.indexOf('./cover-rights-v90.js?v=90')<index.indexOf(appScript),'cover policy must load before the current app entrypoint');
 assert.match(index,/cover-rights-v90.css\?v=90/);
 assert.match(read('settings-dashboard-v18.js'),/data-mc-external-covers/);
 for(const p of [

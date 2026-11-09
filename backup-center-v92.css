@@ -1,0 +1,10 @@
+/* Memory Card v92: local account-bound backup manager. */
+.mc-backup-center { min-width:0; }
+.mc-backup-list { display:flex; flex-direction:column; gap:9px; margin-top:14px; }
+.mc-backup-row { display:flex; align-items:center; gap:9px; flex-wrap:wrap; border:1px solid var(--border,#dce3ec); border-radius:13px; padding:12px; background:var(--surface-2,rgba(255,255,255,.04)); }
+.mc-backup-info { flex:1 1 180px; min-width:0; }
+.mc-backup-info b,.mc-backup-info small { display:block; }
+.mc-backup-info b { font-size:13px; }
+.mc-backup-info small { font-size:12px; opacity:.7; margin-top:3px; overflow-wrap:anywhere; }
+.mc-backup-row button { flex-shrink:0; }
+@media(max-width:600px){ .mc-backup-row button { flex:1; } .mc-backup-info { flex-basis:100%; } }

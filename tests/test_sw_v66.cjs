@@ -39,6 +39,8 @@ const event=base=>Object.assign({promises:[],waitUntil(p){this.promises.push(p)}
  let response=await run(cachedAsset.slice(1));assert.equal(await response.text(),'asset');assert.equal(network.length,0);
  response=await run('/index.html','navigate');assert.equal(await response.text(),'network');assert.equal(network[0].options.cache,'no-cache');
  fail=true;response=await run('/missing.js');assert.equal(response.type,'error');
- response=await run('/some-route','navigate');assert.equal(await response.text(),'network');
+ response=await run('/delete-account.html?from=settings','navigate');assert.equal(await response.text(),'asset','deletion page must stay distinct from the main app while offline');
+ response=await run('/privacy.html?from=footer','navigate');assert.equal(await response.text(),'asset','offline privacy page must use its own document');
+ response=await run('/some-route','navigate');assert.equal(response.type,'error','unknown offline routes must not pretend to be the app');
  console.log(JSON.stringify({activation:'explicit only',previousCacheRetained:true,futureCacheRetained:true,unrelatedCacheRetained:true,thirdPartyCoverCacheRemoved:true,htmlFallback:'navigation only',assetCache:'versioned',installBypassesHttpCache:true}));
 })().catch(err=>{console.error(err);process.exit(1)});

@@ -124,37 +124,154 @@ function currentBackupStoreKey() {
   return owner ? BACKUP_KEY+':'+owner : BACKUP_KEY;
 }
 async function createLocalSnapshot(reason = 'manual') {
-  const backupKey=currentBackupStoreKey();
-  const backups = await storeGet(backupKey, []);
-  const snapshot = {
-    id: uid(),
-    createdAt: nowIso(),
-    reason,
-    games: clonePlain(state.games),
-    settings: clonePlain(state.settings),
+  // Read + append in one IndexedDB transaction: two tabs cannot silently
+  // overwrite one another's newest snapshot, or write to another account key.
+  const owner=String(state.settings?.cloudOwnerUid||'');
+  const backupKey=owner ? BACKUP_KEY+':'+owner : BACKUP_KEY;
+  const snapshot={
+    id:uid(),createdAt:nowIso(),reason:String(reason||'manual').slice(0,100),
+    games:clonePlain(state.games),settings:clonePlain(state.settings)
   };
-  const next = [snapshot, ...(Array.isArray(backups) ? backups : [])].slice(0, MAX_LOCAL_BACKUPS);
-  await storePut(backupKey, next);
-  state.settings.lastLocalBackupAt = snapshot.createdAt;
+  const db=await dbOpen();
+  try{
+    await new Promise((resolve,reject)=>{
+      const tx=db.transaction(STORE,'readwrite'),store=tx.objectStore(STORE);
+      const active=store.get(KEY);
+      active.onsuccess=()=>{
+        if(String(active.result?.settings?.cloudOwnerUid||'')!==owner ||
+           String(state.settings?.cloudOwnerUid||'')!==owner){tx.abort();return;}
+        const req=store.get(backupKey);
+        req.onsuccess=()=>{
+          const previous=req.result;
+          if(previous!=null&&!Array.isArray(previous)){tx.abort();return;}
+          store.put([snapshot,...(previous||[])].slice(0,MAX_LOCAL_BACKUPS),backupKey);
+        };
+        req.onerror=()=>tx.abort();
+      };
+      active.onerror=()=>tx.abort();
+      tx.oncomplete=()=>resolve();
+      tx.onerror=()=>reject(tx.error||new Error('Не удалось сохранить резервную копию'));
+      tx.onabort=()=>reject(tx.error||new Error('Копирование отменено: аккаунт сменился или архив повреждён'));
+    });
+  }finally{db.close?.();}
+  if(String(state.settings?.cloudOwnerUid||'')!==owner)
+    throw new Error('Аккаунт сменился во время создания копии');
+  state.settings.lastLocalBackupAt=snapshot.createdAt;
   return snapshot;
 }
 
-async function restoreLatestSnapshot() {
-  const backups = await storeGet(currentBackupStoreKey(), []);
-  const target = Array.isArray(backups) ? backups[0] : null;
-  if (!target) {
-    alert('Локальных резервных копий пока нет. Они создаются автоматически перед каждой синхронизацией.');
-    return;
-  }
-  const when = new Date(target.createdAt).toLocaleString('ru-RU');
-  if (!confirm(`Восстановить локальную копию от ${when}?\\n\\nТекущее состояние сначала тоже будет сохранено отдельной резервной копией.`)) return;
+async function readLocalBackupRecords(){
+  const owner=String(state.settings?.cloudOwnerUid||'');
+  const key=owner ? BACKUP_KEY+':'+owner : BACKUP_KEY;
+  const db=await dbOpen();
+  try{
+    const result=await new Promise((resolve,reject)=>{
+      const tx=db.transaction(STORE,'readonly'),req=tx.objectStore(STORE).get(key);
+      req.onsuccess=()=>resolve(req.result??[]);
+      req.onerror=()=>reject(req.error||new Error('Не удалось прочитать локальные копии'));
+      tx.onabort=()=>reject(tx.error||new Error('Чтение локальных копий прервано'));
+    });
+    if(!Array.isArray(result))throw new Error('Хранилище резервных копий повреждено');
+    if(String(state.settings?.cloudOwnerUid||'')!==owner)
+      throw new Error('Аккаунт сменился во время чтения резервных копий');
+    return result;
+  }finally{db.close?.();}
+}
+
+function downloadBackupJson(payload,filename){
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=filename;
+  document.body.appendChild(a);
+  a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),30000);
+}
+
+async function exportLocalBackupById(snapshotId){
+  const owner=String(state.settings?.cloudOwnerUid||'');
+  const entries=await readLocalBackupRecords();
+  const snapshot=entries.find(x=>String(x?.id||'')===String(snapshotId));
+  if(!snapshot)throw new Error('Эта резервная копия не найдена');
+  const safety=window.MemoryCardBackupSafetyV92;
+  const prepared=safety.prepareRestore(snapshot,owner,0);
+  const payload=safety.exportPayload(prepared.games,snapshot.settings,owner,{snapshotId:snapshot.id});
+  downloadBackupJson(payload,'memory-card-backup-'+new Date().toISOString().slice(0,10)+'.json');
+}
+
+async function restoreLocalBackupById(snapshotId){
+  const owner=String(state.settings?.cloudOwnerUid||'');
+  const entries=await readLocalBackupRecords();
+  const snapshot=entries.find(x=>String(x?.id||'')===String(snapshotId));
+  if(!snapshot)throw new Error('Эта резервная копия не найдена');
+  const safety=window.MemoryCardBackupSafetyV92;
+  const result=safety.prepareRestore(snapshot,owner,state.games.length);
+  const when=new Date(snapshot.createdAt).toLocaleString('ru-RU');
+  if(!confirm('Восстановить '+result.count+' игр из копии от '+when+
+    '?\n\nТекущие игры будут сохранены в отдельную копию. Настройки аккаунта и данные входа не заменяются. Изменения игр могут позже синхронизироваться с облаком.'))return;
   await createLocalSnapshot('before-restore');
-  state.games = Array.isArray(target.games) ? target.games.map(migrateGame) : [];
-  state.settings = migrateSettings(target.settings || {});
-  applyTheme();
-  await persist();
+  if(owner!==String(state.settings?.cloudOwnerUid||''))
+    throw new Error('Аккаунт сменился; восстановление отменено');
+  const before=state.games;
+  state.games=result.games.map(migrateGame);
+  try{await persist();}
+  catch(error){state.games=before;throw error;}
   render();
-  setToast(`Восстановлена копия от ${when}`);
+  setToast('Восстановлено '+result.count+' игр. Предыдущее состояние сохранено.');
+}
+
+async function restoreLatestSnapshot(){
+  try{
+    const entries=await readLocalBackupRecords();
+    if(!entries.length){alert('Локальных копий пока нет. Создай первую в настройках.');return;}
+    await restoreLocalBackupById(entries[0].id);
+  }catch(error){alert('Не удалось восстановить копию: '+error.message);}
+}
+
+async function refreshLocalBackupList(host){
+  if(!host?.isConnected)return;
+  const owner=String(state.settings?.cloudOwnerUid||'');
+  const entries=await readLocalBackupRecords();
+  if(!host.isConnected||String(state.settings?.cloudOwnerUid||'')!==owner)return;
+  host.replaceChildren();
+  if(!entries.length){
+    const empty=document.createElement('p');
+    empty.className='status-line';
+    empty.textContent='На этом устройстве ещё нет локальных копий.';
+    host.appendChild(empty);return;
+  }
+  const safety=window.MemoryCardBackupSafetyV92;
+  entries.slice(0,MAX_LOCAL_BACKUPS).forEach((snapshot,index)=>{
+    const row=document.createElement('div');row.className='mc-backup-row';
+    const info=document.createElement('div');info.className='mc-backup-info';
+    const title=document.createElement('b');
+    const date=new Date(snapshot?.createdAt);
+    title.textContent=Number.isNaN(date.getTime())?'Копия '+(index+1):date.toLocaleString('ru-RU');
+    const details=document.createElement('small');
+    let valid=false;
+    try{
+      const inspected=safety.prepareRestore(snapshot,owner,0);
+      valid=true;
+      const labels={
+        manual:'Создана вручную','before-sync':'Перед синхронизацией',
+        'before-import':'Перед импортом','before-restore':'Перед восстановлением'
+      };
+      details.textContent=(labels[snapshot.reason]||'Локальная копия')+
+        ' · '+inspected.count+' игр';
+    }catch(error){
+      details.textContent='Недоступна: '+error.message;
+    }
+    info.append(title,details);row.appendChild(info);
+    for(const [action,caption] of [['export','Экспорт'],['restore','Восстановить']]){
+      const button=document.createElement('button');
+      button.type='button';button.className='secondary compact';
+      button.dataset.backupId=String(snapshot?.id||'');
+      button.dataset.backupAction=action;
+      button.textContent=caption;button.disabled=!valid||!snapshot?.id;
+      row.appendChild(button);
+    }
+    host.appendChild(row);
+  });
 }
 
 function nowIso() { return new Date().toISOString(); }
@@ -905,7 +1022,16 @@ function renderSettings() {
     <div class="rotation-settings-grid">${rotationEditor('handheld')}${rotationEditor('desktop')}</div>
     <section class="panel"><div class="settings-panel-head"><div><h3>Каталог игр и обложки</h3><p class="status-line">Каталог нужен для автоподстановки названия, года и жанра. Для PSP, Vita, DS/DSi, 3DS, GBA, PS3 и Wii U обложки теперь берутся только из Libretro Named_Boxarts — отдельной базы именно коробок игр. Для Switch используется осторожный резервный поиск.</p></div><div class="settings-actions"><button class="secondary" data-action="catalog-refresh-all">Обновить каталог</button><button class="secondary" data-action="covers-refresh">Обновить обложки</button></div></div><div id="catalogStatus" class="catalog-status">${PLATFORMS.map(p => `${p.abbr}: <b>${catalogCounts()[p.id] || 0}</b>`).join(' · ')}</div><div class="footer-note">Если надёжная обложка не найдена, Memory Card оставит цветную заглушку вместо случайной фотографии или логотипа.</div></section>
     <section class="panel"><h3>Google Sheets · безопасная синхронизация</h3><p class="status-line">Перед каждым обменом автоматически создаётся локальная резервная копия. Локальная библиотека и облачная библиотека всегда объединяются по ID и времени изменения — пустой ответ сервера больше не может стереть игры на устройстве.</p><div class="form-grid"><div class="field span-2"><label>Apps Script endpoint</label><input id="sheetEndpoint" placeholder="https://script.google.com/macros/s/.../exec" value="${esc(state.settings.sheetEndpoint || '')}"></div><div class="field span-2"><label>Секрет синхронизации</label><input id="syncSecret" type="password" value="${esc(state.settings.syncSecret || '')}"></div><label class="sync-toggle span-2"><input id="autoSync" type="checkbox" ${state.settings.autoSync === true ? 'checked' : ''}><span><b>Автосинхронизация</b><small>После обновления до v0.11 она один раз отключается из соображений безопасности. Сначала проверь ручную синхронизацию, затем можешь включить снова.</small></span></label></div><div class="settings-actions"><button class="primary" data-action="sync">Синхронизировать сейчас</button><button class="secondary" data-action="sync-test">Проверить подключение</button><button class="secondary" data-action="save-settings">Сохранить настройки</button><button class="secondary" data-action="restore-backup">Восстановить локальную копию</button></div><div class="status-line sync-status">${state.settings.lastSync ? `Последняя синхронизация: ${new Date(state.settings.lastSync).toLocaleString('ru-RU')}` : 'Синхронизация ещё не выполнялась.'}${state.settings.lastLocalBackupAt ? ` · Резервная копия: ${new Date(state.settings.lastLocalBackupAt).toLocaleString('ru-RU')}` : ''}</div><div class="footer-note">Endpoint и секрет остаются только на этом устройстве. В Google Таблицу они не записываются.</div></section>
-    <section class="panel"><h3>Резервная копия</h3><div class="settings-actions"><button class="secondary" data-action="export">Экспорт JSON</button><label class="secondary file-label">Импорт JSON<input id="importFile" type="file" accept="application/json" hidden></label></div><div class="footer-note">Экспорт содержит игры и настройки приложения.</div></section>
+    <section class="panel mc-backup-center"><h3>Резервные копии</h3>
+      <p class="status-line">Локальные копии хранятся только в этом браузере и отдельно для каждого аккаунта. Скачанный JSON содержит личные записи — не отправляй его посторонним.</p>
+      <div class="settings-actions">
+        <button type="button" class="secondary" data-action="backup-create">Создать локальную копию</button>
+        <button type="button" class="secondary" data-action="export">Скачать мою библиотеку JSON</button>
+        <label class="secondary file-label">Импортировать игры JSON<input id="importFile" type="file" accept="application/json" hidden></label>
+      </div>
+      <p class="footer-note">Импорт добавляет только недостающие игры и не заменяет настройки аккаунта. Для полного отката игровой библиотеки используй одну из локальных копий ниже.</p>
+      <div class="mc-backup-list" data-mc-backup-list role="status" aria-live="polite"><p class="status-line">Читаю копии…</p></div>
+    </section>
   </div>`;
 }
 
@@ -995,7 +1121,35 @@ function bind() {
   document.querySelectorAll('[data-action="sync"]').forEach(x => x.onclick = () => syncSheets({ silent: false }));
   document.querySelectorAll('[data-action="sync-test"]').forEach(x => x.onclick = testSheetsConnection);
   document.querySelectorAll('[data-action="restore-backup"]').forEach(x => x.onclick = restoreLatestSnapshot);
-  document.querySelectorAll('[data-action="export"]').forEach(x => x.onclick = exportData);
+  document.querySelectorAll('[data-action="export"]').forEach(x=>x.onclick=exportData);
+  document.querySelectorAll('[data-action="backup-create"]').forEach(x=>x.onclick=async()=>{
+    x.disabled=true;
+    try{await createLocalSnapshot('manual');await persist();setToast('Локальная копия создана.');render();}
+    catch(error){alert('Не удалось создать резервную копию: '+error.message);}
+    finally{if(x.isConnected)x.disabled=false;}
+  });
+  const backupList=document.querySelector('[data-mc-backup-list]');
+  if(backupList){
+    backupList.onclick=async(event)=>{
+      const btn=event.target instanceof Element ? event.target.closest('[data-backup-id]') : null;
+      if(!btn||btn.disabled)return;
+      btn.disabled=true;
+      try{
+        if(btn.dataset.backupAction==='export') await exportLocalBackupById(btn.dataset.backupId);
+        else if(btn.dataset.backupAction==='restore') await restoreLocalBackupById(btn.dataset.backupId);
+        if(backupList.isConnected)await refreshLocalBackupList(backupList);
+      }catch(error){alert('Операция с резервной копией не выполнена: '+error.message);}
+      finally{if(btn.isConnected)btn.disabled=false;}
+    };
+    void refreshLocalBackupList(backupList).catch(error=>{
+      if(!backupList.isConnected)return;
+      backupList.replaceChildren();
+      const message=document.createElement('p');
+      message.className='status-line';
+      message.textContent='Не удалось открыть локальные копии: '+error.message;
+      backupList.appendChild(message);
+    });
+  }
   document.querySelectorAll('[data-action="rotation-move"]').forEach(x => x.onclick = () => moveRotation(x.dataset.group, x.dataset.id, x.dataset.direction));
   document.querySelectorAll('[data-action="catalog-refresh-all"]').forEach(x => x.onclick = refreshAllCatalog);
   document.querySelectorAll('[data-action="covers-refresh"]').forEach(x => x.onclick = refreshMissingCovers);
@@ -1778,37 +1932,45 @@ async function syncSheets(options = {}) {
 }
 
 function exportData() {
-  const blob = new Blob([JSON.stringify({ version: 11, exportedAt: nowIso(), games: state.games, settings: state.settings }, null, 2)], { type: 'application/json' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `memory-card-${new Date().toISOString().slice(0, 10)}.json`;
-  a.click();
-  URL.revokeObjectURL(a.href);
+  try{
+    const safety=window.MemoryCardBackupSafetyV92;
+    const owner=String(state.settings?.cloudOwnerUid||'');
+    const payload=safety.exportPayload(state.games,state.settings,owner);
+    downloadBackupJson(payload,'memory-card-library-'+new Date().toISOString().slice(0,10)+'.json');
+    setToast('Резервный архив JSON сохранён.');
+  }catch(error){alert('Не удалось экспортировать библиотеку: '+error.message);}
 }
 
 async function importData(e) {
-  const file = e.target.files?.[0];
-  if (!file) return;
-  try {
-    const obj = JSON.parse(await file.text());
-    if (!Array.isArray(obj.games)) throw new Error('Нет массива games');
-    if (!confirm(`Импортировать ${obj.games.length} записей? Текущие записи будут объединены по ID.`)) return;
-    const map = new Map(state.games.map(g => [g.id, g]));
-    for (const raw of obj.games) {
-      const g = migrateGame(raw);
-      const old = map.get(g.id);
-      if (!old || String(g.updatedAt || '') > String(old.updatedAt || '')) map.set(g.id, g);
+  const file=e.target.files?.[0];
+  if(!file)return;
+  try{
+    const safety=window.MemoryCardBackupSafetyV92;
+    safety.validateFileSize(Number(file.size||0));
+    const data=JSON.parse(await file.text());
+    const owner=String(state.settings?.cloudOwnerUid||'');
+    const plan=safety.prepareImport(data,state.games,owner);
+    if(plan.added===0){
+      setToast('Новых игр нет: '+plan.skipped+' совпадающих записей не изменено.');
+      return;
     }
-    state.games = [...map.values()];
-    if (obj.settings) state.settings = migrateSettings({ ...state.settings, ...obj.settings });
-    state.settings.settingsUpdatedAt = nowIso();
-    applyTheme();
-    await persist();
-    setToast('Импорт завершён');
-  } catch (err) {
-    alert(`Не удалось импортировать файл: ${err.message}`);
+    const note=plan.unowned?'Файл не содержит подтверждённого владельца. ':'';
+    if(!confirm(note+'Добавить '+plan.added+' игр из JSON?'+
+      '\n\nСовпадающие ID ('+plan.skipped+') не будут перезаписаны. Настройки аккаунта, пароль и синхронизация не импортируются. Перед изменением будет создана локальная копия.'))return;
+    await createLocalSnapshot('before-import');
+    if(owner!==String(state.settings?.cloudOwnerUid||''))
+      throw new Error('Аккаунт сменился; импорт отменён');
+    const previous=state.games;
+    state.games=[...previous,...plan.games.slice(previous.length).map(migrateGame)];
+    try{await persist();}
+    catch(error){state.games=previous;throw error;}
+    render();
+    setToast('Добавлено '+plan.added+' игр. '+plan.skipped+' совпадений сохранены без изменений.');
+  }catch(error){
+    alert('Не удалось импортировать файл: '+error.message);
+  }finally{
+    e.target.value='';
   }
-  e.target.value = '';
 }
 
 document.addEventListener('visibilitychange', () => { if (!document.hidden) scheduleAutoSync(350); });

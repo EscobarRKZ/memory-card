@@ -59,6 +59,17 @@ Reviewed: 2026-11-08. This document tracks launch gates, not a declaration that 
 
 **Important (2026-11-07):** Phase A of v82 is live: the authenticated RPC exists and new game writes will use it exclusively. Phase B direct-table-write lockdown is **not active** yet, so old PWA clients can still bypass CAS. Keep public signup closed until the lockdown, signed-in testing, and account/privacy work are complete. See [SERVER_CAS_ROLLOUT_V82.md](docs/SERVER_CAS_ROLLOUT_V82.md).
 
+## Stage 2.5 — account-safe local recovery (v92)
+
+- [x] v92: local backup list for current signed-in identity, manual snapshot, per-copy download, restore with owner verification and a pre-restore snapshot.
+- [x] v92: import missing game IDs only; reject foreign or internally inconsistent account owners, malformed IDs/years, duplicate keys and excessively large files. Never overwrite existing games or import private account settings through JSON.
+- [x] v92: export a portable JSON without local secret tokens, prior cloud revision baselines or legacy sheet-sync credentials. Export includes an account owner identifier for later import ownership checks; warn that private notes and game lists remain in the file.
+- [x] v92: single IndexedDB read-modify-write transaction for snapshots, refusing cross-account changes or malformed backup stores.
+- [x] v92: known offline legal/privacy pages retain their identity; unknown offline routes no longer fall through to the app shell.
+- [ ] Verify local backups/guest import/restore, account switching, disk full, offline-to-online cloud convergence and JSON import on real Android and iOS.
+- [ ] Provide a fully interactive, encrypted-at-rest optional backup channel with user-held recovery keys only after an explicit threat model; v92 local browser storage is **not encrypted**.
+- [ ] Consider checksum signatures and cryptographic integrity for externally transferred JSON files; v92 performs strict structural checks but no cryptographic proof of authorship.
+
 ## Stage 3 — identity and privacy controls
 
 - [x] v88: private `report_user` RPC and `mc_private.user_reports` table, five validated reasons, optional note up to 1000 chars, three new reports per rolling 24h, 24h duplicate suppression.
