@@ -70,6 +70,15 @@ Reviewed: 2026-11-08. This document tracks launch gates, not a declaration that 
 - [ ] Provide a fully interactive, encrypted-at-rest optional backup channel with user-held recovery keys only after an explicit threat model; v92 local browser storage is **not encrypted**.
 - [ ] Consider checksum signatures and cryptographic integrity for externally transferred JSON files; v92 performs strict structural checks but no cryptographic proof of authorship.
 
+## Stage 2.6 — transient cloud failure resilience (v93)
+
+- [x] Add bounded, jittered exponential backoff for temporary Supabase/network errors: up to 5 automatic retries per attempt burst. No indefinite polling when the service stays unavailable.
+- [x] Before each retry, read the cloud library again and rerun revision-aware merge and server CAS; do not replay previous mutating RPC payloads or write directly to public.games.
+- [x] Never retry CAS conflicts, account mismatch, malformed requests, 401/403 or permission errors automatically. Local games and notes stay on device.
+- [x] Stop retry timers on account changes, sign-out, success and conflict. Expose retry status to the signed-in user and allow manual reset.
+- [ ] Test live iOS/Android offline transitions, 429/503, long uploads, process suspension and multi-device conflicts with **disposable** test accounts. Current CI uses a simulated Supabase server; no production user data was modified.
+- [ ] Monitor real p95 sync latency, failure categories and server usage once telemetry/privacy policy and an operational process exist.
+
 ## Stage 3 — identity and privacy controls
 
 - [x] v88: private `report_user` RPC and `mc_private.user_reports` table, five validated reasons, optional note up to 1000 chars, three new reports per rolling 24h, 24h duplicate suppression.

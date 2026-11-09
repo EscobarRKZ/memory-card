@@ -24,7 +24,8 @@ for(const p of ['signup','login','reset','password']){
  assert.ok(backend.includes("friendlyAuthError(error,'"+p+"')"),'missing safe '+p+' errors');
 }
 const index=read('index.html'),sw=read('sw.js');
-assert.ok(index.indexOf('auth-messages-v89.js?v=89')<index.indexOf('backend-v2.js?v=89'));
+const backendEntry=index.match(/\.\/backend-v2\.js\?v=\d+/)?.[0];
+assert.ok(backendEntry&&index.indexOf('auth-messages-v89.js?v=89')<index.indexOf(backendEntry),'auth messages must load before current cloud backend');
 assert.ok(sw.includes('"./auth-messages-v89.js?v=89"'));
 for(const name of ['confirm-signup','reset-password','magic-link','email-change']){
  const html=read('emails/'+name+'.html');
