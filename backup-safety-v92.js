@@ -43,9 +43,18 @@
       const id=String(game.id||'').trim();
       const title=String(game.title||'').trim();
       const platform=String(game.platform||'').trim();
-      if(!id||id.length>200||!title||title.length>1000||!platform||platform.length>120||
+      // IDs, platforms and years appear in historical HTML attributes and CSS.
+      // Reject unsafe imported values before they can reach those renderers.
+      const year=String(game.releaseYear||'');
+      if(!/^[A-Za-z0-9][A-Za-z0-9:_-]{0,199}$/.test(id)||
+         !/^[A-Za-z0-9][A-Za-z0-9_-]{0,119}$/.test(platform)||
+         (year!==''&&!/^[12][0-9]{3}$/.test(year))||
+         !title||title.length>1000||
          !STATUSES.has(String(game.status||'completed'))||
-         String(game.notes||'').length>50000||String(game.coverUrl||'').length>8000){
+         String(game.notes||'').length>50000||
+         String(game.coverUrl||'').length>8000||
+         String(game.genre||'').length>500||
+         String(game.franchise||'').length>500){
         fail('INVALID_GAME','Неверные поля игры №'+(i+1));
       }
       if(ids.has(id))fail('DUPLICATE_GAME','Файл содержит повторяющийся ID игры: '+id.slice(0,80));
