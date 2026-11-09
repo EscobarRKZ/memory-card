@@ -17,6 +17,10 @@ on:
       - "tests/test_account_delete_client_v85.cjs"
       - "delete-account.html"
       - "index.html"
+      - "docs/DEVICE_HEALTH_V96.md"
+      - "tests/test_device_health_v96.cjs"
+      - "device-health-v96.css"
+      - "device-health-v96.js"
       - "docs/LIVE_DB_INTEGRATION_V95.md"
       - "tests/test_live_db_safety_v95.cjs"
       - "tests/live_social_authorization_v95.sql"
@@ -92,6 +96,10 @@ on:
       - "tests/test_account_delete_client_v85.cjs"
       - "delete-account.html"
       - "index.html"
+      - "docs/DEVICE_HEALTH_V96.md"
+      - "tests/test_device_health_v96.cjs"
+      - "device-health-v96.css"
+      - "device-health-v96.js"
       - "docs/LIVE_DB_INTEGRATION_V95.md"
       - "tests/test_live_db_safety_v95.cjs"
       - "tests/live_social_authorization_v95.sql"
@@ -181,6 +189,7 @@ jobs:
           node --check cover-rights-v90.js
           node --check backup-safety-v92.js
           node --check cloud-retry-v93.js
+          node --check device-health-v96.js
           node --check scripts/check-hosted-release.mjs
           node --check scripts/generate-assetlinks.mjs
       - name: Run offline sync regression tests
@@ -207,3 +216,4 @@ jobs:
           node tests/test_cloud_retry_v93.cjs
           node tests/test_social_pair_guard_v94.cjs
           node tests/test_live_db_safety_v95.cjs
+          node tests/test_device_health_v96.cjs
