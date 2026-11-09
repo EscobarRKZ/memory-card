@@ -114,6 +114,17 @@ Reviewed: 2026-11-08. This document tracks launch gates, not a declaration that 
 - [ ] **Still required:** two disposable, real Supabase Auth identities exercising concurrent block/accept, unblock/reinvite, both-direction block, direct API permissions and profile visibility with signed-in clients and physical devices. Offline static/mock CI is not a concurrency proof.
 - [ ] Audit the remaining social `SECURITY DEFINER` RPCs and broader client RLS grants; public signup is not cleared by this patch alone.
 
+## Stage 3.3 — rollback-only live database authorization checks (v95)
+
+- [x] Verify two ephemeral `auth.users` fixture identities on the actual project within **one explicit SQL transaction ending in ROLLBACK**. Account rows, profile triggers, friendships, request events, user blocks, games and CAS changes are not retained.
+- [x] With `SET LOCAL ROLE authenticated` and two simulated `request.jwt.claim.sub` values, assert PostgreSQL RLS isolation of games, profiles and settings; refuse cross-account direct writes.
+- [x] Exercise real `save_games_if_unchanged` success, stale-revision failure and a fabricated cross-owner write with an exact known revision.
+- [x] Exercise real invitation, recipient-only acceptance, friend profile (without notes or backlog), block, revoked access, reverse-block request denial, unblock and fresh reinvitation.
+- [x] Independently confirm post-rollback counts: **2 genuine users, 110 game records, no fixture users**; ensure no friendship/audit rows remain.
+- [x] Commit repeatable SQL to `tests/live_*.sql` and enforce SQL safety markers in offline CI; document results and remaining limitations.
+- [ ] **This is not yet full Auth E2E:** use independently signed-in disposable Supabase accounts, separate connections for concurrent block/accept and simultaneous CAS writes, actual SMTP delivery, Android/iOS clients and account deletion. No server lock contention is covered by one-connection tests.
+- [ ] Keep SQL fixture execution manual and bounded to a controlled environment; CI must never mutate production data automatically without dedicated verified infrastructure.
+
 ## Stage 3.5 — game cover rights and privacy (v90)
 
 - [x] v90: per-device, opt-in third-party cover display. Default off; local game data and cloud cover URLs persist unchanged.
