@@ -64,6 +64,7 @@
             </span>
           </label>
           <p>${tr('Настройка сохраняется только на этом устройстве. Отключение не удаляет мои игры и ссылки на обложки.','This setting is local to this device. Turning it off never deletes games or cover links.')}</p>
+          <p>${tr('Скрытых обложек на устройстве:','Covers hidden on this device:')} <b>${window.MemoryCardCoverVisibilityV97?.countFor(state.settings?.cloudOwnerUid||'guest')||0}</b>. ${tr('Включай или отключай показ на странице отдельной игры.','Use the individual game page to hide or show its cover.')}</p>
         </div>
       <p class="mc-cover-rights-provider">${tr('Каталог обложек:','Artwork directory:')} <a href="https://www.gametdb.com/" target="_blank" rel="noopener noreferrer">GameTDB</a>. ${tr('Ссылка на источник не означает передачу авторских прав.','A source link does not provide a copyright license.')}</p>
       <div class="mc-catalog-platforms-head"><b>${tr('Наполнение по платформам','Catalog coverage by platform')}</b><span>${tr('0 означает, что локальный каталог для системы пока не загружен','0 means that platform catalog is not loaded yet')}</span></div>

@@ -112,7 +112,7 @@
     const get=id=>dialog.querySelector(`[data-share-${id}]`);
     const opts={art:get('art').checked,note:get('note').checked,name:get('name').checked,date:get('date').checked,excerpt:get('excerpt').value,nickname:box.nickname};
     let image=null;
-    if(opts.art && window.MemoryCardCoverRightsV90?.enabled() && game.coverUrl) {
+    if(opts.art && window.MemoryCardCoverVisibilityV97?.isVisible(game) && game.coverUrl) {
       if(!box.image)box.image=cover(game.coverUrl);
       image=await box.image;
     }
@@ -151,7 +151,7 @@
     dialog.innerHTML=`<div class="mc-share-head"><div><h2 id="mc-share-title">${tr('Карточка для друзей','A card for friends')}</h2><p>${tr('Сначала предпросмотр. Ничего не отправляется автоматически.','Preview first. Nothing is sent automatically.')}</p></div><button type="button" class="icon-btn" data-share-close aria-label="${tr('Закрыть','Close')}">${icon('close')}</button></div>
       <div class="mc-share-layout"><div class="mc-share-preview"><canvas data-share-canvas width="1080" height="1350" role="img" aria-label="${tr('Предпросмотр карточки игры','Game card preview')}"></canvas></div>
       <div class="mc-share-options"><h3>${tr('Что показать на карточке','Include on the card')}</h3>
-      <label><input type="checkbox" data-share-art ${window.MemoryCardCoverRightsV90?.enabled()?"":"disabled"}><span>${tr('Обложка игры','Game cover')}</span></label>
+      <label><input type="checkbox" data-share-art ${window.MemoryCardCoverVisibilityV97?.isVisible(game)?"":"disabled"}><span>${tr('Обложка игры','Game cover')}</span></label>
       <label><input type="checkbox" data-share-name><span>${tr('Имя из профиля','Profile name')}</span></label>
       <label><input type="checkbox" data-share-date><span>${tr('Дата добавления записи','Date entry was added')}</span></label>
       <label><input type="checkbox" data-share-note><span>${tr('Фрагмент моего отзыва','An excerpt from my review')}</span></label>

@@ -261,7 +261,7 @@
   }
 
   async function applyCover(game, candidate) {
-    if (!window.MemoryCardCoverRightsV90?.enabled()) return;
+    if (!window.MemoryCardCoverRightsV90?.enabled() || window.MemoryCardCoverVisibilityV97?.isHidden(game)) return;
     if (!candidate?.url || !/^https?:\/\//i.test(candidate.url)) return;
     game.coverUrl = candidate.url;
     game.coverSource = candidate.source || 'manual-cover-picker';
@@ -285,6 +285,7 @@
     if (!window.MemoryCardCoverRightsV90?.enabled()) { setToast('Сначала включи внешние обложки в Настройки → Каталоги.'); return; }
     const game = state.games.find(g => g && String(g.id) === String(gameId) && !g.deletedAt);
     if (!game || document.querySelector('.mc-cover-picker-backdrop')) return;
+    if (window.MemoryCardCoverVisibilityV97?.isHidden(game)) { setToast('Сначала включи показ обложки на странице игры.'); return; }
     const oldText = trigger?.textContent || '↻ Обновить обложку';
     if (trigger) { trigger.disabled = true; trigger.textContent = 'Ищу варианты…'; }
     const overlay = pickerShell(game);
