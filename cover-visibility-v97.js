@@ -104,7 +104,11 @@
       'Обложка скрыта на этом устройстве. Ссылка, игра, оценка и заметки сохранены.':
       'Можно скрыть только эту обложку на устройстве, не удаляя игру или ссылку.';
   }
+  function safeToRedraw(){
+    return !root.document?.querySelector?.('#gameForm,#playingForm,#finishRotationForm,.mc-cover-picker-backdrop,.mc-share-dialog,.mc-auth-form');
+  }
   function redraw(){
+    if(!safeToRedraw())return;
     if(typeof render==='function')render();
     else root.render?.();
   }
@@ -156,5 +160,10 @@
     try{redraw();}catch(_){}
   });
   if(root.document)root.queueMicrotask?.(decorateDetail);
+  // A warm PWA may load an older shell before the local hidden-cover list.
+  // Refresh once after IndexedDB has loaded; never interrupt an active form.
+  root.MemoryCardInitialLoad?.then?.(()=>{
+    if(countFor(owner())>0){try{redraw();}catch(_){}}
+  }).catch?.(()=>{});
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof window!=='undefined'?window:{});
