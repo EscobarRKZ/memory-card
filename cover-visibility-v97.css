@@ -1,0 +1,14 @@
+/* Memory Card v97: per-game cover visibility controls. */
+.mc-cover-visibility-action { border-style:solid; }
+.mc-cover-visibility-note {
+  margin:8px 0 0;
+  color:var(--muted);
+  font-size:12px;
+  line-height:1.5;
+  max-width:550px;
+}
+.v16-detail-actions:has(.mc-cover-visibility-action) { flex-wrap:wrap; }
+@media(max-width:560px) {
+  .mc-cover-visibility-action { max-width:100%; white-space:normal; }
+  .mc-cover-visibility-note { font-size:11px; }
+}

@@ -142,7 +142,8 @@ const basic={
   const index=read('index.html'),sw=read('sw.js'),source=read('device-health-v96.js');
   assert.ok(index.indexOf('backend-v2.js?v=93')<index.indexOf('device-health-v96.js?v=96'));
   assert.match(index,/device-health-v96\.css\?v=96/);
-  assert.match(sw,/const VERSION=96;/);
+  const release=Number(sw.match(/const VERSION=(\d+);/)?.[1]);
+  assert.ok(release>=96,'future PWA versions must retain v96 diagnostics');
   assert.ok(sw.includes('"./device-health-v96.js?v=96"'));
   assert.ok(sw.includes('"./device-health-v96.css?v=96"'));
   assert.match(source,/data-settings-category="data"/);

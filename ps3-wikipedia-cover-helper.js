@@ -149,18 +149,18 @@
   }
 
   async function enhance(container) {
-    if (!window.MemoryCardCoverRightsV90?.enabled()) return;
+    if (!window.MemoryCardCoverRightsV90?.enabled() || window.MemoryCardCoverVisibilityV97?.suppressedContainer(container)) return;
     if (!container?.isConnected || container.querySelector('img')) return;
     const title = titleOf(container);
     if (!title) return;
     const url = await resolve(title);
-    if (!window.MemoryCardCoverRightsV90?.enabled() || !url || !container.isConnected || container.querySelector('img')) return;
+    if (!window.MemoryCardCoverRightsV90?.enabled() || window.MemoryCardCoverVisibilityV97?.suppressedContainer(container) || !url || !container.isConnected || container.querySelector('img')) return;
     const img = new Image();
     img.loading = 'lazy';
     img.alt = `Обложка ${title}`;
     img.referrerPolicy = 'no-referrer';
     img.onload = () => {
-      if (!window.MemoryCardCoverRightsV90?.enabled() || !container.isConnected || container.querySelector('img')) return;
+      if (!window.MemoryCardCoverRightsV90?.enabled() || window.MemoryCardCoverVisibilityV97?.suppressedContainer(container) || !container.isConnected || container.querySelector('img')) return;
       container.prepend(img);
       container.classList.add('has-image');
       container.classList.remove('image-failed');
@@ -187,7 +187,7 @@
   function scan() {
     if (!window.MemoryCardCoverRightsV90?.enabled()) return;
     for (const el of document.querySelectorAll('.cover, .detail-cover, .mini-cover, .playing-cover')) {
-      if (!(el instanceof HTMLElement) || el.querySelector('img') || el.dataset.ps3WikiQueued === '1') continue;
+      if (!(el instanceof HTMLElement) || el.querySelector('img') || el.dataset.ps3WikiQueued === '1' || window.MemoryCardCoverVisibilityV97?.suppressedContainer(el)) continue;
       const badge = el.querySelector('.cover-platform-badge');
       if (!badge || badge.textContent.trim().toLowerCase() !== 'ps3') continue;
       el.dataset.ps3WikiQueued = '1';

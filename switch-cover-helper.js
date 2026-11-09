@@ -173,11 +173,11 @@
       img.loading = 'lazy';
       img.alt = `Обложка ${title}`;
       const tryNext = () => {
-        if (!window.MemoryCardCoverRightsV90?.enabled() || !container?.isConnected || index >= urls.length) { resolve(false); return; }
+        if (!window.MemoryCardCoverRightsV90?.enabled() || window.MemoryCardCoverVisibilityV97?.suppressedContainer(container) || !container?.isConnected || index >= urls.length) { resolve(false); return; }
         img.src = urls[index++];
       };
       img.onload = () => {
-        if (!window.MemoryCardCoverRightsV90?.enabled() || !container?.isConnected) { resolve(false); return; }
+        if (!window.MemoryCardCoverRightsV90?.enabled() || window.MemoryCardCoverVisibilityV97?.suppressedContainer(container) || !container?.isConnected) { resolve(false); return; }
         container.querySelector('img')?.remove();
         container.prepend(img);
         container.classList.add('has-image');
@@ -194,7 +194,7 @@
   }
 
   async function enhance(container) {
-    if (!window.MemoryCardCoverRightsV90?.enabled()) return;
+    if (!window.MemoryCardCoverRightsV90?.enabled() || window.MemoryCardCoverVisibilityV97?.suppressedContainer(container)) return;
     if (!container?.isConnected) return;
     const title = getTitle(container);
     if (!title) return;
@@ -238,7 +238,7 @@
     if (!window.MemoryCardCoverRightsV90?.enabled()) return;
     const now = Date.now();
     for (const el of document.querySelectorAll('.cover, .detail-cover, .mini-cover, .playing-cover')) {
-      if (!(el instanceof HTMLElement)) continue;
+      if (!(el instanceof HTMLElement) || window.MemoryCardCoverVisibilityV97?.suppressedContainer(el)) continue;
       const badge = el.querySelector('.cover-platform-badge');
       if (!badge || badge.textContent.trim().toLowerCase() !== 'switch') continue;
       const retryAt = Number(el.dataset.switchCoverRetryAt || 0);

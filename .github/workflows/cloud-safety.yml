@@ -17,6 +17,10 @@ on:
       - "tests/test_account_delete_client_v85.cjs"
       - "delete-account.html"
       - "index.html"
+      - "docs/COVER_VISIBILITY_V97.md"
+      - "tests/test_cover_visibility_v97.cjs"
+      - "cover-visibility-v97.css"
+      - "cover-visibility-v97.js"
       - "docs/DEVICE_HEALTH_V96.md"
       - "tests/test_device_health_v96.cjs"
       - "device-health-v96.css"
@@ -96,6 +100,10 @@ on:
       - "tests/test_account_delete_client_v85.cjs"
       - "delete-account.html"
       - "index.html"
+      - "docs/COVER_VISIBILITY_V97.md"
+      - "tests/test_cover_visibility_v97.cjs"
+      - "cover-visibility-v97.css"
+      - "cover-visibility-v97.js"
       - "docs/DEVICE_HEALTH_V96.md"
       - "tests/test_device_health_v96.cjs"
       - "device-health-v96.css"
@@ -190,6 +198,7 @@ jobs:
           node --check backup-safety-v92.js
           node --check cloud-retry-v93.js
           node --check device-health-v96.js
+          node --check cover-visibility-v97.js
           node --check scripts/check-hosted-release.mjs
           node --check scripts/generate-assetlinks.mjs
       - name: Run offline sync regression tests
@@ -217,3 +226,4 @@ jobs:
           node tests/test_social_pair_guard_v94.cjs
           node tests/test_live_db_safety_v95.cjs
           node tests/test_device_health_v96.cjs
+          node tests/test_cover_visibility_v97.cjs

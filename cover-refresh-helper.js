@@ -681,7 +681,8 @@
     try {
       const main = await getValue(MAIN_KEY, null);
       if (!main || !Array.isArray(main.games)) throw new Error('Не удалось прочитать локальную библиотеку');
-      const games = main.games.filter(game => game && !game.deletedAt);
+      const games = main.games.filter(game => game && !game.deletedAt &&
+        !window.MemoryCardCoverVisibilityV97?.isHiddenFor(main.settings?.cloudOwnerUid || 'guest',game.id));
       if (!games.length) {
         finish('Обложки проверены', 'В библиотеке пока нет игр');
         return;
