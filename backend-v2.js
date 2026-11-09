@@ -16,6 +16,8 @@
   let lastCloudErrorToast=0;
   let activeAuthUserId=null;
   let localEpoch=0,conflictItems=[],resolvingConflict=false;
+  const retryApi=window.MemoryCardCloudRetryV93;
+  let retryTimer=0,retryAttempts=0,retryOwner='',retryAt=0;
   const conflictsApi=window.MemoryCardConflictV81;
   const transfer=window.MemoryCardCloudTransferV80;
   const vault=window.MemoryCardAccountVaultV83;
@@ -190,6 +192,49 @@
     await reconcile();
   }
 
+  function cancelCloudRetry(resetAttempts=true){
+    clearTimeout(retryTimer);
+    retryTimer=0;retryAt=0;
+    if(resetAttempts){retryAttempts=0;retryOwner='';}
+  }
+
+  function scheduleCloudRetry(error,uid){
+    if(!retryApi?.shouldRetry?.(error)||!session||session.user.id!==uid||
+       conflictItems.length)return false;
+    if(retryOwner!==uid){retryOwner=uid;retryAttempts=0;}
+    if(typeof navigator!=='undefined'&&navigator.onLine===false){
+      setSyncNotice('error','Нет сети. Локальные игры сохранены; синхронизация повторится при подключении.');
+      return true;
+    }
+    if(retryAttempts>=retryApi.MAX_ATTEMPTS){
+      setSyncNotice('error','Сервер временно недоступен. Локальные игры сохранены. Лимит повторов исчерпан; нажми «Синхронизировать» позже.');
+      return true;
+    }
+    const attempt=++retryAttempts;
+    const delay=retryApi.nextDelay(attempt);
+    cancelCloudRetry(false);
+    retryAt=Date.now()+delay;
+    retryTimer=setTimeout(()=>{
+      retryTimer=0;retryAt=0;
+      if(!session||session.user.id!==uid||conflictItems.length)return;
+      if(typeof navigator!=='undefined'&&navigator.onLine===false){
+        setSyncNotice('error','Нет сети. Локальные игры сохранены; повторю синхронизацию после подключения.');
+        return;
+      }
+      // Never resend the previous RPC batch. Reconcile performs a new full
+      // cloud download and version comparison before every write.
+      void reconcile();
+    },delay);
+    setSyncNotice('error','Временный сбой облака. Локальные игры сохранены. Повтор через '+
+      Math.ceil(delay/1000)+' с (попытка '+attempt+'/'+retryApi.MAX_ATTEMPTS+').');
+    return true;
+  }
+
+  function manualSync(){
+    cancelCloudRetry();
+    return reconcile();
+  }
+
   function pushCloud(){
     clearTimeout(pushTimer);
     return reconcile();
@@ -206,6 +251,7 @@
   async function reconcile(){
     if(!session)return false;
     if(syncing){pushQueuedDuringSync=true;return false;}
+    cancelCloudRetry(false);
     syncing=true;
     const uid=session.user.id;
     let epoch=localEpoch;
@@ -239,6 +285,7 @@
       const plan=conflictsApi.plan(state.games||[],remote,localBaseline(uid));
 
       if(plan.conflicts.length){
+        cancelCloudRetry();
         conflictItems=plan.conflicts;
         cloudReady=false;
         setSyncNotice('conflict','Есть конфликтующие изменения ('+conflictItems.length+
@@ -306,6 +353,7 @@
 
       authWarning='';
       success=true;
+      cancelCloudRetry();
       setSyncNotice('ok','Синхронизировано: '+state.games.length+
         ' игр. Отправлено изменений: '+applied.length);
       if(!state.modal&&!document.querySelector('.modal-backdrop'))baseRender();
@@ -315,6 +363,7 @@
       console.error('Memory Card cloud sync failed',error);
       cloudReady=false;
       if(error?.code==='LOCAL_ACCOUNT_MISMATCH'){
+        cancelCloudRetry();
         conflictItems=[];
         setSyncNotice('error','Синхронизация заблокирована: данные другого аккаунта.');
         authWarning='На устройстве есть библиотека другого аккаунта. Чтобы не смешать записи, вход отменён. Используй отдельный профиль браузера.';
@@ -322,17 +371,20 @@
         try{await client.auth.signOut();}catch(_){}
         session=null;profile=null;showAuth();
       }else if(error?.code==='SYNC_CONFLICT'){
+        cancelCloudRetry();
         setSyncNotice('conflict','Облачная версия изменилась во время записи. Нажми «Синхронизировать» для повторной сверки.');
       }else{
-        setSyncNotice('error','Синхронизация не завершена. Локальные записи сохранены; попробуй ещё раз.');
-        // If the new account's local vault could not open, never expose the
-        // previous owner's in-memory library under a different login.
-        if(vault && String(state.settings?.cloudOwnerUid||'')!==uid){
+        // A wrong local account is not a network problem. Never auto-retry it.
+        const vaultMismatch=!!vault && String(state.settings?.cloudOwnerUid||'')!==uid;
+        if(vaultMismatch){
+          cancelCloudRetry();
+          setSyncNotice('error','Не удалось безопасно открыть библиотеку аккаунта.');
           authWarning='Не удалось открыть локальное хранилище аккаунта. Вход отменён без изменения сохранённых записей.';
           try{await client.auth.signOut();}catch(_){}
-          session=null;
-          profile=null;
-          showAuth();
+          session=null;profile=null;showAuth();
+        }else if(!scheduleCloudRetry(error,uid)){
+          cancelCloudRetry();
+          setSyncNotice('error','Синхронизация не завершена. Локальные записи сохранены; попробуй ещё раз.');
         }
       }
       return false;
@@ -465,6 +517,7 @@
       return;
     }
     const previous=session;
+    cancelCloudRetry();
     try{
       // This transaction keeps a named local copy before it clears "main".
       if(vault?.deactivate)await vault.deactivate();
@@ -665,7 +718,7 @@
     if(event.target instanceof Element&&event.target.closest('[data-auth-back]')){authMode='login';showAuth();return;}
     if(event.target instanceof Element&&event.target.closest('[data-auth-reset]')){resetPassword();return;}
     if(event.target instanceof Element&&event.target.closest('[data-v2-logout]')){logout();return;}
-    if(event.target instanceof Element&&event.target.closest('[data-v2-sync]')){reconcile();return;}
+    if(event.target instanceof Element&&event.target.closest('[data-v2-sync]')){manualSync();return;}
     if(event.target instanceof Element&&event.target.closest('[data-v84-retry-deletion]')){
       deletionState.requested=null;deletionState.error='';
       const card=document.querySelector('[data-v2-account]');
@@ -699,14 +752,15 @@
   },true);
 
   window.addEventListener('online',()=>{
-    if(!session||syncing)return;
-    if(!cloudReady)reconcile();
+    if(!session||syncing||conflictItems.length)return;
+    if(!cloudReady)manualSync();
     else if(syncKind==='error'||pushQueuedDuringSync)schedulePush(250);
   });
 
   client.auth.onAuthStateChange((event,next)=>{
     const newId=next?.user?.id||null;
-    if(newId!==activeAuthUserId){
+    if(newId!==activeAuthUserId||!newId){
+      cancelCloudRetry();
       activeAuthUserId=newId;
       deletionState={owner:newId||'',loading:false,requested:null,error:''};
       cloudReady=false;
@@ -751,6 +805,6 @@
     }
   }
 
-  window.MemoryCardBackendV2={configured:true,client,sync:reconcile,push:pushCloud,logout,isBusy:()=>syncing||!!vault?.isSwitching?.(),getSyncState:()=>({kind:syncKind,message:syncMessage,conflicts:conflictItems.length}),getSession:()=>session,getProfile:()=>profile,sendFriendRequest:async memoryId=>client.rpc('send_friend_request',{target_memory_id:memoryId}),acceptFriendRequest:async id=>client.rpc('accept_friend_request',{friendship_id:id}),getFriendProfile:async memoryId=>client.rpc('get_friend_profile',{target_memory_id:memoryId})};
+  window.MemoryCardBackendV2={configured:true,client,sync:manualSync,push:pushCloud,logout,isBusy:()=>syncing||!!vault?.isSwitching?.(),getSyncState:()=>({kind:syncKind,message:syncMessage,conflicts:conflictItems.length,retryAttempt:retryAttempts,retryScheduled:!!retryTimer,retryAfterMs:Math.max(0,retryAt-Date.now())}),getSession:()=>session,getProfile:()=>profile,sendFriendRequest:async memoryId=>client.rpc('send_friend_request',{target_memory_id:memoryId}),acceptFriendRequest:async id=>client.rpc('accept_friend_request',{friendship_id:id}),getFriendProfile:async memoryId=>client.rpc('get_friend_profile',{target_memory_id:memoryId})};
   init();
 })();
