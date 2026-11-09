@@ -22,6 +22,10 @@ DECLARE
   changed integer;
 BEGIN
   PERFORM set_config('request.jwt.claim.sub',a::text,true);
+  IF (SELECT count(*) FROM public.profiles)<>1 OR
+     (SELECT count(*) FROM public.user_settings)<>1 THEN
+    RAISE EXCEPTION 'V95_A_SEES_PRIVATE_PROFILE_OR_SETTINGS';
+  END IF;
   IF auth.uid() IS DISTINCT FROM a OR (SELECT count(*) FROM public.games)<>1 THEN
     RAISE EXCEPTION 'V95_A_CANNOT_ISOLATE_OWN_GAMES';
   END IF;
@@ -60,6 +64,10 @@ BEGIN
   IF NOT denied THEN RAISE EXCEPTION 'V95_STALE_CAS_UPDATE_WAS_ACCEPTED'; END IF;
 
   PERFORM set_config('request.jwt.claim.sub',b::text,true);
+  IF (SELECT count(*) FROM public.profiles)<>1 OR
+     (SELECT count(*) FROM public.user_settings)<>1 THEN
+    RAISE EXCEPTION 'V95_B_SEES_PRIVATE_PROFILE_OR_SETTINGS';
+  END IF;
   IF auth.uid() IS DISTINCT FROM b OR (SELECT count(*) FROM public.games)<>1 THEN
     RAISE EXCEPTION 'V95_B_CANNOT_ISOLATE_OWN_GAMES';
   END IF;
