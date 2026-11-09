@@ -46,3 +46,7 @@ Reference: https://github.com/libretro-thumbnails/libretro-thumbnails; https://w
 8. Before changing paid/free tiers, consult a qualified copyright lawyer for the planned jurisdictions and expected commercial distribution.
 
 This document makes no claim of approval from Nintendo, Sony, Microsoft, publishers, Libretro, GameTDB or Wikimedia.
+
+## v97 update — individual local cover suppression
+
+v97 adds an account-scoped, device-local reversible hide/show control for each game. It prevents the browser from displaying/downloading that game's artwork through the main renderer, cover enhancers, manual picker, bulk refresh, collection/hero backgrounds and PNG sharing. The game URL and all cloud records remain untouched. This is a **local privacy/UX tool**, not a rights-holder complaint/removal system; commercial/public licensing obligations and centralized takedown remain unresolved. See [COVER_VISIBILITY_V97.md](COVER_VISIBILITY_V97.md).

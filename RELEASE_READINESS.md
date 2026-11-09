@@ -155,6 +155,16 @@ Reviewed: 2026-11-08. This document tracks launch gates, not a declaration that 
 - [ ] Decide owned Android application ID and signing key / Play App Signing certificate; only then generate and deploy the real assetlinks statement.
 - [ ] Run authenticated disposable-user deletion/sync tests and real Android/iOS device smoke tests before closing release gates.
 
+## Stage 3.7 — per-game artwork privacy (v97)
+
+- [x] Add a reversible **per-game, per-account, per-device** artwork hide/show control with an explicit caption in game detail. The original URL, game, notes, ratings, timestamp, settings and server rows remain untouched.
+- [x] Display placeholders for hidden games everywhere in the core library, including home/detail hero backgrounds and collection stacks, regardless of global third-party cover opt-in.
+- [x] Prevent PS3/Switch/Wikipedia image enhancers, bulk refresh, manual picker and PNG sharing from loading hidden covers; preserve blocked state on same-origin tab updates.
+- [x] Limit stored rules to 2,000 entries, fail visibly on localStorage write errors and keep the restrictions scoped to the current signed-in/guest workspace.
+- [x] Regression tests exercise HTML images, account switching, failed localStorage, listener refresh, image helper guards and versioned PWA files.
+- [ ] Perform real mobile Safari/Android Chrome network inspection with different games and PWA update/restore scenarios to ensure no hidden artwork ever creates an external image request.
+- [ ] This is **not a publisher takedown**: verify all commercial cover rights and establish a publicly reachable complaint/removal channel with authenticated administrative enforcement.
+
 ## Stage 4 — Android package and platform experience
 
 - [x] v86: pin browser Supabase SDK to exact version `2.95.0`, add static release-integrity checks and service worker regression test to CI.

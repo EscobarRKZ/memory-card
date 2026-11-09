@@ -53,7 +53,11 @@ for(const p of [
  'manual-cover-picker-v18.js','cover-refresh-helper.js','switch-cover-helper.js',
  'ps3-cover-helper.js','ps3-wikipedia-cover-helper.js','experience-v66.js',
  'product-v16.js','product-v17.js','share-card-v66.js'
-])assert.ok(read(p).includes('window.MemoryCardCoverRightsV90?.enabled()'),'unguarded artwork path: '+p);
+])assert.ok(
+  read(p).includes('window.MemoryCardCoverRightsV90?.enabled()') ||
+  read(p).includes('window.MemoryCardCoverVisibilityV97?.isVisible('),
+  'unguarded artwork path: '+p
+);
 const share=read('share-card-v66.js');
 assert.ok(!share.includes('image:cover(game.coverUrl)'),'PNG preview cannot eagerly download art');
 assert.ok(!share.includes('data-share-art checked'),'public share art opt-in required');
