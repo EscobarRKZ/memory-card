@@ -125,6 +125,16 @@ Reviewed: 2026-11-08. This document tracks launch gates, not a declaration that 
 - [ ] **This is not yet full Auth E2E:** use independently signed-in disposable Supabase accounts, separate connections for concurrent block/accept and simultaneous CAS writes, actual SMTP delivery, Android/iOS clients and account deletion. No server lock contention is covered by one-connection tests.
 - [ ] Keep SQL fixture execution manual and bounded to a controlled environment; CI must never mutate production data automatically without dedicated verified infrastructure.
 
+## Stage 3.4 — on-device support and privacy-safe diagnostics (v96)
+
+- [x] v96: user-triggered health check in Settings → Data & sync, collecting local game count, own-cloud active row count, backup count, sync status/conflicts, PWA control, browser network indicator and storage estimate.
+- [x] v96: use only a read-only, HEAD/exact-count Supabase request under the current signed-in UID; never fetch game rows or inspect other users' data. If local account owner differs from Auth owner, do not query cloud.
+- [x] v96: allow users to request persistent browser storage explicitly and explain that browser approval does not guarantee backup safety or protection against manual deletion.
+- [x] v96: sanitized export allowlists only non-sensitive numeric/enumerated status fields. Never include email, user ID, tokens, game titles, notes, provider URLs or raw error messages.
+- [x] v96: mock-only regression tests assert no writes, no cross-account query, account-change cancellation and report redaction.
+- [ ] Test on physical iOS and Android clients, especially browser storage persistence, account transitions, offline handling, and Count with RLS. Browser storage estimates are approximate.
+- [ ] Establish a private staffed support channel and explicit data retention plan before inviting public reports from users. No diagnostics are uploaded automatically.
+
 ## Stage 3.5 — game cover rights and privacy (v90)
 
 - [x] v90: per-device, opt-in third-party cover display. Default off; local game data and cloud cover URLs persist unchanged.
