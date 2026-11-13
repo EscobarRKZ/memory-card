@@ -168,8 +168,8 @@ assert.match(share,/isVisible\(game\) && game\.coverUrl/);
 const picker=read('manual-cover-picker-v18.js');
 assert.match(picker,/isHidden\(game\).*Сначала включи показ обложки/);
 const index=read('index.html'),sw=read('sw.js'),updater=read('pwa-updates-v66.js');
-assert.match(sw,/const VERSION=97;/);
-assert.match(updater,/const BUILD = 97;/);
+assert.ok(Number(sw.match(/const VERSION=(\d+);/)?.[1])>=97,'v97 cover privacy must remain active in newer PWA releases');
+assert.ok(Number(updater.match(/const BUILD\s*=\s*(\d+);/)?.[1])>=97,'updater must support v97 or later');
 assert.ok(index.includes('cover-visibility-v97.js?v=97'));
 assert.ok(sw.includes('"./cover-visibility-v97.js?v=97"'));
 assert.ok(index.indexOf('device-health-v96.js?v=96')<index.indexOf('cover-visibility-v97.js?v=97'),
