@@ -19,8 +19,8 @@
     out.rotationDesktopEnabled = raw.rotationDesktopEnabled === true;
     out.handheldRotation = rotation(raw.handheldRotation, 'handheld');
     out.desktopRotation = rotation(raw.desktopRotation, 'desktop');
-    out.currentHandheld = out.handheldRotation.includes(raw.currentHandheld) ? raw.currentHandheld : '';
-    out.currentDesktop = out.desktopRotation.includes(raw.currentDesktop) ? raw.currentDesktop : '';
+    out.currentHandheld = out.handheldRotation.includes(raw.currentHandheld) ? raw.currentHandheld : (out.handheldRotation[0] || '');
+    out.currentDesktop = out.desktopRotation.includes(raw.currentDesktop) ? raw.currentDesktop : (out.desktopRotation[0] || '');
     return out;
   };
 
