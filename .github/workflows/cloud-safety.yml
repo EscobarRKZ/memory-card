@@ -17,6 +17,9 @@ on:
       - "tests/test_account_delete_client_v85.cjs"
       - "delete-account.html"
       - "index.html"
+      - "docs/SWITCH_ROTATION_V98.md"
+      - "tests/test_switch_rotation_v98.cjs"
+      - "switch-group-v98.css"
       - "docs/COVER_VISIBILITY_V97.md"
       - "tests/test_cover_visibility_v97.cjs"
       - "cover-visibility-v97.css"
@@ -100,6 +103,9 @@ on:
       - "tests/test_account_delete_client_v85.cjs"
       - "delete-account.html"
       - "index.html"
+      - "docs/SWITCH_ROTATION_V98.md"
+      - "tests/test_switch_rotation_v98.cjs"
+      - "switch-group-v98.css"
       - "docs/COVER_VISIBILITY_V97.md"
       - "tests/test_cover_visibility_v97.cjs"
       - "cover-visibility-v97.css"
@@ -185,6 +191,10 @@ jobs:
         run: |
           node --check backend-v2.js
           node --check app.js
+          node --check profile-core.js
+          node --check onboarding-v20.js
+          node --check product-v14.js
+          node --check settings-dashboard-v18.js
           node --check account-vault-v83.js
           node --check account-deletion-v84.js
           node --check account-deletion-page-v84.js
@@ -227,3 +237,4 @@ jobs:
           node tests/test_live_db_safety_v95.cjs
           node tests/test_device_health_v96.cjs
           node tests/test_cover_visibility_v97.cjs
+          node tests/test_switch_rotation_v98.cjs

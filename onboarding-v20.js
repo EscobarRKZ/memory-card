@@ -10,7 +10,7 @@
     const known = new Set(PLATFORMS.map(p => p.id));
     const owned = [...new Set((Array.isArray(raw.ownedPlatforms) ? raw.ownedPlatforms : []).filter(id => known.has(id)))];
     const ownedSet = new Set(owned);
-    const rotation = (value, group) => [...new Set((Array.isArray(value) ? value : []).filter(id => ownedSet.has(id) && platform(id).group === group))];
+    const rotation = (value, group) => [...new Set((Array.isArray(value) ? value : []).filter(id => ownedSet.has(id) && platformGroupFor(id,out.switchGroup) === group))];
 
     out.onboardingVersion = VERSION;
     out.onboardingCompleted = raw.onboardingCompleted === true;
@@ -19,8 +19,8 @@
     out.rotationDesktopEnabled = raw.rotationDesktopEnabled === true;
     out.handheldRotation = rotation(raw.handheldRotation, 'handheld');
     out.desktopRotation = rotation(raw.desktopRotation, 'desktop');
-    out.currentHandheld = out.handheldRotation.includes(raw.currentHandheld) ? raw.currentHandheld : '';
-    out.currentDesktop = out.desktopRotation.includes(raw.currentDesktop) ? raw.currentDesktop : '';
+    out.currentHandheld = out.handheldRotation.includes(raw.currentHandheld) ? raw.currentHandheld : (out.handheldRotation[0] || '');
+    out.currentDesktop = out.desktopRotation.includes(raw.currentDesktop) ? raw.currentDesktop : (out.desktopRotation[0] || '');
     return out;
   };
 

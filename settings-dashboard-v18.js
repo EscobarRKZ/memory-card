@@ -77,7 +77,7 @@
 
   function categoryFor(node) {
     if (!(node instanceof Element)) return 'basic';
-    if (node.matches('.rotation-settings-grid')) return 'rotation';
+    if (node.matches('.rotation-settings-grid, .switch-group-panel')) return 'rotation';
     if (node.matches('.profile-settings-card, .consoles-settings, .console-settings, .owned-platforms-settings')) return 'basic';
     if (node.matches('.v16-accent-panel')) return 'appearance';
 

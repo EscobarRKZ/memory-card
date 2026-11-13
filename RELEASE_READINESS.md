@@ -79,6 +79,16 @@ Reviewed: 2026-11-08. This document tracks launch gates, not a declaration that 
 - [ ] Test live iOS/Android offline transitions, 429/503, long uploads, process suspension and multi-device conflicts with **disposable** test accounts. Current CI uses a simulated Supabase server; no production user data was modified.
 - [ ] Monitor real p95 sync latency, failure categories and server usage once telemetry/privacy policy and an operational process exist.
 
+## Stage 2.7 — Switch handheld/desktop grouping (v98)
+
+- [x] Nintendo Switch may be assigned by its owner to the handheld or desktop rotation in Settings → Rotation.
+- [x] The default remains desktop for all previously saved accounts; invalid values normalize to desktop.
+- [x] Platform grouping, owned-device filters, playing lists, rotation controls, stats and onboarding use the selected group.
+- [x] Persist `switchGroup` in account settings and cloud payload; neither game rows nor their timestamps, notes, statuses and ratings are changed.
+- [x] A failed local persistence attempt restores the previous rotation selection instead of claiming success.
+- [x] CI regression tests cover both directions, legacy migration, account-specific settings and cloud serialization, while PWA cache and client build IDs remain consistent.
+- [ ] Run real Android/iOS and cross-device signed-in UI checks of rotation selection and cloud propagation before public launch.
+
 ## Stage 3 — identity and privacy controls
 
 - [x] v88: private `report_user` RPC and `mc_private.user_reports` table, five validated reasons, optional note up to 1000 chars, three new reports per rolling 24h, 24h duplicate suppression.
