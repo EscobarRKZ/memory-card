@@ -20,8 +20,8 @@
     rotationHandheldEnabled:true, rotationDesktopEnabled:true, profileUpdatedAt:'',
   });
 
-  normalizeRotation = function(ids, group) {
-    const allowed = new Set(PLATFORMS.filter(p => p.group === group).map(p => p.id));
+  normalizeRotation = function(ids, group, switchGroup = state.settings?.switchGroup) {
+    const allowed = new Set(PLATFORMS.filter(p => platformGroupFor(p.id,switchGroup) === group).map(p => p.id));
     const out = [];
     (Array.isArray(ids) ? ids : []).forEach(id => { if (allowed.has(id) && !out.includes(id)) out.push(id); });
     if (!out.length) (group === 'desktop' ? ['PS3','WIIU','SWITCH'] : ['DSI','VITA','3DS','PSP','GBA']).forEach(id => { if (allowed.has(id)) out.push(id); });
@@ -40,10 +40,10 @@
     out.userId = String(raw.userId || '').trim().toUpperCase();
     out.authToken = String(raw.authToken || '');
     out.profileUpdatedAt = String(raw.profileUpdatedAt || '');
-    out.handheldRotation = normalizeRotation(out.handheldRotation,'handheld').filter(id => out.ownedPlatforms.includes(id));
-    out.desktopRotation = normalizeRotation(out.desktopRotation,'desktop').filter(id => out.ownedPlatforms.includes(id));
-    if (!out.handheldRotation.length) out.handheldRotation = out.ownedPlatforms.filter(id => platform(id).group === 'handheld').slice(0,1);
-    if (!out.desktopRotation.length) out.desktopRotation = out.ownedPlatforms.filter(id => platform(id).group === 'desktop').slice(0,1);
+    out.handheldRotation = normalizeRotation(out.handheldRotation,'handheld',out.switchGroup).filter(id => out.ownedPlatforms.includes(id));
+    out.desktopRotation = normalizeRotation(out.desktopRotation,'desktop',out.switchGroup).filter(id => out.ownedPlatforms.includes(id));
+    if (!out.handheldRotation.length) out.handheldRotation = out.ownedPlatforms.filter(id => platformGroupFor(id,out.switchGroup) === 'handheld').slice(0,1);
+    if (!out.desktopRotation.length) out.desktopRotation = out.ownedPlatforms.filter(id => platformGroupFor(id,out.switchGroup) === 'desktop').slice(0,1);
     if (out.handheldRotation.length && !out.handheldRotation.includes(out.currentHandheld)) out.currentHandheld = out.handheldRotation[0];
     if (out.desktopRotation.length && !out.desktopRotation.includes(out.currentDesktop)) out.currentDesktop = out.desktopRotation[0];
     return out;
@@ -51,7 +51,7 @@
 
   window.mcOwnedPlatforms = function(group='') {
     const owned = new Set(state.settings.ownedPlatforms || legacyOwned);
-    return PLATFORMS.filter(p => owned.has(p.id) && (!group || p.group === group)).map(p => p.id);
+    return PLATFORMS.filter(p => owned.has(p.id) && (!group || platformGroupFor(p.id,state.settings?.switchGroup) === group)).map(p => p.id);
   };
   window.mcRotationEnabled = group => group === 'desktop' ? state.settings.rotationDesktopEnabled !== false : state.settings.rotationHandheldEnabled !== false;
 
@@ -167,7 +167,7 @@
   }
 
   syncableSettings = function() { return {
-    theme:state.settings.theme, handheldRotation:[...(state.settings.handheldRotation||[])], desktopRotation:[...(state.settings.desktopRotation||[])],
+    theme:state.settings.theme, switchGroup:state.settings.switchGroup, handheldRotation:[...(state.settings.handheldRotation||[])], desktopRotation:[...(state.settings.desktopRotation||[])],
     currentHandheld:state.settings.currentHandheld, currentDesktop:state.settings.currentDesktop, ownedPlatforms:[...(state.settings.ownedPlatforms||[])],
     rotationHandheldEnabled:state.settings.rotationHandheldEnabled!==false, rotationDesktopEnabled:state.settings.rotationDesktopEnabled!==false,
     settingsUpdatedAt:state.settings.settingsUpdatedAt||nowIso(),

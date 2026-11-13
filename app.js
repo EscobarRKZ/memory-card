@@ -44,6 +44,7 @@ const DEFAULT_SETTINGS = {
   sheetEndpoint: '',
   syncSecret: '',
   theme: 'system',
+  switchGroup: 'desktop',
   handheldRotation: ['DSI', 'VITA', '3DS', 'PSP', 'GBA'],
   desktopRotation: ['PS3', 'WIIU', 'SWITCH'],
   currentHandheld: 'PSP',
@@ -276,7 +277,16 @@ async function refreshLocalBackupList(host){
 
 function nowIso() { return new Date().toISOString(); }
 function uid() { return crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`; }
-function platform(id) { return PLATFORMS.find(p => p.id === id) || { id, name: id, abbr: id, group: 'handheld' }; }
+// A Nintendo Switch can be used in either rotation. Resolve its group from
+// account settings without mutating the shared platform catalog.
+function platformGroupFor(id, switchGroup = 'desktop') {
+  if (id === 'SWITCH') return switchGroup === 'handheld' ? 'handheld' : 'desktop';
+  return PLATFORMS.find(p => p.id === id)?.group || 'handheld';
+}
+function platform(id) {
+  const p = PLATFORMS.find(x => x.id === id) || { id, name: id, abbr: id, group: 'handheld' };
+  return id === 'SWITCH' ? { ...p, group: platformGroupFor(id,state.settings?.switchGroup) } : p;
+}
 function esc(value = '') { return String(value).replace(/[&<>'"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c])); }
 function liveGames() { return state.games.filter(g => !g.deletedAt); }
 function statusLabel(status) { return ({ completed: 'Пройдено', playing: 'Играю', dropped: 'Брошено', backlog: 'Хочу пройти' })[status] || status; }
@@ -548,8 +558,8 @@ function updateCatalogStatusDom() {
   el.innerHTML = PLATFORMS.map(p => `<span>${p.abbr}: <b>${counts[p.id] || 0}</b></span>`).join(' · ');
 }
 
-function normalizeRotation(ids, group) {
-  const allowed = PLATFORMS.filter(p => p.group === group).map(p => p.id);
+function normalizeRotation(ids, group, switchGroup = 'desktop') {
+  const allowed = PLATFORMS.filter(p => platformGroupFor(p.id, switchGroup) === group).map(p => p.id);
   const result = [];
   for (const id of Array.isArray(ids) ? ids : []) if (allowed.includes(id) && !result.includes(id)) result.push(id);
   for (const id of allowed) if (!result.includes(id)) result.push(id);
@@ -558,13 +568,14 @@ function normalizeRotation(ids, group) {
 
 function migrateSettings(raw = {}) {
   const merged = { ...DEFAULT_SETTINGS, ...raw };
+  merged.switchGroup = raw.switchGroup === 'handheld' ? 'handheld' : 'desktop';
   const legacyRotation = Array.isArray(raw.rotation) ? raw.rotation : [];
-  if (!Array.isArray(raw.handheldRotation) && legacyRotation.length) merged.handheldRotation = legacyRotation.filter(id => platform(id).group === 'handheld');
-  if (!Array.isArray(raw.desktopRotation) && legacyRotation.length) merged.desktopRotation = legacyRotation.filter(id => platform(id).group === 'desktop');
-  if (!raw.currentHandheld && raw.currentPlatform && platform(raw.currentPlatform).group === 'handheld') merged.currentHandheld = raw.currentPlatform;
-  if (!raw.currentDesktop && raw.currentPlatform && platform(raw.currentPlatform).group === 'desktop') merged.currentDesktop = raw.currentPlatform;
-  merged.handheldRotation = normalizeRotation(merged.handheldRotation, 'handheld');
-  merged.desktopRotation = normalizeRotation(merged.desktopRotation, 'desktop');
+  if (!Array.isArray(raw.handheldRotation) && legacyRotation.length) merged.handheldRotation = legacyRotation.filter(id => platformGroupFor(id,merged.switchGroup) === 'handheld');
+  if (!Array.isArray(raw.desktopRotation) && legacyRotation.length) merged.desktopRotation = legacyRotation.filter(id => platformGroupFor(id,merged.switchGroup) === 'desktop');
+  if (!raw.currentHandheld && raw.currentPlatform && platformGroupFor(raw.currentPlatform,merged.switchGroup) === 'handheld') merged.currentHandheld = raw.currentPlatform;
+  if (!raw.currentDesktop && raw.currentPlatform && platformGroupFor(raw.currentPlatform,merged.switchGroup) === 'desktop') merged.currentDesktop = raw.currentPlatform;
+  merged.handheldRotation = normalizeRotation(merged.handheldRotation, 'handheld', merged.switchGroup);
+  merged.desktopRotation = normalizeRotation(merged.desktopRotation, 'desktop', merged.switchGroup);
   if (!merged.handheldRotation.includes(merged.currentHandheld)) merged.currentHandheld = merged.handheldRotation[0];
   if (!merged.desktopRotation.includes(merged.currentDesktop)) merged.currentDesktop = merged.desktopRotation[0];
   if (!['system', 'light', 'dark'].includes(merged.theme)) merged.theme = 'system';
@@ -1019,6 +1030,20 @@ function rotationEditor(group) {
 function renderSettings() {
   return `<div class="section-head"><div><h2>Настройки</h2><p>Ротации, тема, синхронизация и резервная копия.</p></div></div><div class="settings-grid">
     <section class="panel"><h3>Оформление</h3><div class="field theme-field"><label>Тема</label><select id="themeMode"><option value="system" ${state.settings.theme === 'system' ? 'selected' : ''}>Системная</option><option value="light" ${state.settings.theme === 'light' ? 'selected' : ''}>Светлая</option><option value="dark" ${state.settings.theme === 'dark' ? 'selected' : ''}>Тёмная</option></select></div><div class="footer-note">В режиме «Системная» приложение автоматически следует теме устройства.</div></section>
+    <section class="panel switch-group-panel">
+      <div class="settings-panel-head"><div><h3>Nintendo Switch · тип устройства</h3>
+        <p class="status-line">Выбери, к какой ротации относится Switch. Это изменит очередь и раздел «Сейчас играю», но не затронет игры и оценки.</p>
+      </div></div>
+      <div class="switch-group-choices" role="group" aria-label="Ротация Nintendo Switch">
+        <button type="button" class="switch-group-choice ${state.settings.switchGroup === 'handheld' ? 'active' : ''}" data-action="switch-group" data-switch-group="handheld" aria-pressed="${state.settings.switchGroup === 'handheld'}">
+          <b>Портативная</b><small>Вместе с PSP, Vita, 3DS и другими портативками</small>
+        </button>
+        <button type="button" class="switch-group-choice ${state.settings.switchGroup !== 'handheld' ? 'active' : ''}" data-action="switch-group" data-switch-group="desktop" aria-pressed="${state.settings.switchGroup !== 'handheld'}">
+          <b>Домашняя</b><small>Вместе с PS3, Wii U и домашними консолями</small>
+        </button>
+      </div>
+      <p class="footer-note">Применяется сразу. Положение Switch можно изменить обратно в любой момент.</p>
+    </section>
     <div class="rotation-settings-grid">${rotationEditor('handheld')}${rotationEditor('desktop')}</div>
     <section class="panel"><div class="settings-panel-head"><div><h3>Каталог игр и обложки</h3><p class="status-line">Каталог нужен для автоподстановки названия, года и жанра. Для PSP, Vita, DS/DSi, 3DS, GBA, PS3 и Wii U обложки теперь берутся только из Libretro Named_Boxarts — отдельной базы именно коробок игр. Для Switch используется осторожный резервный поиск.</p></div><div class="settings-actions"><button class="secondary" data-action="catalog-refresh-all">Обновить каталог</button><button class="secondary" data-action="covers-refresh">Обновить обложки</button></div></div><div id="catalogStatus" class="catalog-status">${PLATFORMS.map(p => `${p.abbr}: <b>${catalogCounts()[p.id] || 0}</b>`).join(' · ')}</div><div class="footer-note">Если надёжная обложка не найдена, Memory Card оставит цветную заглушку вместо случайной фотографии или логотипа.</div></section>
     <section class="panel"><h3>Google Sheets · безопасная синхронизация</h3><p class="status-line">Перед каждым обменом автоматически создаётся локальная резервная копия. Локальная библиотека и облачная библиотека всегда объединяются по ID и времени изменения — пустой ответ сервера больше не может стереть игры на устройстве.</p><div class="form-grid"><div class="field span-2"><label>Apps Script endpoint</label><input id="sheetEndpoint" placeholder="https://script.google.com/macros/s/.../exec" value="${esc(state.settings.sheetEndpoint || '')}"></div><div class="field span-2"><label>Секрет синхронизации</label><input id="syncSecret" type="password" value="${esc(state.settings.syncSecret || '')}"></div><label class="sync-toggle span-2"><input id="autoSync" type="checkbox" ${state.settings.autoSync === true ? 'checked' : ''}><span><b>Автосинхронизация</b><small>После обновления до v0.11 она один раз отключается из соображений безопасности. Сначала проверь ручную синхронизацию, затем можешь включить снова.</small></span></label></div><div class="settings-actions"><button class="primary" data-action="sync">Синхронизировать сейчас</button><button class="secondary" data-action="sync-test">Проверить подключение</button><button class="secondary" data-action="save-settings">Сохранить настройки</button><button class="secondary" data-action="restore-backup">Восстановить локальную копию</button></div><div class="status-line sync-status">${state.settings.lastSync ? `Последняя синхронизация: ${new Date(state.settings.lastSync).toLocaleString('ru-RU')}` : 'Синхронизация ещё не выполнялась.'}${state.settings.lastLocalBackupAt ? ` · Резервная копия: ${new Date(state.settings.lastLocalBackupAt).toLocaleString('ru-RU')}` : ''}</div><div class="footer-note">Endpoint и секрет остаются только на этом устройстве. В Google Таблицу они не записываются.</div></section>
@@ -1151,6 +1176,7 @@ function bind() {
     });
   }
   document.querySelectorAll('[data-action="rotation-move"]').forEach(x => x.onclick = () => moveRotation(x.dataset.group, x.dataset.id, x.dataset.direction));
+  document.querySelectorAll('[data-action="switch-group"]').forEach(x => x.onclick = () => changeSwitchGroup(x.dataset.switchGroup));
   document.querySelectorAll('[data-action="catalog-refresh-all"]').forEach(x => x.onclick = refreshAllCatalog);
   document.querySelectorAll('[data-action="covers-refresh"]').forEach(x => x.onclick = refreshMissingCovers);
 
@@ -1685,6 +1711,38 @@ async function deleteGame(id) {
   scheduleAutoSync();
 }
 
+async function changeSwitchGroup(nextGroup) {
+  if (nextGroup !== 'handheld' && nextGroup !== 'desktop') return false;
+  const previous=state.settings;
+  if (previous.switchGroup===nextGroup) return false;
+  const oldKey=previous.switchGroup==='handheld'?'handheldRotation':'desktopRotation';
+  const newKey=nextGroup==='handheld'?'handheldRotation':'desktopRotation';
+  const hadSwitchInRotation=Array.isArray(previous[oldKey])&&previous[oldKey].includes('SWITCH');
+  const candidate={
+    ...previous,
+    switchGroup:nextGroup,
+    handheldRotation:[...(previous.handheldRotation||[])].filter(id=>id!=='SWITCH'),
+    desktopRotation:[...(previous.desktopRotation||[])].filter(id=>id!=='SWITCH'),
+    settingsUpdatedAt:nowIso()
+  };
+  if(hadSwitchInRotation&&!candidate[newKey].includes('SWITCH'))candidate[newKey].push('SWITCH');
+  state.settings=migrateSettings(candidate);
+  try{
+    await persist();
+  }catch(error){
+    state.settings=previous;
+    render();
+    setToast('Не удалось сохранить ротацию Nintendo Switch. Попробуй ещё раз.');
+    return false;
+  }
+  render();
+  scheduleAutoSync();
+  setToast(nextGroup==='handheld'
+    ?'Nintendo Switch теперь в портативной ротации'
+    :'Nintendo Switch теперь в домашней ротации');
+  return true;
+}
+
 async function moveRotation(group, id, direction) {
   const key = group === 'desktop' ? 'desktopRotation' : 'handheldRotation';
   const arr = [...state.settings[key]];
@@ -1729,6 +1787,7 @@ function syncableSettings() {
     theme: state.settings.theme,
     handheldRotation: state.settings.handheldRotation,
     desktopRotation: state.settings.desktopRotation,
+    switchGroup: state.settings.switchGroup,
     currentHandheld: state.settings.currentHandheld,
     currentDesktop: state.settings.currentDesktop,
     settingsUpdatedAt: state.settings.settingsUpdatedAt || nowIso(),
