@@ -139,8 +139,8 @@ assert.equal(context.platform('SWITCH').group,'desktop','migration cannot modify
   assert.match(idx,/onboarding-v20\.js\?v=98/);
   assert.match(idx,/settings-dashboard-v18\.js\?v=98/);
   // v98 Switch behavior must survive later PWA releases as well.
-  const pwaVersion=Number(sw.match(/const VERSION=(\\d+);/)?.[1]);
-  const updateVersion=Number(updates.match(/const BUILD\\s*=\\s*(\\d+);/)?.[1]);
+  const pwaVersion=Number(sw.match(/const VERSION=(\d+);/)?.[1]);
+  const updateVersion=Number(updates.match(/const BUILD\s*=\s*(\d+);/)?.[1]);
   assert.ok(pwaVersion>=98,'Switch migration requires a v98+ release');
   assert.equal(updateVersion,pwaVersion,'PWA updater and worker versions must agree');
   assert.ok(sw.includes('"./switch-group-v98.css?v=98"'));
