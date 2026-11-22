@@ -1,0 +1,54 @@
+/* v99: an empty home hero has a single child, unlike the cover + copy hero.
+   Override the <=760px two-column mobile grid rather than squeezing text into
+   its 95px cover column. */
+#app .v16-home-hero.v17-home-empty {
+  display: block;
+  min-height: 0;
+}
+#app .v16-home-hero.v17-home-empty > div {
+  width: 100%;
+  max-width: 650px;
+  min-width: 0;
+}
+#app .v16-home-hero.v17-home-empty h2,
+#app .v16-home-hero.v17-home-empty p {
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+@media (max-width: 760px) {
+  #app .v16-home-hero.v17-home-empty {
+    padding: 24px 22px;
+  }
+  #app .v16-home-hero.v17-home-empty h2 {
+    font-size: clamp(24px, 7vw, 32px);
+    line-height: 1.13;
+    max-width: 100%;
+  }
+  #app .v16-home-hero.v17-home-empty p {
+    max-width: 52ch;
+    line-height: 1.5;
+  }
+}
+
+/* Game-management actions are separated from the regular edit/cover controls. */
+.v99-detail-management {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-top: 16px;
+}
+.v99-detail-management > button {
+  min-height: 42px;
+  white-space: normal;
+}
+@media (max-width: 520px) {
+  .v99-detail-management {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .v99-detail-management > button {
+    width: 100%;
+    min-width: 0;
+  }
+}
