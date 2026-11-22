@@ -84,6 +84,11 @@
       state.gameDetailId = '';
       state.modal = null;
       navigate(action === 'backlog' ? 'backlog' : 'games');
+      // Backlog remembers its own platform filter. Show the moved game even
+      // when the previous filter was for a different console.
+      if (action === 'backlog') {
+        document.querySelector('[data-v23-filter="ALL"]')?.click();
+      }
       scheduleAutoSync();
       setToast(action === 'backlog'
         ? tr('Игра перемещена в Backlog', 'Moved to Backlog')
