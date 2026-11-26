@@ -20,6 +20,7 @@ on:
       - "docs/SWITCH_ROTATION_V98.md"
       - "tests/test_switch_rotation_v98.cjs"
       - "tests/test_backlog_start_v100.cjs"
+      - "tests/test_v100_mobile.py"
       - "backlog-v23.js"
       - "memory-delight-v67.js"
       - "tactile-v78.js"
@@ -112,6 +113,7 @@ on:
       - "docs/SWITCH_ROTATION_V98.md"
       - "tests/test_switch_rotation_v98.cjs"
       - "tests/test_backlog_start_v100.cjs"
+      - "tests/test_v100_mobile.py"
       - "backlog-v23.js"
       - "memory-delight-v67.js"
       - "tactile-v78.js"
@@ -256,3 +258,19 @@ jobs:
           node tests/test_cover_visibility_v97.cjs
           node tests/test_switch_rotation_v98.cjs
           node tests/test_backlog_start_v100.cjs
+
+  mobile-smoke:
+    name: Mobile Chromium smoke test (isolated library)
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install browser test dependencies
+        run: |
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: Check mobile start, spacing and navigation
+        run: python tests/test_v100_mobile.py
