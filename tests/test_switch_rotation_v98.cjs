@@ -134,7 +134,7 @@ assert.equal(context.platform('SWITCH').group,'desktop','migration cannot modify
   assert.match(pc,/switchGroup:state.settings.switchGroup/,'profile sync carries placement to other devices');
   assert.ok(!/['"]switchGroup['"]/.test((b.match(/for\(const key of \[.*?\]\) delete out\[key\]/s)||[])[0]||''),'cloud writer must not drop the switch placement');
   assert.match(idx,/switch-group-v98\.css\?v=98/);
-  assert.match(idx,/app\.js\?v=98/);
+  assert.ok(Number(idx.match(/app\.js\?v=(\d+)/)?.[1])>=98,'app retains Switch migration');
   assert.match(idx,/profile-core\.js\?v=98/);
   assert.match(idx,/onboarding-v20\.js\?v=98/);
   assert.match(idx,/settings-dashboard-v18\.js\?v=98/);
