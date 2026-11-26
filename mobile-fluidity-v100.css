@@ -87,3 +87,32 @@
   #app .rotation-chip { min-width: 47px; padding: 7px 6px; }
   #app .v23-platform-grid { grid-template-columns: 1fr; }
 }
+
+/* Backlog/hero artwork is rendered without the generic .cover class.
+   Anchor and clip its absolute-positioned fallback and badge to the artwork,
+   never to the surrounding card or page. Decorative layers must not eat taps. */
+#app :is(.v16-backlog-cover,.v16-hero-art) {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background: linear-gradient(145deg,hsl(var(--coverHue,260) 72% 55%),hsl(calc(var(--coverHue,260) + 58) 76% 30%));
+}
+#app :is(.v16-backlog-cover,.v16-hero-art) > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+#app :is(.v16-backlog-cover,.v16-hero-art) > :is(.cover-fallback,.cover-platform-badge,img) { pointer-events: none; }
+#app .v16-backlog-card > .v16-backlog-cover { max-width: 100%; min-width: 0; align-self: start; }
+#app .v16-backlog-card :is(.cover-fallback,.cover-platform-badge) { max-width: 100%; }
+@media (max-width: 900px) {
+  html { scroll-padding-top: 84px; scroll-padding-bottom: calc(100px + env(safe-area-inset-bottom)); }
+  #app .v23-backlog-card :is(button,[data-v16-backlog-start]) { scroll-margin-block: 12px; }
+  #app .v23-backlog-card > .v16-backlog-cover { width: 100%; height: auto; aspect-ratio: 3 / 4; }
+  #app .v16-backlog-cover .cover-fallback { padding: 6px; }
+  #app .v16-backlog-cover .cover-fallback strong { font-size: 22px; }
+  #app .v16-backlog-cover .cover-platform-badge { bottom: 4px; right: 4px; font-size: 9px; padding: 3px 4px; }
+}
