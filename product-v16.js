@@ -66,7 +66,39 @@
   navigate=function(view){state.collectionId='';state.franchiseName='';state.gameDetailId='';state.friendCompare=false;baseNavigateV16(view);};
 
   async function saveBacklog(form){const fd=new FormData(form),title=String(fd.get('title')||'').trim(),pid=String(fd.get('platform')||'');if(!title||!pid)return;const now=nowIso(),g=migrateGame({id:crypto.randomUUID?crypto.randomUUID():`b-${Date.now()}-${Math.random().toString(16).slice(2)}`,title,platform:pid,status:'backlog',releaseYear:String(fd.get('releaseYear')||''),genre:String(fd.get('genre')||''),franchise:String(fd.get('franchise')||''),notes:String(fd.get('notes')||''),rating:'',replay:0,coverUrl:'',addedAt:now,updatedAt:now});state.games.push(g);await persist();render();scheduleAutoSync();setToast('Добавлено в Backlog');try{const c=await fetchCoverForGame(g.title,g.releaseYear,g.platform);if(c?.url){g.coverUrl=c.url;g.coverSource=c.source||'';g.updatedAt=nowIso();await persist();render();scheduleAutoSync();}}catch(_){} }
-  async function startBacklog(id){const g=gameById(id);if(!g||g.status!=='backlog')return;g.status='playing';g.updatedAt=nowIso();g.rating='';await persist();scheduleAutoSync();setToast(`${g.title}: прохождение начато`);navigate('playing');}
+  let startingBacklog=false;
+  async function startBacklog(id){
+    if(startingBacklog)return;
+    const g=state.games.find(item=>item&&!item.deletedAt&&String(item.id)===String(id));
+    if(!g||g.status!=='backlog')return;
+    startingBacklog=true;
+    const previousStatus=g.status,previousUpdated=g.updatedAt;
+    const settings=state.settings;
+    const group=platform(g.platform).group,key=currentSettingKey(group);
+    const oldCurrent=settings[key],oldSettingsUpdated=settings.settingsUpdatedAt;
+    const stamp=nowIso();
+    // A backlog record is the same game, not a new record. Preserve its notes,
+    // rating, artwork, replay and original addition date.
+    g.status='playing';
+    g.updatedAt=stamp;
+    if(mcRotationEnabled(group)&&rotationFor(group).includes(g.platform)){
+      setCurrentPlatform(g.platform);
+      settings.settingsUpdatedAt=stamp;
+    }
+    try{
+      await persist();
+    }catch(error){
+      g.status=previousStatus;g.updatedAt=previousUpdated;
+      settings[key]=oldCurrent;settings.settingsUpdatedAt=oldSettingsUpdated;
+      console.error('Backlog start failed',error);
+      setToast(state.settings.language==='en'?'Could not start the game. Please try again.':'Не удалось начать прохождение. Попробуй ещё раз.',{render:false});
+      return;
+    }finally{startingBacklog=false;}
+    // Navigate once, then show a lightweight toast without rebuilding the new view.
+    scheduleAutoSync();
+    navigate('playing');
+    setToast(state.settings.language==='en'?`${g.title}: started playing`:`${g.title}: прохождение начато`,{render:false});
+  }
   async function removeBacklog(id){const g=gameById(id);if(!g||g.status!=='backlog')return;if(!confirm(`Удалить «${g.title}» из Backlog?`))return;g.deletedAt=nowIso();g.updatedAt=g.deletedAt;await persist();scheduleAutoSync();render();}
   async function createCollection(form){const fd=new FormData(form),name=String(fd.get('name')||'').trim(),icon=String(fd.get('icon')||'💾').trim()||'💾';if(!name)return;state.settings.collections=[...collections(),{id:crypto.randomUUID?crypto.randomUUID():`c-${Date.now()}`,name:name.slice(0,60),icon:icon.slice(0,4),gameIds:[],createdAt:nowIso()}];state.settings.settingsUpdatedAt=nowIso();await persist();scheduleAutoSync();render();setToast('Коллекция создана');}
   async function addToCollection(gameId,collectionId){if(!collectionId)return;const c=collections().find(x=>x.id===collectionId);if(!c)return;c.gameIds=[...new Set([...(c.gameIds||[]),gameId])];state.settings.settingsUpdatedAt=nowIso();await persist();scheduleAutoSync();render();setToast('Добавлено в коллекцию');}
