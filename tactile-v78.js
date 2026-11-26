@@ -13,6 +13,8 @@
     try { if (state?.settings?.reducedMotion) return true; } catch (_) {}
     return matchMedia('(prefers-reduced-motion: reduce)').matches;
   };
+  // Skip expensive full-screen snapshots and scroll-linked updates on touch devices.
+  const mobile = matchMedia('(max-width: 900px), (pointer: coarse)');
   const closestOf = (event, selector) => (event.target instanceof Element ? event.target.closest(selector) : null);
 
   /* ---------- Haptics ---------- */
@@ -224,7 +226,7 @@
   window.addEventListener('click', event => {
     if (replaying || !event.isTrusted || event.defaultPrevented || event.button
       || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-    if (typeof document.startViewTransition !== 'function' || reduced()) return;
+    if (typeof document.startViewTransition !== 'function' || reduced() || mobile.matches) return;
     const button = closestOf(event, '[data-nav]');
     if (!button) return;
     let current;
@@ -257,17 +259,20 @@
   function enhanceNav() {
     const nav = root.querySelector('.mobile-nav');
     const active = nav?.querySelector('.mc-mobile-nav-item.active');
-    nav?.querySelector(':scope > .mc-nav-pill')?.remove();
     if (!nav || !active || !nav.offsetWidth) { navMemo = null; return; }
-    const pill = document.createElement('span');
+    let pill = nav.querySelector(':scope > .mc-nav-pill');
+    const x = active.offsetLeft, width=active.offsetWidth, height=active.offsetHeight, top=active.offsetTop;
+    if(pill && navMemo?.nav===nav && navMemo.active===active &&
+       navMemo.x===x && navMemo.width===width && navMemo.height===height && navMemo.top===top)return;
+    const fresh=!pill;
+    if(!pill)pill = document.createElement('span');
     pill.className = 'mc-nav-pill';
     pill.setAttribute('aria-hidden', 'true');
-    nav.prepend(pill);
-    const x = active.offsetLeft;
-    pill.style.width = `${active.offsetWidth}px`;
-    pill.style.height = `${active.offsetHeight}px`;
-    pill.style.top = `${active.offsetTop}px`;
-    const move = navMemo && Math.abs(navMemo.x - x) > 1 && !reduced();
+    if(fresh)nav.prepend(pill);
+    pill.style.width = `${width}px`;
+    pill.style.height = `${height}px`;
+    pill.style.top = `${top}px`;
+    const move = navMemo && Math.abs(navMemo.x - x) > 1 && !reduced() && !mobile.matches;
     if (move) {
       // FLIP: render() rebuilt the bar, so start where the pill was and let it slide.
       pill.style.transition = 'none';
@@ -278,7 +283,7 @@
       active.addEventListener('animationend', () => active.classList.remove('mc-nav-pop'), { once: true });
     }
     pill.style.transform = `translateX(${x}px)`;
-    navMemo = { x };
+    navMemo = { nav, active, x, width, height, top };
   }
 
   function enhanceSettings() {
@@ -314,11 +319,10 @@
 
   const heroes = () => root.querySelectorAll('.v16-home-hero, .v16-detail');
   function parallax() {
-    const still = reduced();
+    const still = reduced() || mobile.matches;
     heroes().forEach(el => {
-      const top = el.getBoundingClientRect().top;
-      const value = still ? 0 : Math.max(-28, Math.min(28, -top * .1));
-      el.style.setProperty('--mc-py', value.toFixed(1));
+      const value = still ? '0.0' : Math.max(-28, Math.min(28, -el.getBoundingClientRect().top * .1)).toFixed(1);
+      if(el.style.getPropertyValue('--mc-py')!==value)el.style.setProperty('--mc-py',value);
     });
   }
 
@@ -359,7 +363,18 @@
   new MutationObserver(records => {
     let rendered = false, feedback = false;
     for (const record of records) {
-      if (record.type === 'childList' && record.target === root) rendered = true;
+      if (record.type === 'childList' && record.target === root) {
+        const changed=[...record.addedNodes,...record.removedNodes];
+        if(changed.some(node=>node instanceof Element && node.matches('.shell,.mobile-nav,.modal-backdrop')))rendered=true;
+        else if(changed.some(node=>node instanceof Element && node.matches('.toast'))) {
+          const toast=root.querySelector(':scope > .toast');
+          if(toast && toast!==lastToast){
+            lastToast=toast;
+            if(!reduced())toast.classList.add('mc-toast-enter');
+          }
+          feedback=true;
+        }
+      }
       else if (record.type === 'attributes') feedback = true;
     }
     if (rendered) onRender();
@@ -369,7 +384,7 @@
   // A network image that lands late fades in; a cached one (load within ~140 ms of render) stays still.
   document.addEventListener('load', event => {
     const img = event.target;
-    if (!(img instanceof HTMLImageElement) || reduced()) return;
+    if (!(img instanceof HTMLImageElement) || reduced() || mobile.matches) return;
     const art = img.closest('.mc-art');
     if (!art || performance.now() - lastRender < 140) return;
     art.classList.add('mc-art-reveal');
@@ -378,6 +393,7 @@
 
   let scrolling = 0;
   window.addEventListener('scroll', () => {
+    if (mobile.matches || reduced()) return;
     if (!scrolling) scrolling = requestAnimationFrame(() => { scrolling = 0; parallax(); });
   }, { passive: true });
   window.addEventListener('resize', () => { navMemo = null; schedule(); });
