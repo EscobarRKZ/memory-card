@@ -19,6 +19,12 @@ on:
       - "index.html"
       - "docs/SWITCH_ROTATION_V98.md"
       - "tests/test_switch_rotation_v98.cjs"
+      - "tests/test_backlog_start_v100.cjs"
+      - "backlog-v23.js"
+      - "memory-delight-v67.js"
+      - "tactile-v78.js"
+      - "game-detail-management-v99.js"
+      - "mobile-fluidity-v100.css"
       - "switch-group-v98.css"
       - "docs/COVER_VISIBILITY_V97.md"
       - "tests/test_cover_visibility_v97.cjs"
@@ -105,6 +111,12 @@ on:
       - "index.html"
       - "docs/SWITCH_ROTATION_V98.md"
       - "tests/test_switch_rotation_v98.cjs"
+      - "tests/test_backlog_start_v100.cjs"
+      - "backlog-v23.js"
+      - "memory-delight-v67.js"
+      - "tactile-v78.js"
+      - "game-detail-management-v99.js"
+      - "mobile-fluidity-v100.css"
       - "switch-group-v98.css"
       - "docs/COVER_VISIBILITY_V97.md"
       - "tests/test_cover_visibility_v97.cjs"
@@ -194,6 +206,11 @@ jobs:
           node --check profile-core.js
           node --check onboarding-v20.js
           node --check product-v14.js
+          node --check product-v16.js
+          node --check backlog-v23.js
+          node --check memory-delight-v67.js
+          node --check tactile-v78.js
+          node --check game-detail-management-v99.js
           node --check settings-dashboard-v18.js
           node --check account-vault-v83.js
           node --check account-deletion-v84.js
@@ -238,3 +255,4 @@ jobs:
           node tests/test_device_health_v96.cjs
           node tests/test_cover_visibility_v97.cjs
           node tests/test_switch_rotation_v98.cjs
+          node tests/test_backlog_start_v100.cjs
