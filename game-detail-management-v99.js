@@ -92,7 +92,7 @@
       scheduleAutoSync();
       setToast(action === 'backlog'
         ? tr('Игра перемещена в Backlog', 'Moved to Backlog')
-        : tr('Игра удалена', 'Game deleted'));
+        : tr('Игра удалена', 'Game deleted'),{render:false});
     } catch (error) {
       game.status = previous.status;
       game.updatedAt = previous.updatedAt;
@@ -100,7 +100,7 @@
       else game.deletedAt = previous.deletedAt;
       console.error('Game detail management failed', error);
       render();
-      setToast(tr('Не удалось сохранить изменение. Попробуй ещё раз.', 'Could not save the change. Please retry.'));
+      setToast(tr('Не удалось сохранить изменение. Попробуй ещё раз.', 'Could not save the change. Please retry.'),{render:false});
     } finally {
       busy = false;
     }
