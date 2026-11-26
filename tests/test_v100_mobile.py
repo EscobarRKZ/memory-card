@@ -42,14 +42,18 @@ def check_mobile(page, width):
     start.wait_for()
     assert start.evaluate("el=>el.getBoundingClientRect().height>=43")
     assert page.evaluate("document.documentElement.scrollWidth<=innerWidth+1")
-    start.click()
+    # A real touch target must not be covered by absolute-positioned artwork.
+    assert page.locator('[data-v23-backlog-card="queued1"] .v16-backlog-cover').evaluate(
+        "el=>getComputedStyle(el).position==='relative' && getComputedStyle(el).overflow==='hidden'")
+    start.evaluate("el=>el.scrollIntoView({block:'center',inline:'nearest'})")
+    start.click(timeout=10000)
     page.wait_for_function("state.view==='playing' && state.games.find(g=>g.id==='queued1').status==='playing'")
     assert page.evaluate("state.settings.currentDesktop==='PS4'")
     assert page.evaluate("state.games.find(g=>g.id==='queued1').notes==='preserve this note'")
     assert page.get_by_text('Queued game 1',exact=True).first.is_visible()
     # Backlog detail uses a modal; capture handler must work even with data-stop.
     page.evaluate("navigate('backlog'); openGame('queued2');")
-    page.locator('.modal [data-v16-backlog-start="queued2"]').click()
+    page.locator('.modal [data-v16-backlog-start="queued2"]').click(timeout=10000)
     page.wait_for_function("state.view==='playing' && !state.modal && state.games.find(g=>g.id==='queued2').status==='playing'")
     page.evaluate("window.__toastShell=document.querySelector('#app .shell');setToast('Notice',{render:false})")
     assert page.evaluate("window.__toastShell===document.querySelector('#app .shell')")
