@@ -95,6 +95,7 @@
       return;
     }finally{startingBacklog=false;}
     // Navigate once, then show a lightweight toast without rebuilding the new view.
+    state.modal=null;
     scheduleAutoSync();
     navigate('playing');
     setToast(state.settings.language==='en'?`${g.title}: started playing`:`${g.title}: прохождение начато`,{render:false});
@@ -114,7 +115,20 @@
 
   document.addEventListener('submit',e=>{if(e.target?.id==='v16BacklogForm'){e.preventDefault();saveBacklog(e.target);}if(e.target?.id==='v16CollectionForm'){e.preventDefault();createCollection(e.target);}});
   document.addEventListener('change',e=>{if(e.target?.id==='gamesView'){try{localStorage.setItem(VIEW_KEY,e.target.value);}catch(_){}setTimeout(enhanceLibrary,0);}if(e.target?.matches('[data-v16-rotation-mode]')){const group=e.target.dataset.v16RotationMode;state.settings[modeKey(group)]=e.target.value;state.settings.settingsUpdatedAt=nowIso();persist().then(()=>scheduleAutoSync());}});
+  // Capture before a modal's data-stop handler or a parent card consumes the tap.
+  document.addEventListener('click',e=>{
+    const button=e.target instanceof Element?e.target.closest('[data-v16-backlog-start]'):null;
+    if(!button)return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    if(startingBacklog||button.disabled)return;
+    button.disabled=true;
+    button.setAttribute('aria-busy','true');
+    startBacklog(button.dataset.v16BacklogStart).catch(console.error).finally(()=>{
+      if(button.isConnected){button.disabled=false;button.removeAttribute('aria-busy');}
+    });
+  },true);
   document.addEventListener('click',e=>{const el=e.target instanceof Element?e.target.closest('[data-v16-game-detail],[data-v16-backlog-start],[data-v16-backlog-remove],[data-v16-collection-open],[data-v16-collection-back],[data-v16-collection-delete],[data-v16-collection-add],[data-v16-collection-remove-game],[data-v16-edit],[data-v16-detail-back],[data-v16-franchise],[data-v16-franchise-back],[data-v16-help],[data-v16-accent],[data-v16-friend-compare],[data-v16-friend-compare-back],.v16-clickable-franchise'):null;if(!el)return;
-    if(el.dataset.v16GameDetail){openGame(el.dataset.v16GameDetail);return;}if(el.dataset.v16BacklogStart){startBacklog(el.dataset.v16BacklogStart);return;}if(el.dataset.v16BacklogRemove){removeBacklog(el.dataset.v16BacklogRemove);return;}if(el.hasAttribute('data-v16-collection-back')){state.collectionId='';render();return;}if(el.dataset.v16CollectionOpen){state.collectionId=el.dataset.v16CollectionOpen;render();return;}if(el.dataset.v16CollectionDelete){deleteCollection(el.dataset.v16CollectionDelete);return;}if(el.dataset.v16CollectionAdd){const s=document.querySelector(`[data-v16-collection-select="${CSS.escape(el.dataset.v16CollectionAdd)}"]`);addToCollection(el.dataset.v16CollectionAdd,s?.value||'');return;}if(el.dataset.v16CollectionRemoveGame){removeFromCollection(el.dataset.gameId,el.dataset.v16CollectionRemoveGame);return;}if(el.dataset.v16Edit){openEdit(el.dataset.v16Edit);return;}if(el.hasAttribute('data-v16-detail-back')){navigate('games');return;}if(el.dataset.v16Franchise){state.franchiseName=el.dataset.v16Franchise;state.view='franchise';render();return;}if(el.hasAttribute('data-v16-franchise-back')){navigate('stats');return;}if(el.classList.contains('v16-clickable-franchise')){const name=el.classList.contains('franchise-chip')?el.textContent.trim():el.querySelector('span')?.textContent?.trim();if(name){state.franchiseName=name;state.view='franchise';render();}return;}if(el.dataset.v16Help){const b=document.querySelector(`[data-v16-helpbox="${el.dataset.v16Help}"]`);if(b)b.hidden=!b.hidden;return;}if(el.dataset.v16Accent){state.settings.accentTheme=el.dataset.v16Accent;state.settings.settingsUpdatedAt=nowIso();persist().then(()=>{applyAccent();render();scheduleAutoSync();});return;}if(el.hasAttribute('data-v16-friend-compare')){state.friendCompare=true;render();return;}if(el.hasAttribute('data-v16-friend-compare-back')){state.friendCompare=false;render();return;}
+    if(el.dataset.v16GameDetail){openGame(el.dataset.v16GameDetail);return;}if(el.dataset.v16BacklogRemove){removeBacklog(el.dataset.v16BacklogRemove);return;}if(el.hasAttribute('data-v16-collection-back')){state.collectionId='';render();return;}if(el.dataset.v16CollectionOpen){state.collectionId=el.dataset.v16CollectionOpen;render();return;}if(el.dataset.v16CollectionDelete){deleteCollection(el.dataset.v16CollectionDelete);return;}if(el.dataset.v16CollectionAdd){const s=document.querySelector(`[data-v16-collection-select="${CSS.escape(el.dataset.v16CollectionAdd)}"]`);addToCollection(el.dataset.v16CollectionAdd,s?.value||'');return;}if(el.dataset.v16CollectionRemoveGame){removeFromCollection(el.dataset.gameId,el.dataset.v16CollectionRemoveGame);return;}if(el.dataset.v16Edit){openEdit(el.dataset.v16Edit);return;}if(el.hasAttribute('data-v16-detail-back')){navigate('games');return;}if(el.dataset.v16Franchise){state.franchiseName=el.dataset.v16Franchise;state.view='franchise';render();return;}if(el.hasAttribute('data-v16-franchise-back')){navigate('stats');return;}if(el.classList.contains('v16-clickable-franchise')){const name=el.classList.contains('franchise-chip')?el.textContent.trim():el.querySelector('span')?.textContent?.trim();if(name){state.franchiseName=name;state.view='franchise';render();}return;}if(el.dataset.v16Help){const b=document.querySelector(`[data-v16-helpbox="${el.dataset.v16Help}"]`);if(b)b.hidden=!b.hidden;return;}if(el.dataset.v16Accent){state.settings.accentTheme=el.dataset.v16Accent;state.settings.settingsUpdatedAt=nowIso();persist().then(()=>{applyAccent();render();scheduleAutoSync();});return;}if(el.hasAttribute('data-v16-friend-compare')){state.friendCompare=true;render();return;}if(el.hasAttribute('data-v16-friend-compare-back')){state.friendCompare=false;render();return;}
   });
 })();
