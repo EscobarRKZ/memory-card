@@ -66,7 +66,40 @@
   navigate=function(view){state.collectionId='';state.franchiseName='';state.gameDetailId='';state.friendCompare=false;baseNavigateV16(view);};
 
   async function saveBacklog(form){const fd=new FormData(form),title=String(fd.get('title')||'').trim(),pid=String(fd.get('platform')||'');if(!title||!pid)return;const now=nowIso(),g=migrateGame({id:crypto.randomUUID?crypto.randomUUID():`b-${Date.now()}-${Math.random().toString(16).slice(2)}`,title,platform:pid,status:'backlog',releaseYear:String(fd.get('releaseYear')||''),genre:String(fd.get('genre')||''),franchise:String(fd.get('franchise')||''),notes:String(fd.get('notes')||''),rating:'',replay:0,coverUrl:'',addedAt:now,updatedAt:now});state.games.push(g);await persist();render();scheduleAutoSync();setToast('Добавлено в Backlog');try{const c=await fetchCoverForGame(g.title,g.releaseYear,g.platform);if(c?.url){g.coverUrl=c.url;g.coverSource=c.source||'';g.updatedAt=nowIso();await persist();render();scheduleAutoSync();}}catch(_){} }
-  async function startBacklog(id){const g=gameById(id);if(!g||g.status!=='backlog')return;g.status='playing';g.updatedAt=nowIso();g.rating='';await persist();scheduleAutoSync();setToast(`${g.title}: прохождение начато`);navigate('playing');}
+  let startingBacklog=false;
+  async function startBacklog(id){
+    if(startingBacklog)return;
+    const g=state.games.find(item=>item&&!item.deletedAt&&String(item.id)===String(id));
+    if(!g||g.status!=='backlog')return;
+    startingBacklog=true;
+    const previousStatus=g.status,previousUpdated=g.updatedAt;
+    const settings=state.settings;
+    const group=platform(g.platform).group,key=currentSettingKey(group);
+    const oldCurrent=settings[key],oldSettingsUpdated=settings.settingsUpdatedAt;
+    const stamp=nowIso();
+    // A backlog record is the same game, not a new record. Preserve its notes,
+    // rating, artwork, replay and original addition date.
+    g.status='playing';
+    g.updatedAt=stamp;
+    if(mcRotationEnabled(group)&&rotationFor(group).includes(g.platform)){
+      setCurrentPlatform(g.platform);
+      settings.settingsUpdatedAt=stamp;
+    }
+    try{
+      await persist();
+    }catch(error){
+      g.status=previousStatus;g.updatedAt=previousUpdated;
+      settings[key]=oldCurrent;settings.settingsUpdatedAt=oldSettingsUpdated;
+      console.error('Backlog start failed',error);
+      setToast(state.settings.language==='en'?'Could not start the game. Please try again.':'Не удалось начать прохождение. Попробуй ещё раз.',{render:false});
+      return;
+    }finally{startingBacklog=false;}
+    // Navigate once, then show a lightweight toast without rebuilding the new view.
+    state.modal=null;
+    scheduleAutoSync();
+    navigate('playing');
+    setToast(state.settings.language==='en'?`${g.title}: started playing`:`${g.title}: прохождение начато`,{render:false});
+  }
   async function removeBacklog(id){const g=gameById(id);if(!g||g.status!=='backlog')return;if(!confirm(`Удалить «${g.title}» из Backlog?`))return;g.deletedAt=nowIso();g.updatedAt=g.deletedAt;await persist();scheduleAutoSync();render();}
   async function createCollection(form){const fd=new FormData(form),name=String(fd.get('name')||'').trim(),icon=String(fd.get('icon')||'💾').trim()||'💾';if(!name)return;state.settings.collections=[...collections(),{id:crypto.randomUUID?crypto.randomUUID():`c-${Date.now()}`,name:name.slice(0,60),icon:icon.slice(0,4),gameIds:[],createdAt:nowIso()}];state.settings.settingsUpdatedAt=nowIso();await persist();scheduleAutoSync();render();setToast('Коллекция создана');}
   async function addToCollection(gameId,collectionId){if(!collectionId)return;const c=collections().find(x=>x.id===collectionId);if(!c)return;c.gameIds=[...new Set([...(c.gameIds||[]),gameId])];state.settings.settingsUpdatedAt=nowIso();await persist();scheduleAutoSync();render();setToast('Добавлено в коллекцию');}
@@ -82,7 +115,20 @@
 
   document.addEventListener('submit',e=>{if(e.target?.id==='v16BacklogForm'){e.preventDefault();saveBacklog(e.target);}if(e.target?.id==='v16CollectionForm'){e.preventDefault();createCollection(e.target);}});
   document.addEventListener('change',e=>{if(e.target?.id==='gamesView'){try{localStorage.setItem(VIEW_KEY,e.target.value);}catch(_){}setTimeout(enhanceLibrary,0);}if(e.target?.matches('[data-v16-rotation-mode]')){const group=e.target.dataset.v16RotationMode;state.settings[modeKey(group)]=e.target.value;state.settings.settingsUpdatedAt=nowIso();persist().then(()=>scheduleAutoSync());}});
+  // Capture before a modal's data-stop handler or a parent card consumes the tap.
+  document.addEventListener('click',e=>{
+    const button=e.target instanceof Element?e.target.closest('[data-v16-backlog-start]'):null;
+    if(!button)return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    if(startingBacklog||button.disabled)return;
+    button.disabled=true;
+    button.setAttribute('aria-busy','true');
+    startBacklog(button.dataset.v16BacklogStart).catch(console.error).finally(()=>{
+      if(button.isConnected){button.disabled=false;button.removeAttribute('aria-busy');}
+    });
+  },true);
   document.addEventListener('click',e=>{const el=e.target instanceof Element?e.target.closest('[data-v16-game-detail],[data-v16-backlog-start],[data-v16-backlog-remove],[data-v16-collection-open],[data-v16-collection-back],[data-v16-collection-delete],[data-v16-collection-add],[data-v16-collection-remove-game],[data-v16-edit],[data-v16-detail-back],[data-v16-franchise],[data-v16-franchise-back],[data-v16-help],[data-v16-accent],[data-v16-friend-compare],[data-v16-friend-compare-back],.v16-clickable-franchise'):null;if(!el)return;
-    if(el.dataset.v16GameDetail){openGame(el.dataset.v16GameDetail);return;}if(el.dataset.v16BacklogStart){startBacklog(el.dataset.v16BacklogStart);return;}if(el.dataset.v16BacklogRemove){removeBacklog(el.dataset.v16BacklogRemove);return;}if(el.hasAttribute('data-v16-collection-back')){state.collectionId='';render();return;}if(el.dataset.v16CollectionOpen){state.collectionId=el.dataset.v16CollectionOpen;render();return;}if(el.dataset.v16CollectionDelete){deleteCollection(el.dataset.v16CollectionDelete);return;}if(el.dataset.v16CollectionAdd){const s=document.querySelector(`[data-v16-collection-select="${CSS.escape(el.dataset.v16CollectionAdd)}"]`);addToCollection(el.dataset.v16CollectionAdd,s?.value||'');return;}if(el.dataset.v16CollectionRemoveGame){removeFromCollection(el.dataset.gameId,el.dataset.v16CollectionRemoveGame);return;}if(el.dataset.v16Edit){openEdit(el.dataset.v16Edit);return;}if(el.hasAttribute('data-v16-detail-back')){navigate('games');return;}if(el.dataset.v16Franchise){state.franchiseName=el.dataset.v16Franchise;state.view='franchise';render();return;}if(el.hasAttribute('data-v16-franchise-back')){navigate('stats');return;}if(el.classList.contains('v16-clickable-franchise')){const name=el.classList.contains('franchise-chip')?el.textContent.trim():el.querySelector('span')?.textContent?.trim();if(name){state.franchiseName=name;state.view='franchise';render();}return;}if(el.dataset.v16Help){const b=document.querySelector(`[data-v16-helpbox="${el.dataset.v16Help}"]`);if(b)b.hidden=!b.hidden;return;}if(el.dataset.v16Accent){state.settings.accentTheme=el.dataset.v16Accent;state.settings.settingsUpdatedAt=nowIso();persist().then(()=>{applyAccent();render();scheduleAutoSync();});return;}if(el.hasAttribute('data-v16-friend-compare')){state.friendCompare=true;render();return;}if(el.hasAttribute('data-v16-friend-compare-back')){state.friendCompare=false;render();return;}
+    if(el.dataset.v16GameDetail){openGame(el.dataset.v16GameDetail);return;}if(el.dataset.v16BacklogRemove){removeBacklog(el.dataset.v16BacklogRemove);return;}if(el.hasAttribute('data-v16-collection-back')){state.collectionId='';render();return;}if(el.dataset.v16CollectionOpen){state.collectionId=el.dataset.v16CollectionOpen;render();return;}if(el.dataset.v16CollectionDelete){deleteCollection(el.dataset.v16CollectionDelete);return;}if(el.dataset.v16CollectionAdd){const s=document.querySelector(`[data-v16-collection-select="${CSS.escape(el.dataset.v16CollectionAdd)}"]`);addToCollection(el.dataset.v16CollectionAdd,s?.value||'');return;}if(el.dataset.v16CollectionRemoveGame){removeFromCollection(el.dataset.gameId,el.dataset.v16CollectionRemoveGame);return;}if(el.dataset.v16Edit){openEdit(el.dataset.v16Edit);return;}if(el.hasAttribute('data-v16-detail-back')){navigate('games');return;}if(el.dataset.v16Franchise){state.franchiseName=el.dataset.v16Franchise;state.view='franchise';render();return;}if(el.hasAttribute('data-v16-franchise-back')){navigate('stats');return;}if(el.classList.contains('v16-clickable-franchise')){const name=el.classList.contains('franchise-chip')?el.textContent.trim():el.querySelector('span')?.textContent?.trim();if(name){state.franchiseName=name;state.view='franchise';render();}return;}if(el.dataset.v16Help){const b=document.querySelector(`[data-v16-helpbox="${el.dataset.v16Help}"]`);if(b)b.hidden=!b.hidden;return;}if(el.dataset.v16Accent){state.settings.accentTheme=el.dataset.v16Accent;state.settings.settingsUpdatedAt=nowIso();persist().then(()=>{applyAccent();render();scheduleAutoSync();});return;}if(el.hasAttribute('data-v16-friend-compare')){state.friendCompare=true;render();return;}if(el.hasAttribute('data-v16-friend-compare-back')){state.friendCompare=false;render();return;}
   });
 })();

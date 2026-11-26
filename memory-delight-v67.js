@@ -233,13 +233,25 @@
   // their view transition. Only expiry/dismissal becomes a targeted DOM removal.
   // Rendering still runs the v13 appearance/translation enhancement normally.
   if (typeof setToast === 'function') {
-    setToast = function(msg) {
+    setToast = function(msg, options = {}) {
       toastGeneration++; feedback = null;
       stopToastTimer(); toastPauses.clear();
       toastNode = null; toastReturnFocus = null; toastRemaining = TOAST_LIFETIME;
       state.toast = msg;
       if (document.hidden) toastPauses.add('hidden');
-      render();
+      if(options.render === false){
+        const root=document.querySelector('#app');
+        if(root){
+          const old=root.querySelector(':scope > .toast');
+          old?.remove();
+          if(msg){
+            const notice=document.createElement('div');
+            notice.className='toast';
+            notice.textContent=String(msg);
+            root.appendChild(notice);
+          }
+        }
+      }else render();
       enhanceToast();
     };
   }

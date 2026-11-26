@@ -105,7 +105,7 @@
   }
   function cardMarkup(g){
     const meta=[g.releaseYear,g.genre,g.franchise].filter(Boolean).map(esc).join(' · ');
-    return `<article class="v16-backlog-card v23-backlog-card" data-v23-backlog-card="${esc(g.id)}">${coverMarkup(g,'v16-backlog-cover')}<div class="v23-backlog-card-copy"><div class="v23-card-top"><span class="v16-platform-pill">${esc(platform(g.platform).abbr)}</span>${g.releaseYear?`<span class="v23-year">${esc(g.releaseYear)}</span>`:''}</div><h3>${esc(g.title)}</h3>${meta?`<p class="v23-card-meta">${meta}</p>`:(g.notes?`<p class="v23-card-meta">${esc(g.notes)}</p>`:'')}<div class="v16-card-actions v23-card-actions"><button class="primary compact" data-v16-backlog-start="${esc(g.id)}">Начинаю проходить</button><button class="ghost compact" data-v16-backlog-remove="${esc(g.id)}">Удалить</button></div></div></article>`;
+    return `<article class="v16-backlog-card v23-backlog-card" data-v23-backlog-card="${esc(g.id)}">${coverMarkup(g,'v16-backlog-cover')}<div class="v23-backlog-card-copy"><div class="v23-card-top"><span class="v16-platform-pill">${esc(platform(g.platform).abbr)}</span>${g.releaseYear?`<span class="v23-year">${esc(g.releaseYear)}</span>`:''}</div><h3>${esc(g.title)}</h3>${meta?`<p class="v23-card-meta">${meta}</p>`:(g.notes?`<p class="v23-card-meta">${esc(g.notes)}</p>`:'')}<div class="v16-card-actions v23-card-actions"><button type="button" class="primary compact" data-v16-backlog-start="${esc(g.id)}">Начинаю проходить</button><button type="button" class="ghost compact" data-v16-backlog-remove="${esc(g.id)}">Удалить</button></div></div></article>`;
   }
   function resultsMarkup(){
     const games=visibleGames();
@@ -203,7 +203,7 @@
     await persist();
     scheduleAutoSync();
     render();
-    setToast(`Добавлено в Backlog · ${platform(addPlatform).abbr}`);
+    setToast(`Добавлено в Backlog · ${platform(addPlatform).abbr}`,{render:false});
     if(!g.coverUrl){
       try{
         const c=await fetchCoverForGame(g.title,g.releaseYear,g.platform);
