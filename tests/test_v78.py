@@ -115,10 +115,10 @@ def run():
         page.click('.mobile-nav [data-nav="games"]')
         page.wait_for_timeout(900)
         s = pill_state()
-        check('section changed through a view transition', page.evaluate('window.__vt') == 1 and s and s['view'] == 'games', str(s))
+        check('mobile section changes without a full-screen transition', page.evaluate('window.__vt') == 0 and s and s['view'] == 'games', str(s))
         check('pill followed to the new item', s and abs(s['x'] - s['left']) < 1.5, str(s))
         check('nav tap gives a tick', page.evaluate('window.__vib') == [8], str(page.evaluate('window.__vib')))
-        check('nav is glass (backdrop blur)', 'blur' in page.evaluate("getComputedStyle(document.querySelector('#app .mobile-nav')).backdropFilter"))
+        check('mobile nav avoids expensive backdrop blur', 'none' == page.evaluate("getComputedStyle(document.querySelector('#app .mobile-nav')).backdropFilter"))
         page.screenshot(path=str(OUT / 'mobile-games.png'))
 
         # Press feedback: mouse press applies the class at once and the card squeezes.
@@ -220,7 +220,7 @@ def run():
         page.wait_for_timeout(700)
         check('no vibration when switched off', page.evaluate('window.__vib') == [], str(page.evaluate('window.__vib')))
 
-        # Hero parallax follows scroll.
+        # Mobile hero remains stable while scrolling.
         navigate(page, 'home')
         page.evaluate('render()')
         page.wait_for_timeout(300)
@@ -228,7 +228,7 @@ def run():
         page.evaluate('window.scrollTo(0, 120)')
         page.wait_for_timeout(300)
         after = page.evaluate("getComputedStyle(document.querySelector('.v16-home-hero')).getPropertyValue('--mc-py')")
-        check('hero parallax value changes with scroll', before.strip() != after.strip(), f'{before!r} -> {after!r}')
+        check('mobile hero stays stationary while scrolling', before.strip() == after.strip(), f'{before!r} -> {after!r}')
         check('no console or page errors (mobile)', not errors, '; '.join(errors[:3]))
         browser.close()
 
